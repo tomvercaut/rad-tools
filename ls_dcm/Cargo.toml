@@ -1,0 +1,26 @@
+[package]
+name = "rad-tools-ls-dcm"
+description = " A command line interface (CLI) application for reading and listing RTPLAN DICOM files."
+
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dicom-core.workspace = true
+dicom-object.workspace = true
+dicom-dictionary-std.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+walkdir.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+comfy-table.workspace = true
+
+[[bin]]
+name = "ls_rtplan"
+path = "src/bin/ls_rtplan.rs"
