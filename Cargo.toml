@@ -1,5 +1,5 @@
 [workspace]
-members = [ "ls_dcm"]
+members = [ "dicom-pixel-data", "ls_dcm"]
 resolver = "2"
 
 [workspace.package]
