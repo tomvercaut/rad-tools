@@ -56,6 +56,23 @@ impl From<String> for PhotometricInterpretation {
     }
 }
 
+impl AsRef<str> for PhotometricInterpretation {
+    fn as_ref(&self) -> &str {
+        match self {
+            PhotometricInterpretation::Monochrome1 => {"MONOCHROME1"}
+            PhotometricInterpretation::Monochrome2 => {"MONOCHROME2"}
+            PhotometricInterpretation::PaletteColor => {"PALETTE_COLOR"}
+            PhotometricInterpretation::Rgb => {"RGB"}
+            PhotometricInterpretation::YbrFull => {"YBR_FULL"}
+            PhotometricInterpretation::YbrFull422 => {"YBR_FULL_422"}
+            PhotometricInterpretation::YbrPartial420 => {"YBR_PARTIAL_420"}
+            PhotometricInterpretation::YbrIct => {"YBR_ICT"}
+            PhotometricInterpretation::YbrRct => {"YBR_RCT"}
+            PhotometricInterpretation::Other(s) => {s}
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum PlanarConfiguration {
     ColorByPixel,
