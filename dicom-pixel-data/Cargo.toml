@@ -7,8 +7,6 @@ authors.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dicom-core.workspace = true
-dicom-object.workspace = true
 dicom-dictionary-std.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

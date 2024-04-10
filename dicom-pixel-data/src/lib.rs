@@ -2,8 +2,6 @@ mod attributes;
 pub use attributes::*;
 
 mod decode;
+mod raw_decoder;
 
-#[cfg(test)]
-mod tests {
-    
-}
+pub use decode::*;
