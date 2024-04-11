@@ -1,5 +1,5 @@
 #[derive(thiserror::Error, Debug, PartialEq)]
-pub enum DecodeError {
+pub enum DecodingError {
     #[error("Unsupported transfer syntax in decoder: {0}")]
     UnsupportedTransferSyntax(String),
     #[error("Expected byte length: {0}, actual byte length: {1}")]
@@ -18,9 +18,11 @@ pub enum PixelValues {
     U8(Vec<u8>),
     U16(Vec<u16>),
     U32(Vec<u32>),
+    U64(Vec<u64>),
     I8(Vec<i8>),
     I16(Vec<i16>),
     I32(Vec<i32>),
+    I64(Vec<i64>),
     F32(Vec<f32>),
     F64(Vec<f64>),
 }
@@ -32,17 +34,16 @@ pub enum PixelValues {
 /// a reference to `DecodingParameters` and returns a `Result` containing the
 /// decoded `PixelValues` or an error of type `DecodeError`.
 pub trait PixelDecoder<DecodingParameters> {
-    
     /// Decodes the given parameters to obtain pixel values.
-///
-/// # Arguments
-///
-/// * `params` - A reference to the `DecodingParameters` struct containing the necessary
-///              parameters for decoding.
-///
-/// # Returns
-///
-/// Returns a `Result` containing the decoded `PixelValues` on success, or a `DecodeError` on failure.
-fn decode(&self, params: &DecodingParameters) -> Result<PixelValues, DecodeError>;
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - A reference to the `DecodingParameters` struct containing the necessary
+    ///              parameters for decoding.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result` containing the decoded `PixelValues` on success, or a `DecodeError` on failure.
+    fn decode(&self, params: &DecodingParameters) -> Result<PixelValues, DecodingError>;
 }
 

@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use dicom_dictionary_std::uids;
-use crate::{DecodeError, PhotometricInterpretation, PixelDecoder, PixelRepresentation, PixelValues, PlanarConfiguration};
-use crate::DecodeError::UnsupportedNumberOfBits;
+use crate::{DecodingError, PhotometricInterpretation, PixelDecoder, PixelRepresentation, PixelValues, PlanarConfiguration};
+use crate::DecodingError::UnsupportedNumberOfBits;
 
 #[derive(Clone, Debug, Default)]
 pub struct RawPixelDecoder {
@@ -9,11 +9,11 @@ pub struct RawPixelDecoder {
 }
 
 impl<'a> PixelDecoder<DecodingData<'a>> for RawPixelDecoder {
-    fn decode(&self, params: &DecodingData<'a>) -> Result<PixelValues, DecodeError> {
+    fn decode(&self, params: &DecodingData<'a>) -> Result<PixelValues, DecodingError> {
         match params.transfer_syntax.as_str() {
             uids::EXPLICIT_VR_LITTLE_ENDIAN | uids::IMPLICIT_VR_LITTLE_ENDIAN => { decode_little_endian(params) }
             &_ => {
-                Err(DecodeError::UnsupportedTransferSyntax(params.transfer_syntax.clone()))
+                Err(DecodingError::UnsupportedTransferSyntax(params.transfer_syntax.clone()))
             }
         }
     }
@@ -42,20 +42,20 @@ impl<'a> PixelDecoder<DecodingData<'a>> for RawPixelDecoder {
 /// - `rescale_intercept`: The intercept value used for rescaling the pixel values.
 /// - `rescale_slope`: The slope value used for rescaling the pixel values.
 pub struct DecodingData<'a> {
-    transfer_syntax: String,
-    data: Cow<'a, [u8]>,
-    rows: u32,
-    columns: u32,
-    number_of_frames: u32,
-    photometric_interpretation: PhotometricInterpretation,
-    samples_per_pixel: u16,
-    planar_configuration: PlanarConfiguration,
-    bits_allocated: u16,
-    bits_stored: u16,
-    high_bit: u16,
-    pixel_represenation: PixelRepresentation,
-    rescale_intercept: f64,
-    rescale_slope: f64,
+    pub(crate) transfer_syntax: String,
+    pub(crate) data: Cow<'a, [u8]>,
+    pub(crate) rows: u32,
+    pub(crate) columns: u32,
+    pub(crate) number_of_frames: u32,
+    pub(crate) photometric_interpretation: PhotometricInterpretation,
+    pub(crate) samples_per_pixel: u16,
+    pub(crate) planar_configuration: PlanarConfiguration,
+    pub(crate) bits_allocated: u16,
+    pub(crate) bits_stored: u16,
+    pub(crate) high_bit: u16,
+    pub(crate) pixel_represenation: PixelRepresentation,
+    pub(crate) rescale_intercept: f64,
+    pub(crate) rescale_slope: f64,
 }
 
 /// Decode the given data in little endian format.
@@ -71,10 +71,10 @@ pub struct DecodingData<'a> {
 /// # Errors
 ///
 /// * `DecodeError::UnsupportedPhotometricInterpretation` - If the photometric interpretation is not supported.
-fn decode_little_endian(data: &DecodingData) -> Result<PixelValues, DecodeError> {
+fn decode_little_endian(data: &DecodingData) -> Result<PixelValues, DecodingError> {
     match data.photometric_interpretation {
         PhotometricInterpretation::Monochrome1 | PhotometricInterpretation::Monochrome2 => { decode_little_endian_monochrome(data) }
-        _ => { Err(DecodeError::UnsupportedPhotometricInterpretation(data.photometric_interpretation.as_ref().to_string())) }
+        _ => { Err(DecodingError::UnsupportedPhotometricInterpretation(data.photometric_interpretation.as_ref().to_string())) }
     }
 }
 
@@ -95,13 +95,13 @@ fn decode_little_endian(data: &DecodingData) -> Result<PixelValues, DecodeError>
 ///   not match the expected number of bytes calculated based on the decoding parameters.
 /// * `DecodeError::UnsupportedNumberOfBits(bits)` - When the number of bits allocated per pixel
 ///   is not supported by this function.
-fn decode_little_endian_monochrome(data: &DecodingData) -> Result<PixelValues, DecodeError> {
+fn decode_little_endian_monochrome(data: &DecodingData) -> Result<PixelValues, DecodingError> {
     let num_pixels = (data.rows * data.columns * data.number_of_frames) as usize;
     let num_samples = num_pixels * data.samples_per_pixel as usize;
 
     let nbytes = num_samples * data.bits_allocated as usize / 8;
     if nbytes != data.data.len() {
-        return Err(DecodeError::ExpectedByteMismatch(nbytes, data.data.len()));
+        return Err(DecodingError::ExpectedByteMismatch(nbytes, data.data.len()));
     }
 
     match data.pixel_represenation {
@@ -110,7 +110,7 @@ fn decode_little_endian_monochrome(data: &DecodingData) -> Result<PixelValues, D
                 8 => {
                     let n = data.data.len();
                     let mut tv = Vec::with_capacity(num_samples);
-                    let mask = u8_mask(data.high_bit as u8)?;
+                    let mask = u8_mask(data.bits_stored as u8)?;
                     for i in 0..n {
                         let b = data.data[i];
                         tv.push(b & mask);
@@ -121,7 +121,7 @@ fn decode_little_endian_monochrome(data: &DecodingData) -> Result<PixelValues, D
                     let n = data.data.len();
                     let mut i = 0;
                     let mut tv = Vec::with_capacity(num_samples);
-                    let mask = u16_mask(data.high_bit)?;
+                    let mask = u16_mask(data.bits_stored)?;
                     while i < n {
                         let b0 = data.data[i];
                         let b1 = data.data[i + 1];
@@ -141,7 +141,7 @@ fn decode_little_endian_monochrome(data: &DecodingData) -> Result<PixelValues, D
                 8 => {
                     let mut tv = vec![];
                     let n = data.data.len();
-                    let mask = u8_mask(data.high_bit as u8)?;
+                    let mask = u8_mask(data.bits_stored as u8)?;
                     for i in 0..n {
                         let b = data.data[i];
                         let value = i8::from_le_bytes([b]);
@@ -153,7 +153,7 @@ fn decode_little_endian_monochrome(data: &DecodingData) -> Result<PixelValues, D
                     let n = data.data.len();
                     let mut i = 0;
                     let mut tv = vec![];
-                    let mask = u16_mask(data.high_bit)?;
+                    let mask = u16_mask(data.bits_stored)?;
                     while i < n {
                         let b0 = data.data[i];
                         let b1 = data.data[i + 1];
@@ -184,9 +184,9 @@ fn decode_little_endian_monochrome(data: &DecodingData) -> Result<PixelValues, D
 /// # Errors
 ///
 /// Returns a `DecodeError` if the `high_bit` is greater than or equal to 8.
-fn u8_mask(high_bit: u8) -> Result<u8, DecodeError> {
+fn u8_mask(high_bit: u8) -> Result<u8, DecodingError> {
     if high_bit >= 8 {
-        return Err(DecodeError::U8MaskHighBitOutOfBound(high_bit));
+        return Err(DecodingError::U8MaskHighBitOutOfBound(high_bit));
     }
     let mut mask = 0u8;
     for i in 0..high_bit {
@@ -208,9 +208,9 @@ fn u8_mask(high_bit: u8) -> Result<u8, DecodeError> {
 /// # Errors
 ///
 /// Returns a `DecodeError` if the `high_bit` is greater than or equal to 16.
-fn u16_mask(high_bit: u16) -> Result<u16, DecodeError> {
+fn u16_mask(high_bit: u16) -> Result<u16, DecodingError> {
     if high_bit >= 16 {
-        return Err(DecodeError::U16MaskHighBitOutOfBound(high_bit));
+        return Err(DecodingError::U16MaskHighBitOutOfBound(high_bit));
     }
     let mut mask = 0u16;
     for i in 0..high_bit {
@@ -249,7 +249,7 @@ mod tests {
     fn u8_mask_out_of_bounds() {
         match u8_mask(8) {
             Ok(_) => panic!("Expected error, but got Ok(_)!"),
-            Err(e) => assert_eq!(e, DecodeError::U8MaskHighBitOutOfBound(8)),
+            Err(e) => assert_eq!(e, DecodingError::U8MaskHighBitOutOfBound(8)),
         }
     }
 
@@ -277,7 +277,7 @@ mod tests {
     fn u16_mask_out_of_bounds() {
         match u16_mask(16) {
             Ok(_) => panic!("Expected error, but got Ok(_)!"),
-            Err(e) => assert_eq!(e, DecodeError::U16MaskHighBitOutOfBound(16)),
+            Err(e) => assert_eq!(e, DecodingError::U16MaskHighBitOutOfBound(16)),
         }
     }
 
