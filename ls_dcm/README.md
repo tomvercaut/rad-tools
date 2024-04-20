@@ -38,6 +38,9 @@ Options:
       --debug
           Enable logging at DEBUG level
 
+      --single-threaded-listing
+          Only use one thread to list the (DICOM) files in the directory
+
       --trace
           Enable logging at TRACE level
 
