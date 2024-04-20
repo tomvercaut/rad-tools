@@ -1,18 +1,18 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use clap::Parser;
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::Table;
-use tracing::{debug, trace, warn, Level};
+use tracing::{debug, error, Level, trace, warn};
 use walkdir::{DirEntry, WalkDir};
 
 use rad_tools_ls_dcm::io::read_dicom_file_partial_by_modalities;
 use rad_tools_ls_dcm::model::{DicomFile, Modality, SopClass};
 
 /// A command line interface (CLI) application for reading and listing RTPLAN DICOM files.
-/// 
+///
 /// Application enables the user to specify the directory from which the DICOM files are read,
 /// as well as additional options such as filtering by filename prefixes, limiting the number of displayed results,
 /// sorting the files by last modified timestamp, and enabling logging at different levels.
@@ -42,6 +42,9 @@ struct Cli {
     /// Enable logging at DEBUG level.
     #[arg(long, default_value_t = false)]
     debug: bool,
+    /// Only use one thread to list the (DICOM) files in the directory.
+    #[arg(long, default_value_t = false)]
+    single_threaded_listing: bool,
     /// Enable logging at TRACE level.
     #[arg(long, default_value_t = false)]
     trace: bool,
@@ -69,21 +72,39 @@ async fn main() {
         cli.dir = Some(".".to_string());
     }
 
-    let has_prefixes = !cli.prefixes.is_empty();
-    let mut files = ls_files(cli.dir.as_ref().unwrap(), |entry| -> bool {
-        if !entry.path().is_file() {
-            return false;
-        }
-        return if has_prefixes {
-            entry
-                .file_name()
-                .to_str()
-                .map(|s| cli.prefixes.iter().any(|prefix| s.starts_with(prefix)))
-                .unwrap_or(false)
-        } else {
-            true
-        };
-    });
+    let dir_path = PathBuf::from(cli.dir.as_ref().unwrap());
+    let mut files = if !cli.single_threaded_listing {
+        ls_files2(dir_path, &cli.prefixes, |entry, prefixes| -> bool {
+            if !entry.path().is_file() {
+                return false;
+            }
+            return if !prefixes.is_empty() {
+                entry
+                    .file_name()
+                    .to_str()
+                    .map(|s| prefixes.iter().any(|prefix| s.starts_with(prefix)))
+                    .unwrap_or(false)
+            } else {
+                true
+            };
+        },
+        ).await
+    } else {
+        ls_files(dir_path, |entry| -> bool {
+            if !entry.path().is_file() {
+                return false;
+            }
+            return if !cli.prefixes.is_empty() {
+                entry
+                    .file_name()
+                    .to_str()
+                    .map(|s| cli.prefixes.iter().any(|prefix| s.starts_with(prefix)))
+                    .unwrap_or(false)
+            } else {
+                true
+            };
+        })
+    };
     trace!("List of filtered files:");
     for (_t, entry) in &files {
         trace!("Path: {:#?}", entry.path());
@@ -215,9 +236,10 @@ async fn read_dicom_files(
 ///
 /// * `path` - A path to the directory.
 /// * `filter` - A closure that takes a `DirEntry` as parameter and returns a boolean value indicating whether the file should be included in the result
+#[allow(dead_code)]
 fn ls_files<P: AsRef<Path>, F>(path: P, filter: F) -> Vec<(SystemTime, DirEntry)>
-where
-    F: Fn(&DirEntry) -> bool,
+    where
+        F: Fn(&DirEntry) -> bool,
 {
     let path = path.as_ref();
     debug!("Listing files in: {:#?}", path);
@@ -236,5 +258,109 @@ where
         }
     }
     debug!("Listing files in: {:#?} completed", path);
+    v
+}
+
+
+#[derive(thiserror::Error, Debug)]
+pub enum FileListError {
+    #[error("Unable to iterate {0:#?}")]
+    IterationError(PathBuf),
+    #[error("Unable to obtain last modified timestamp from {0:#?}")]
+    ModifiedTimestamp(PathBuf),
+    #[error("Unable to obtain meta data from {0:#?}")]
+    MetaData(String),
+    #[error("File path not retained after filter: {0:#?}")]
+    FilteredOut(PathBuf),
+}
+
+/// Returns a list of files in the specified directory that pass the given filter function.
+/// Each file is represented by a tuple containing its last modified timestamp and `DirEntry` struct.
+///
+/// # Arguments
+///
+/// * `path` - A path to the directory.
+/// * `filter` - A closure that takes a `DirEntry` as parameter and returns a boolean value indicating whether the file should be included in the result
+async fn ls_files2<P, F>(path: P, prefixes: &Vec<String>, filter: F) -> Vec<(SystemTime, DirEntry)>
+    where P: AsRef<Path> + Send + Sync + 'static,
+          F: (FnOnce(DirEntry, Vec<String>) -> bool) + Copy + Send + Sync + 'static
+{
+    let path = path.as_ref().to_path_buf();
+    debug!("Listing files in: {:#?}", path);
+
+    let tasks = WalkDir::new(path.clone()).into_iter().map(|entry| {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(err) => {
+                error!("{:#?}", err);
+                return Err(FileListError::IterationError(path.clone()));
+            }
+        };
+
+        let tpath = path.clone();
+        let tentry = entry.clone();
+        let tprefixes = prefixes.clone();
+        let task = tokio::task::spawn(async move {
+            let t = tentry.clone();
+            if filter(t.clone(), tprefixes) {
+                let result_meta = t.metadata();
+                match result_meta {
+                    Ok(meta) => {
+                        match meta.modified() {
+                            Ok(modified_time) => { Ok((modified_time, t)) }
+                            Err(e) => {
+                                error!("{:#?}", e);
+                                Err(FileListError::ModifiedTimestamp(tpath))
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("{:#?}", e);
+                        Err(FileListError::ModifiedTimestamp(tpath))
+                    }
+                }
+            } else {
+                Err(FileListError::FilteredOut(tpath))
+            }
+        });
+        Ok(task)
+    }).collect::<Vec<_>>();
+
+    // Here we collect the results of all tasks.
+    let mut v = Vec::new();
+    for r in tasks {
+        match r {
+            Ok(join_handle) => {
+                match join_handle.await {
+                    Ok(r) => {
+                        match r {
+                            Ok((system_time, entry)) => {
+                                v.push((system_time, entry));
+                            }
+                            Err(e) => {
+                                if let FileListError::FilteredOut(_) = e {
+                                    //
+                                } else {
+                                    error!("{:#?}", e);
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("{:#?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                if let FileListError::FilteredOut(_) = e {
+                    //
+                } else {
+                    error!("{:#?}", e);
+                }
+            }
+        }
+    }
+    debug!("Listing files in: {:#?} completed", path);
+
     v
 }
