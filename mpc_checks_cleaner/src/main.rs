@@ -263,3 +263,25 @@ fn datetime_from_dir(s: &str) -> NaiveDateTime {
         NaiveTime::from_hms_opt(hour, minute, second).unwrap(),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_datetime_from_dir_valid() {
+        let input = "NDS-WKS-SN5783-2024-01-11-07-42-57-0000-BeamCheckTemplate6xFFF";
+        let date_time = datetime_from_dir(input);
+        assert_eq!(NaiveDateTime::new(
+           NaiveDate::from_ymd_opt(2024,01,11).unwrap() ,
+            NaiveTime::from_hms_opt(7,42,57).unwrap()
+        ), date_time);
+    }
+    
+    #[test]
+    #[should_panic(expected = "Invalid directory name format detected in \"NDS-WKS\"")]
+    fn test_datetime_from_dir_invalid_format() {
+        let input = "NDS-WKS";
+        let _ = datetime_from_dir(input);
+    }
+}
