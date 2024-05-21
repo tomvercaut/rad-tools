@@ -1,4 +1,6 @@
+#[cfg(windows)]
 use std::path::{Path, PathBuf};
+#[cfg(windows)]
 use std::process::{Command, exit};
 
 use clap::Parser;
@@ -70,6 +72,6 @@ fn one_way_sync(cli: &Cli) {
 }
 
 #[cfg(not(windows))]
-fn one_way_sync(cli: &Cli) {
-    unimplemented!("Functionality is not implemented on platforms other than Windows");
+fn one_way_sync(_cli: &Cli) {
+    println!("Functionality is not implemented on platforms other than Windows");
 }
