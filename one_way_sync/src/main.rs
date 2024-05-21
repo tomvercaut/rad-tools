@@ -52,6 +52,7 @@ fn one_way_sync(cli: &Cli) {
         // if !t.is_empty() {
         //     t = t[1..t.len()-1].to_string();
         // }
+        cmd.arg("/v");
         cmd.arg(format!("/UNILOG+:{}", &logfile.as_os_str().to_str().unwrap()));
     }
     let exit_status = cmd.status().expect("Something went wrong while running robocopy.");
