@@ -1,0 +1,11 @@
+[package]
+name = "ls_dcm_ui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+slint = "1.6"
+
+[build-dependencies]
+slint-build = "1.6"

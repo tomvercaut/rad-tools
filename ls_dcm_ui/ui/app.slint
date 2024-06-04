@@ -1,18 +1,43 @@
-import { VerticalBox, Button } from "std-widgets.slint";
+import { VerticalBox, Button, LineEdit, StandardTableView } from "std-widgets.slint";
 
 export component AppWindow inherits Window {
     in-out property <int> counter: 42;
-    callback request-increase-value();
+//    in-out property <[[StandardListViewItem]]> table-model: [
+//        [
+//        { text: "X01" },  {text: "Last"} , {text: "Fi"}
+//        ]
+//    ];
+    in-out property <[[StandardListViewItem]]> table-model: [[]];
+    //    callback request-increase-value();
+    callback search-modified(string);
     VerticalBox {
-        Text {
-            text: "Counter : \{root.counter}";
-        }
-        Button {
-            text: "Increase value";
-            clicked => {
-                root.request-increase-value();
+        LineEdit {
+            //            width: parent.width;
+            placeholder-text: "Enter ID or name here";
+            edited(text) => {
+                root.search-modified(text);
             }
         }
+
+        StandardTableView {
+            columns: [
+                { title: "Patient ID" },
+                { title: "Last name" },
+                { title: "First name" },
+            ];
+            rows: table-model;
+        }
+
+        //        Text {
+//            text: "Counter : \{root.counter}";
+//        }
+//
+//        Button {
+//            vertical-stretch: 0;
+//            text: "Increase value";
+//            clicked => {
+//                root.request-increase-value();
+//            }
+//        }
     }
-    
 }
