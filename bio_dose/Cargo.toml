@@ -1,0 +1,25 @@
+[package]
+name = "rad-tools-bio-dose"
+description = "Compute biological dose (EQD2 and BED)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+clap.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[[bin]]
+name = "eqd2"
+path = "src/bin/eqd2.rs"
+
+[[bin]]
+name = "bed"
+path = "src/bin/bed.rs"
+
+[[bin]]
+name = "bed_time_factor"
+path = "src/bin/bed_time_factor.rs"

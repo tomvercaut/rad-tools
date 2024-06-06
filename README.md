@@ -6,14 +6,19 @@ An ecosystem of libraries and tools that can used in the field of radiotherapie.
 
 ### Libraries
 
-The project at this stage has one library.
+The project at this stage has two libraries.
+
 - [`radtools-ls-dcm`](ls_dcm) library used to read DICOM files by modality.
+- [`radtools-bio-dose`](bio-dose) library to compute biological doses.
 
 ### Tools
 
-The project at this stage has one command line tool.
+The project at this stage has a couple command line tool.
 
 - [`ls_rtplan`](ls_dcm) list RTPLAN DICOM files in a directory.
+- [`eqd2`](eq2) compute the equivalent dose in 2 Gy fractions
+- [`bed`](bed) compute the biological equivalent dose
+- [`bed_time_factor`](bed_time_factor) compute the biological equivalent dose taking into account time and cell repopulation parameters.
 
 ## Building
 
