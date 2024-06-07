@@ -38,3 +38,12 @@ BED=nd\left( 1 + \frac{d}{\frac{\alpha}{\beta}} \right)
 * $T$ overall time of treatment in days
 * $T_{p}$ cell doubling time
 * $T_{k}$ day on which cell repopulation starts
+
+## Bibliography
+
+[1] The linear-quadratic formula and progress in fractionated radiotherapy.
+  British Journal of Radiology, Volume 62, Issue 740, 1 August 1989, Pages 679–694
+  [https://doi.org/10.1259/0007-1285-62-740-679](https://doi.org/10.1259/0007-1285-62-740-679)
+[2] 21 years of Biologically Effective Dose.
+  British Journal of Radiology, Volume 83, Issue 991, 1 July 2010, Pages 554–568,
+  [https://doi.org/10.1259/bjr/31372149](https://doi.org/10.1259/bjr/31372149)
