@@ -3,7 +3,12 @@ use clap::Parser;
 use rad_tools_bio_dose::{eqd2, Eqd2Params};
 
 #[derive(Parser, Debug, Clone)]
-#[command(author, version, about = "Compute the EQD2.", long_about = "")]
+#[command(
+    author,
+    version,
+    about = "Compute equivalent 2 Gy fraction dose (EQD2).",
+    long_about = "Compute biologically equivalent dose for a (well) defined a/b ratio in a 2 Gy fraction dose."
+)]
 struct Cli {
     /// Dose per fraction (Gy)
     fraction_dose: f64,

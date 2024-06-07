@@ -7,7 +7,11 @@ use rad_tools_bio_dose::{bed, BedModel, BedParams};
     author,
     version,
     about = "Compute the biologically effective dose for a tissue with a well defined alpha/beta ratio.",
-    long_about = ""
+    long_about = "
+Compute the biologically effective dose for a tissue with a well defined alpha/beta ratio.
+
+BED = n * d * (1 + ( d / (a/b) ) )
+"
 )]
 struct Cli {
     /// Dose per fraction (Gy)
