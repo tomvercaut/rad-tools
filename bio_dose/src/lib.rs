@@ -7,10 +7,10 @@ pub enum BioDoseError {
     NegativeAB(f64),
     #[error("Dose per fraction [{0}] can't be a negative number")]
     NegativeDosePerFraction(f64),
-    #[error("Multiple models detected while computing the BED.")]
-    MultipleModelsBEDCalc,
 }
 
+/// Parameters required to compute the equivalent dose
+/// in 2 Gy fractions.
 #[derive(Debug, Clone, Copy)]
 pub struct Eqd2Params {
     /// Dose per fraction (Gy)
@@ -21,6 +21,8 @@ pub struct Eqd2Params {
     pub ab: f64,
 }
 
+/// Parameters required to compute the biologically equivalent
+/// dose for a tissue with a (well) defined a/b ratio.
 #[derive(Debug, Clone, Copy)]
 pub struct BedParams {
     /// Dose per fraction (Gy)
@@ -33,14 +35,18 @@ pub struct BedParams {
     pub model: BedModel,
 }
 
+/// Model with additional parameters to computer the BED.
 #[derive(Debug, Clone, Copy, Default)]
 pub enum BedModel {
+    /// No additional parameters or corrections applied.
     #[default]
     None,
     LQTimeFactor(LQModelTimeFactor),
     LQL(LQLModel),
 }
 
+/// Linear quadratic model taking into account
+/// a time factor for cell repopulation.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct LQModelTimeFactor {
     /// Overall treatment time in days
@@ -55,6 +61,17 @@ pub struct LQModelTimeFactor {
     pub tp: f64,
 }
 
+/// Linear quadratic linear model which can be applied in high dose fractions.
+///
+/// More information can be found in:
+/// [1] The modified linear-quadratic model of Guerrero and Li can be derived from a mechanistic basis and exhibits linear-quadratic-linear behaviour.
+///     Marco Carlone1, David Wilkins1 and Peter Raaphorst1
+///     Physics in Medicine & Biology, Volume 50, Number 10 Citation Marco Carlone et al 2005 Phys. Med. Biol. 50 L9 DOI 10.1088/0031-9155/50/10/L01
+///
+/// [2] Some implications of linear-quadratic-linear radiation dose-response with regard to hypofractionation.
+///     Melvin Astrahan
+///     https://doi.org/10.1118/1.2969065
+///
 #[derive(Debug, Clone, Copy, Default)]
 pub struct LQLModel {
     /// Letal damage inflicted with a single ionizing event producing a double strand DNA break.
@@ -85,10 +102,6 @@ pub fn eqd2(p: &Eqd2Params) -> Result<f64, BioDoseError> {
 }
 
 /// Compute the biological equivalent dose.
-///
-/// ```math
-/// BED = n * d * (1 + \frac{d}{\frac{a}{b}})
-/// ```
 pub fn bed(p: &BedParams) -> Result<f64, BioDoseError> {
     trace!("BED parameters: {:#?}", p);
     if p.ab < 0.0 {
