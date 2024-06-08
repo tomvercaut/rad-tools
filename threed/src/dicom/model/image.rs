@@ -3,7 +3,10 @@ use num_traits::Num;
 
 #[derive(Clone, Debug, Builder)]
 #[builder(build_fn(validate = "check_image", error = "ImageBuildValidationError"))]
-pub struct Image<T> where T: Num + Clone {
+pub struct Image<T>
+where
+    T: Num + Clone + Copy,
+{
     /// Represents the dimensions of an image.
     ///
     /// The `dims` field is a `Vec<usize>` which stores the dimensions
@@ -28,7 +31,10 @@ pub struct Image<T> where T: Num + Clone {
     pixels: Vec<T>,
 }
 
-impl<T> Image<T> where T: Num + Clone {
+impl<T> Image<T>
+where
+    T: Num + Clone + Copy,
+{
     pub fn dims(&self) -> &[usize] {
         &self.dims
     }
@@ -50,7 +56,10 @@ impl<T> Image<T> where T: Num + Clone {
     }
 }
 
-impl<T> IntoIterator for Image<T> where T: Num + Clone {
+impl<T> IntoIterator for Image<T>
+where
+    T: Num + Clone + Copy,
+{
     type Item = T;
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
@@ -103,7 +112,9 @@ impl From<UninitializedFieldError> for ImageBuildValidationError {
 /// * `ImageDimensionsVsSpacing` - The number of dimensions in the image builder does not match the number of spacing values.
 /// * `EmptyDimensions` - The builder has image dimensions with a total number of pixels equal to zero.
 /// * `DimensionPixelsLen` - The number of pixels in the builder does not match the expected number calculated from the dimensions.
-fn check_image<T: Num + Clone>(builder: &ImageBuilder<T>) -> Result<(), ImageBuildValidationError> {
+fn check_image<T: Num + Clone + Copy>(
+    builder: &ImageBuilder<T>,
+) -> Result<(), ImageBuildValidationError> {
     if let Some(dims) = &builder.dims {
         let ndims = dims.len();
         if ndims == 0 {
@@ -115,7 +126,10 @@ fn check_image<T: Num + Clone>(builder: &ImageBuilder<T>) -> Result<(), ImageBui
                 return Err(ImageBuildValidationError::EmptyOrigin);
             }
             if origin.len() != ndims {
-                return Err(ImageBuildValidationError::ImageDimensionsVsOrigin(dims.len(), origin.len()));
+                return Err(ImageBuildValidationError::ImageDimensionsVsOrigin(
+                    dims.len(),
+                    origin.len(),
+                ));
             }
         }
         if let Some(spacing) = &builder.spacing {
@@ -123,7 +137,10 @@ fn check_image<T: Num + Clone>(builder: &ImageBuilder<T>) -> Result<(), ImageBui
                 return Err(ImageBuildValidationError::EmptySpacing);
             }
             if spacing.len() != ndims {
-                return Err(ImageBuildValidationError::ImageDimensionsVsSpacing(dims.len(), spacing.len()));
+                return Err(ImageBuildValidationError::ImageDimensionsVsSpacing(
+                    dims.len(),
+                    spacing.len(),
+                ));
             }
         }
 
@@ -136,7 +153,10 @@ fn check_image<T: Num + Clone>(builder: &ImageBuilder<T>) -> Result<(), ImageBui
         }
         if let Some(pixels) = &builder.pixels {
             if pixels.len() != npixels {
-                return Err(ImageBuildValidationError::DimensionPixelsLen(dims.clone(), pixels.len()));
+                return Err(ImageBuildValidationError::DimensionPixelsLen(
+                    dims.clone(),
+                    pixels.len(),
+                ));
             }
         }
     }
@@ -145,7 +165,103 @@ fn check_image<T: Num + Clone>(builder: &ImageBuilder<T>) -> Result<(), ImageBui
 
 #[cfg(test)]
 mod tests {
-    use crate::dicom::model::{Image, ImageBuilder, ImageBuildValidationError};
+    use crate::dicom::model::{Image, ImageBuildValidationError, ImageBuilder};
+
+    /// Ensure the Image<T> can be created for these pixel types:
+    /// i8, i16, i32, i64, u8, u16, u32, i64, f32 and f64
+    #[test]
+    fn test_image_types() {
+        let _ = Image::<i8> {
+            dims: vec![2, 3, 4],
+            origin: vec![1.0, 2.0, 3.0],
+            spacing: vec![2.0, 3.0],
+            pixels: vec![
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+                23, 24,
+            ],
+        };
+        let _ = Image::<i16> {
+            dims: vec![2, 3, 4],
+            origin: vec![1.0, 2.0, 3.0],
+            spacing: vec![2.0, 3.0],
+            pixels: vec![
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+                23, 24,
+            ],
+        };
+        let _ = Image::<i32> {
+            dims: vec![2, 3, 4],
+            origin: vec![1.0, 2.0, 3.0],
+            spacing: vec![2.0, 3.0],
+            pixels: vec![
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+                23, 24,
+            ],
+        };
+        let _ = Image::<i64> {
+            dims: vec![2, 3, 4],
+            origin: vec![1.0, 2.0, 3.0],
+            spacing: vec![2.0, 3.0],
+            pixels: vec![
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+                23, 24,
+            ],
+        };
+        let _ = Image::<u8> {
+            dims: vec![2, 3, 4],
+            origin: vec![1.0, 2.0, 3.0],
+            spacing: vec![2.0, 3.0],
+            pixels: vec![
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+                23, 24,
+            ],
+        };
+        let _ = Image::<u16> {
+            dims: vec![2, 3, 4],
+            origin: vec![1.0, 2.0, 3.0],
+            spacing: vec![2.0, 3.0],
+            pixels: vec![
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+                23, 24,
+            ],
+        };
+        let _ = Image::<u32> {
+            dims: vec![2, 3, 4],
+            origin: vec![1.0, 2.0, 3.0],
+            spacing: vec![2.0, 3.0],
+            pixels: vec![
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+                23, 24,
+            ],
+        };
+        let _ = Image::<u64> {
+            dims: vec![2, 3, 4],
+            origin: vec![1.0, 2.0, 3.0],
+            spacing: vec![2.0, 3.0],
+            pixels: vec![
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+                23, 24,
+            ],
+        };
+        let _ = Image::<f32> {
+            dims: vec![2, 3, 4],
+            origin: vec![1.0, 2.0, 3.0],
+            spacing: vec![2.0, 3.0],
+            pixels: vec![
+                0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0,
+                15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0,
+            ],
+        };
+        let _ = Image::<f64> {
+            dims: vec![2, 3, 4],
+            origin: vec![1.0, 2.0, 3.0],
+            spacing: vec![2.0, 3.0],
+            pixels: vec![
+                0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0,
+                15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 21.0, 22.0, 23.0, 24.0,
+            ],
+        };
+    }
 
     #[test]
     fn image_build() {
@@ -153,7 +269,8 @@ mod tests {
             .dims(vec![2, 3])
             .origin(vec![200.0, 300.0])
             .spacing(vec![0.2, 0.4])
-            .pixels(vec![1, 2, 3, 4, 5, 6]).build();
+            .pixels(vec![1, 2, 3, 4, 5, 6])
+            .build();
         assert!(r.is_ok());
         let image: Image<i32> = r.unwrap();
         assert_eq!(&[2, 3], image.dims());
@@ -167,7 +284,8 @@ mod tests {
         let r = ImageBuilder::default()
             .origin(vec![200.0, 300.0])
             .spacing(vec![0.2, 0.4])
-            .pixels(vec![1, 2, 3, 4, 5, 6]).build();
+            .pixels(vec![1, 2, 3, 4, 5, 6])
+            .build();
         assert!(r.is_err());
         match r.unwrap_err() {
             ImageBuildValidationError::UninitializedField(field) => assert_eq!("dims", field),
@@ -181,7 +299,8 @@ mod tests {
             .dims(vec![])
             .origin(vec![200.0, 300.0])
             .spacing(vec![0.2, 0.4])
-            .pixels(vec![1, 2, 3, 4, 5, 6]).build();
+            .pixels(vec![1, 2, 3, 4, 5, 6])
+            .build();
         assert!(r.is_err());
         match r.unwrap_err() {
             ImageBuildValidationError::EmptyDimensions => assert!(true),
@@ -195,7 +314,8 @@ mod tests {
             .dims(vec![2, 3])
             .origin(vec![])
             .spacing(vec![0.2, 0.4])
-            .pixels(vec![1, 2, 3, 4, 5, 6]).build();
+            .pixels(vec![1, 2, 3, 4, 5, 6])
+            .build();
         assert!(r.is_err());
         match r.unwrap_err() {
             ImageBuildValidationError::EmptyOrigin => assert!(true),
@@ -209,7 +329,8 @@ mod tests {
             .dims(vec![2, 3])
             .origin(vec![200.0])
             .spacing(vec![0.2, 0.4])
-            .pixels(vec![1, 2, 3, 4, 5, 6]).build();
+            .pixels(vec![1, 2, 3, 4, 5, 6])
+            .build();
         assert!(r.is_err());
         match r.unwrap_err() {
             ImageBuildValidationError::ImageDimensionsVsOrigin(2, 1) => assert!(true),
@@ -223,7 +344,8 @@ mod tests {
             .dims(vec![2, 3])
             .origin(vec![200.0, 300.0])
             .spacing(vec![])
-            .pixels(vec![1, 2, 3, 4, 5, 6]).build();
+            .pixels(vec![1, 2, 3, 4, 5, 6])
+            .build();
         assert!(r.is_err());
         match r.unwrap_err() {
             ImageBuildValidationError::EmptySpacing => assert!(true),
@@ -237,7 +359,8 @@ mod tests {
             .dims(vec![2, 3])
             .origin(vec![200.0, 300.0])
             .spacing(vec![0.2])
-            .pixels(vec![1, 2, 3, 4, 5, 6]).build();
+            .pixels(vec![1, 2, 3, 4, 5, 6])
+            .build();
         assert!(r.is_err());
         match r.unwrap_err() {
             ImageBuildValidationError::ImageDimensionsVsSpacing(2, 1) => assert!(true),
@@ -251,7 +374,8 @@ mod tests {
             .dims(vec![2, 3])
             .origin(vec![200.0, 300.0])
             .spacing(vec![0.2, 0.4])
-            .pixels(vec![1, 2, 3, 4, 5]).build();
+            .pixels(vec![1, 2, 3, 4, 5])
+            .build();
         assert!(r.is_err());
         match r.unwrap_err() {
             ImageBuildValidationError::DimensionPixelsLen(_dims, _u) => assert!(true),
