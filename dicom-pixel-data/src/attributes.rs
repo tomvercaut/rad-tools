@@ -26,9 +26,9 @@ pub enum PhotometricInterpretation {
 impl PhotometricInterpretation {
     pub fn is_monochrome(&self) -> bool {
         match self {
-            PhotometricInterpretation::Monochrome1 => { true }
-            PhotometricInterpretation::Monochrome2 => { true }
-            _ => { false }
+            PhotometricInterpretation::Monochrome1 => true,
+            PhotometricInterpretation::Monochrome2 => true,
+            _ => false,
         }
     }
 }
@@ -59,16 +59,16 @@ impl From<String> for PhotometricInterpretation {
 impl AsRef<str> for PhotometricInterpretation {
     fn as_ref(&self) -> &str {
         match self {
-            PhotometricInterpretation::Monochrome1 => {"MONOCHROME1"}
-            PhotometricInterpretation::Monochrome2 => {"MONOCHROME2"}
-            PhotometricInterpretation::PaletteColor => {"PALETTE_COLOR"}
-            PhotometricInterpretation::Rgb => {"RGB"}
-            PhotometricInterpretation::YbrFull => {"YBR_FULL"}
-            PhotometricInterpretation::YbrFull422 => {"YBR_FULL_422"}
-            PhotometricInterpretation::YbrPartial420 => {"YBR_PARTIAL_420"}
-            PhotometricInterpretation::YbrIct => {"YBR_ICT"}
-            PhotometricInterpretation::YbrRct => {"YBR_RCT"}
-            PhotometricInterpretation::Other(s) => {s}
+            PhotometricInterpretation::Monochrome1 => "MONOCHROME1",
+            PhotometricInterpretation::Monochrome2 => "MONOCHROME2",
+            PhotometricInterpretation::PaletteColor => "PALETTE_COLOR",
+            PhotometricInterpretation::Rgb => "RGB",
+            PhotometricInterpretation::YbrFull => "YBR_FULL",
+            PhotometricInterpretation::YbrFull422 => "YBR_FULL_422",
+            PhotometricInterpretation::YbrPartial420 => "YBR_PARTIAL_420",
+            PhotometricInterpretation::YbrIct => "YBR_ICT",
+            PhotometricInterpretation::YbrRct => "YBR_RCT",
+            PhotometricInterpretation::Other(s) => s,
         }
     }
 }
@@ -105,6 +105,15 @@ impl TryFrom<u16> for PixelRepresentation {
             0 => Ok(Self::UnsignedInteger),
             1 => Ok(Self::TwosComplement),
             _ => Err(UnknownPixelRepresentation(value)),
+        }
+    }
+}
+
+impl std::fmt::Display for PixelRepresentation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PixelRepresentation::UnsignedInteger => write!(f, "unsigned integer"),
+            PixelRepresentation::TwosComplement => write!(f, "two's complement"),
         }
     }
 }

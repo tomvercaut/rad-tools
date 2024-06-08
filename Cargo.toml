@@ -1,5 +1,5 @@
 [workspace]
-members = [ "dicom-pixel-data", "ls_dcm"]
+members = ["dicom-pixel-data", "ls_dcm"]
 resolver = "2"
 
 [workspace.package]
@@ -15,11 +15,11 @@ quick-xml = "0.31"
 base64 = "0.22"
 ndarray = "0.15.6"
 clap = { version = "4.5.3", features = ["derive"] }
-dicom-core = "0.6"
-dicom-object = "0.6"
-dicom-dictionary-std = "0.6"
+dicom-core = "0.7"
+dicom-object = "0.7"
+dicom-dictionary-std = "0.7"
 walkdir = "2"
-tokio = { version = "1", features = ["full"]}
+tokio = { version = "1", features = ["full"] }
 crossterm = "0.27.0"
 ratatui = { version = "0.26.1", features = ["default"] }
 tracing = "0.1"
