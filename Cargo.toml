@@ -1,5 +1,5 @@
 [workspace]
-members = [ "ls_dcm", "dicom-pixel-data", "threed"]
+members = ["ls_dcm", "dicom-pixel-data", "threed"]
 resolver = "2"
 
 [workspace.package]
@@ -17,11 +17,11 @@ ndarray = "0.15.6"
 nalgebra = "0.32.5"
 num-traits = "0.2"
 clap = { version = "4.5.3", features = ["derive"] }
-dicom-core = "0.6"
-dicom-object = "0.6"
-dicom-dictionary-std = "0.6"
+dicom-core = "0.7"
+dicom-object = "0.7"
+dicom-dictionary-std = "0.7"
 walkdir = "2"
-tokio = { version = "1", features = ["full"]}
+tokio = { version = "1", features = ["full"] }
 crossterm = "0.27.0"
 ratatui = { version = "0.26.1", features = ["default"] }
 tracing = "0.1"

@@ -1,20 +1,24 @@
-use std::borrow::Cow;
-use dicom_dictionary_std::uids;
-use crate::{DecodingError, PhotometricInterpretation, PixelDecoder, PixelRepresentation, PixelValues, PlanarConfiguration};
 use crate::DecodingError::UnsupportedNumberOfBits;
+use crate::{
+    DecodingError, PhotometricInterpretation, PixelDecoder, PixelRepresentation, PixelValues,
+    PlanarConfiguration,
+};
+use dicom_dictionary_std::uids;
+use log::{debug, trace};
+use std::borrow::Cow;
 
 #[derive(Clone, Debug, Default)]
-pub struct RawPixelDecoder {
-
-}
+pub struct RawPixelDecoder {}
 
 impl<'a> PixelDecoder<DecodingData<'a>> for RawPixelDecoder {
     fn decode(&self, params: &DecodingData<'a>) -> Result<PixelValues, DecodingError> {
         match params.transfer_syntax.as_str() {
-            uids::EXPLICIT_VR_LITTLE_ENDIAN | uids::IMPLICIT_VR_LITTLE_ENDIAN => { decode_little_endian(params) }
-            &_ => {
-                Err(DecodingError::UnsupportedTransferSyntax(params.transfer_syntax.clone()))
+            uids::EXPLICIT_VR_LITTLE_ENDIAN | uids::IMPLICIT_VR_LITTLE_ENDIAN => {
+                decode_little_endian(params)
             }
+            &_ => Err(DecodingError::UnsupportedTransferSyntax(
+                params.transfer_syntax.clone(),
+            )),
         }
     }
 }
@@ -73,8 +77,12 @@ pub struct DecodingData<'a> {
 /// * `DecodeError::UnsupportedPhotometricInterpretation` - If the photometric interpretation is not supported.
 fn decode_little_endian(data: &DecodingData) -> Result<PixelValues, DecodingError> {
     match data.photometric_interpretation {
-        PhotometricInterpretation::Monochrome1 | PhotometricInterpretation::Monochrome2 => { decode_little_endian_monochrome(data) }
-        _ => { Err(DecodingError::UnsupportedPhotometricInterpretation(data.photometric_interpretation.as_ref().to_string())) }
+        PhotometricInterpretation::Monochrome1 | PhotometricInterpretation::Monochrome2 => {
+            decode_little_endian_monochrome(data)
+        }
+        _ => Err(DecodingError::UnsupportedPhotometricInterpretation(
+            data.photometric_interpretation.as_ref().to_string(),
+        )),
     }
 }
 
@@ -98,76 +106,75 @@ fn decode_little_endian(data: &DecodingData) -> Result<PixelValues, DecodingErro
 fn decode_little_endian_monochrome(data: &DecodingData) -> Result<PixelValues, DecodingError> {
     let num_pixels = (data.rows * data.columns * data.number_of_frames) as usize;
     let num_samples = num_pixels * data.samples_per_pixel as usize;
+    trace!("Number of pixel: {}", num_pixels);
+    trace!("Number of samples: {}", num_samples);
 
     let nbytes = num_samples * data.bits_allocated as usize / 8;
+    trace!("Number of bytes: {}", nbytes);
     if nbytes != data.data.len() {
         return Err(DecodingError::ExpectedByteMismatch(nbytes, data.data.len()));
     }
 
+    debug!("Pixel representation: {}", &data.pixel_represenation);
     match data.pixel_represenation {
-        PixelRepresentation::UnsignedInteger => {
-            match data.bits_allocated {
-                8 => {
-                    let n = data.data.len();
-                    let mut tv = Vec::with_capacity(num_samples);
-                    let mask = u8_mask(data.bits_stored as u8)?;
-                    for i in 0..n {
-                        let b = data.data[i];
-                        tv.push(b & mask);
-                    }
-                    Ok(PixelValues::U8(tv))
+        PixelRepresentation::UnsignedInteger => match data.bits_allocated {
+            8 => {
+                let n = data.data.len();
+                let mut tv = Vec::with_capacity(num_samples);
+                let mask = u8_mask(data.high_bit as u8)?;
+                trace!("Mask: {:#04X}", mask);
+                for i in 0..n {
+                    let b = data.data[i];
+                    tv.push(b & mask);
                 }
-                16 => {
-                    let n = data.data.len();
-                    let mut i = 0;
-                    let mut tv = Vec::with_capacity(num_samples);
-                    let mask = u16_mask(data.bits_stored)?;
-                    while i < n {
-                        let b0 = data.data[i];
-                        let b1 = data.data[i + 1];
-                        let value = u16::from_le_bytes([b0, b1]);
-                        tv.push(value & mask);
-                        i += 2;
-                    }
-                    Ok(PixelValues::U16(tv))
-                }
-                _ => {
-                    Err(UnsupportedNumberOfBits(data.bits_allocated as usize))
-                }
+                Ok(PixelValues::U8(tv))
             }
-        }
-        PixelRepresentation::TwosComplement => {
-            match data.bits_allocated {
-                8 => {
-                    let mut tv = vec![];
-                    let n = data.data.len();
-                    let mask = u8_mask(data.bits_stored as u8)?;
-                    for i in 0..n {
-                        let b = data.data[i];
-                        let value = i8::from_le_bytes([b]);
-                        tv.push(((value as u8) & mask) as i8);
-                    }
-                    Ok(PixelValues::I8(tv))
+            16 => {
+                let n = data.data.len();
+                let mut i = 0;
+                let mut tv = Vec::with_capacity(num_samples);
+                let mask = u16_mask(data.high_bit)?;
+                trace!("Mask: {:#04X}", mask);
+                while i < n {
+                    let b0 = data.data[i];
+                    let b1 = data.data[i + 1];
+                    trace!("[u16::from_le_bytes]: [{:#04X},{:#04X}]", b0, b1);
+                    let value = u16::from_le_bytes([b0, b1]);
+                    tv.push(value & mask);
+                    i += 2;
                 }
-                16 => {
-                    let n = data.data.len();
-                    let mut i = 0;
-                    let mut tv = vec![];
-                    let mask = u16_mask(data.bits_stored)?;
-                    while i < n {
-                        let b0 = data.data[i];
-                        let b1 = data.data[i + 1];
-                        let value = i16::from_le_bytes([b0, b1]);
-                        tv.push(((value as u16) & mask) as i16);
-                        i += 2;
-                    }
-                    Ok(PixelValues::I16(tv))
-                }
-                _ => {
-                    Err(UnsupportedNumberOfBits(data.bits_allocated as usize))
-                }
+                Ok(PixelValues::U16(tv))
             }
-        }
+            _ => Err(UnsupportedNumberOfBits(data.bits_allocated as usize)),
+        },
+        PixelRepresentation::TwosComplement => match data.bits_allocated {
+            8 => {
+                let mut tv = vec![];
+                let n = data.data.len();
+                let mask = u8_mask(data.high_bit as u8)?;
+                for i in 0..n {
+                    let b = data.data[i];
+                    let value = i8::from_le_bytes([b]);
+                    tv.push(((value as u8) & mask) as i8);
+                }
+                Ok(PixelValues::I8(tv))
+            }
+            16 => {
+                let n = data.data.len();
+                let mut i = 0;
+                let mut tv = vec![];
+                let mask = u16_mask(data.high_bit)?;
+                while i < n {
+                    let b0 = data.data[i];
+                    let b1 = data.data[i + 1];
+                    let value = i16::from_le_bytes([b0, b1]);
+                    tv.push(((value as u16) & mask) as i16);
+                    i += 2;
+                }
+                Ok(PixelValues::I16(tv))
+            }
+            _ => Err(UnsupportedNumberOfBits(data.bits_allocated as usize)),
+        },
     }
 }
 
@@ -222,8 +229,16 @@ fn u16_mask(high_bit: u16) -> Result<u16, DecodingError> {
 #[cfg(test)]
 mod tests {
     use dicom_dictionary_std::uids::IMPLICIT_VR_LITTLE_ENDIAN;
+    use log::LevelFilter;
 
     use super::*;
+
+    fn init() {
+        let _ = env_logger::builder()
+            .filter_level(LevelFilter::max())
+            .is_test(true)
+            .try_init();
+    }
 
     #[test]
     fn u8_mask_0() {
@@ -283,15 +298,10 @@ mod tests {
 
     #[test]
     fn monochrome_u16bit() {
+        init();
         let pixel_data = vec![
-            0u8, 0,
-            0x1e, 0x1c,
-            0x1f, 0x1c,
-            0x1a, 0x1c,
-            0x1c, 0x1c,
-            0x1c, 0x1c,
-            0x1d, 0x1c,
-            0x1b, 0x1c,
+            0u8, 0, 0x1e, 0x1c, 0x1f, 0x1c, 0x1a, 0x1c, 0x1c, 0x1c, 0x1c, 0x1c, 0x1d, 0x1c, 0x1b,
+            0x1c,
         ];
         let mock_data = DecodingData {
             transfer_syntax: IMPLICIT_VR_LITTLE_ENDIAN.to_string(),
@@ -311,26 +321,17 @@ mod tests {
         };
 
         match decode_little_endian(&mock_data) {
-            Ok(pixel_values) => {
-                match pixel_values {
-                    PixelValues::U16(pixels) => {
-                        let expected = [
-                            0u16,
-                            0x1c1e,
-                            0x1c1f,
-                            0x1c1a,
-                            0x1c1c,
-                            0x1c1c,
-                            0x1c1d,
-                            0x1c1b
-                        ];
-                        assert_eq!(&expected, pixels.as_slice());
-                    }
-                    _ => {
-                        panic!("Failed to decode the data: invalid pixel data type");
-                    }
+            Ok(pixel_values) => match pixel_values {
+                PixelValues::U16(pixels) => {
+                    let expected = [0u16, 0x1c1e, 0x1c1f, 0x1c1a, 0x1c1c, 0x1c1c, 0x1c1d, 0x1c1b];
+                    println!("e: {:#?}", &expected);
+                    println!("p: {:#?}", &pixel_data);
+                    assert_eq!(&expected, pixels.as_slice());
                 }
-            }
+                _ => {
+                    panic!("Failed to decode the data: invalid pixel data type");
+                }
+            },
             Err(e) => {
                 panic!("Failed to decode the data: {:#?}", e);
             }
