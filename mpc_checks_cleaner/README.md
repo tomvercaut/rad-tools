@@ -2,7 +2,9 @@
 
 ## Description
 
-An application that cleans MPC directories created by Varian TrueBeam or Ethos systems on the VA_TRANSFER share. Old MPC Checks are removed if they are older than the number of specified days. The application also has a dry-run option that prints which files it would delete without doing so.
+An application that cleans MPC directories created by Varian TrueBeam or Ethos systems on the VA_TRANSFER share.
+Old MPC Checks are removed if they are older than the number of specified days.
+The application also has a dry-run option that prints which files it would delete without doing so.
 
 ## Build
 
