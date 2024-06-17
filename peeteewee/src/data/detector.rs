@@ -2,7 +2,7 @@ use ndarray::Array3;
 
 use crate::data::xcc::Xcc;
 use crate::data::{DetectorType, TaskType};
-use crate::DosimetryToolsError;
+use crate::PeeTeeWeeError;
 
 /// The `Detector` trait represents a type that can be used to detect something.
 pub trait Detector {}
@@ -10,7 +10,7 @@ pub trait Detector {}
 /// The `DetectorInterpolation` trait represents a type that can be used to perform
 /// interpolation on detector data.
 trait DetectorInterpolation<T: Detector> {
-    fn interpolate(&self) -> Result<T, DosimetryToolsError>;
+    fn interpolate(&self) -> Result<T, PeeTeeWeeError>;
 }
 
 /// The `Octavius1500` struct represents a PTW Octavius 1500 device.
@@ -38,24 +38,24 @@ impl Octavius1500 {
     /// # Returns
     ///
     /// * A Result containing the Octavius1500 instance if successful, or an error if the task type or detector type is invalid.
-    pub fn new(xcc: &Xcc, interpolate: bool) -> Result<Octavius1500, DosimetryToolsError> {
+    pub fn new(xcc: &Xcc, interpolate: bool) -> Result<Octavius1500, PeeTeeWeeError> {
         if xcc.content.administrative.task_name != TaskType::Measurement2dArray {
-            return Err(DosimetryToolsError::Octavius1500FromXccError(
+            return Err(PeeTeeWeeError::Octavius1500FromXccError(
                 "invalid task type".to_string(),
             ));
         } else if xcc.content.measuring_device.detector != DetectorType::Octavius1500 {
-            return Err(DosimetryToolsError::Octavius1500FromXccError(
+            return Err(PeeTeeWeeError::Octavius1500FromXccError(
                 "invalid detector type type".to_string(),
             ));
         }
         let nr = (xcc.content.detector_array.matrix_number_of_meas_gt * 2) as usize;
         let nc = (xcc.content.detector_array.matrix_number_of_meas_lr * 2) as usize;
-        let nd = xcc.content.measurement_data.len();
+        let nd = xcc.content.measurement_data.measurements.len();
         let mut data = Array3::<f64>::zeros((nd, nr, nc));
         let mut r: usize;
         let mut c: usize;
         for d in 0..nd {
-            let measurement = &xcc.content.measurement_data[d];
+            let measurement = &xcc.content.measurement_data.measurements[d];
             r = 0;
             c = 0;
             for value in &measurement.data {
@@ -115,9 +115,9 @@ impl Octavius1500 {
     /// # Returns
     ///
     /// A reference to the value located at the specified position.
-    pub fn get(&self, d: usize, r: usize, c: usize) -> Result<&f64, DosimetryToolsError> {
+    pub fn get(&self, d: usize, r: usize, c: usize) -> Result<&f64, PeeTeeWeeError> {
         match self.data.get((d, r, c)) {
-            None => Err(DosimetryToolsError::IndexOutOfBound),
+            None => Err(PeeTeeWeeError::IndexOutOfBound),
             Some(f) => Ok(f),
         }
     }
@@ -137,9 +137,9 @@ impl Octavius1500 {
     ///
     /// Returns `Ok(())` if the value was successfully set, or `Err(DosimetryToolsError::IndexOutOfBound)`
     /// if the provided indices are out of bounds.
-    pub fn set(&mut self, d: usize, r: usize, c: usize, f: f64) -> Result<(), DosimetryToolsError> {
+    pub fn set(&mut self, d: usize, r: usize, c: usize, f: f64) -> Result<(), PeeTeeWeeError> {
         match self.data.get_mut((d, r, c)) {
-            None => Err(DosimetryToolsError::IndexOutOfBound),
+            None => Err(PeeTeeWeeError::IndexOutOfBound),
             Some(value) => {
                 *value = f;
                 Ok(())
@@ -159,7 +159,7 @@ impl Octavius1500 {
         self.data.shape()[0]
     }
 
-    pub fn sum(&self) -> Result<Self, DosimetryToolsError> {
+    pub fn sum(&self) -> Result<Self, PeeTeeWeeError> {
         let nr = self.rows();
         let nc = self.cols();
         let nd = 1;
@@ -183,7 +183,7 @@ impl Octavius1500 {
 pub struct Octavius1500Interpolator {}
 
 impl DetectorInterpolation<Octavius1500> for Octavius1500 {
-    fn interpolate(&self) -> Result<Octavius1500, DosimetryToolsError> {
+    fn interpolate(&self) -> Result<Octavius1500, PeeTeeWeeError> {
         let mut oct = self.clone();
         if oct.interpolated {
             return Ok(oct);

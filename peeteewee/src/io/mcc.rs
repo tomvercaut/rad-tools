@@ -4,7 +4,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 use crate::data::mcc::{CurveType, Mcc, Orientation, Rotation, Scan};
-use crate::DosimetryToolsError;
+use crate::PeeTeeWeeError;
 
 struct State<'a> {
     lines: &'a Vec<String>,
@@ -36,7 +36,7 @@ impl<'a> State<'a> {
     }
 }
 
-pub fn read<P: AsRef<Path>>(path: P) -> Result<Mcc, DosimetryToolsError> {
+pub fn read<P: AsRef<Path>>(path: P) -> Result<Mcc, PeeTeeWeeError> {
     let p = path.as_ref();
     let file = File::open(p)?;
     let rdr = BufReader::new(file);
@@ -69,7 +69,7 @@ pub fn read<P: AsRef<Path>>(path: P) -> Result<Mcc, DosimetryToolsError> {
     Ok(mcc)
 }
 
-fn read_scan(state: State) -> Result<(State, Scan), DosimetryToolsError> {
+fn read_scan(state: State) -> Result<(State, Scan), PeeTeeWeeError> {
     let mut state = state;
     let mut scan = Scan::default();
     let mut has_line = state.has_next();
@@ -250,7 +250,7 @@ fn read_scan(state: State) -> Result<(State, Scan), DosimetryToolsError> {
     Ok((state, scan))
 }
 
-fn read_scan_data(state: State) -> Result<(State, Vec<Vec<f64>>), DosimetryToolsError> {
+fn read_scan_data(state: State) -> Result<(State, Vec<Vec<f64>>), PeeTeeWeeError> {
     let mut state = state;
     let mut has_line = state.has_next();
     let mut vvf: Vec<Vec<f64>> = vec![];
@@ -289,9 +289,9 @@ fn read_scan_data(state: State) -> Result<(State, Vec<Vec<f64>>), DosimetryTools
 ///
 /// This function will return a `DosimetryToolsError::KeyValueString` error
 /// if the slice `v` is empty or if the second element in the slice is not present.
-pub(crate) fn read_str_value(v: &[&str]) -> Result<String, DosimetryToolsError> {
+pub(crate) fn read_str_value(v: &[&str]) -> Result<String, PeeTeeWeeError> {
     let o = v.get(1);
-    let s = o.ok_or(DosimetryToolsError::KeyValueString(
+    let s = o.ok_or(PeeTeeWeeError::KeyValueString(
         v.first().unwrap().to_string(),
     ))?;
     Ok(s.to_string())
@@ -313,10 +313,10 @@ pub(crate) fn read_str_value(v: &[&str]) -> Result<String, DosimetryToolsError> 
 ///
 /// * If the input string cannot be parsed as a `f64` value.
 /// * If there is an error while reading the string value.
-fn read_f64_value(v: &[&str]) -> Result<f64, DosimetryToolsError> {
+fn read_f64_value(v: &[&str]) -> Result<f64, PeeTeeWeeError> {
     let s = read_str_value(v)?;
     let r = s.parse::<f64>();
-    r.map_err(DosimetryToolsError::from)
+    r.map_err(PeeTeeWeeError::from)
 }
 
 /// Reads the second string from a slice of string values and
@@ -331,7 +331,7 @@ fn read_f64_value(v: &[&str]) -> Result<f64, DosimetryToolsError> {
 /// * `Result<Vec<f64>, DosimetryToolsError>` - A Result enum indicating success or failure.
 ///   * If successful, it contains a vector of parsed f64 values.
 ///   * If unsuccessful, it contains a DosimetryToolsError indicating the encountered error.
-fn read_f64_values(v: &[&str]) -> Result<Vec<f64>, DosimetryToolsError> {
+fn read_f64_values(v: &[&str]) -> Result<Vec<f64>, PeeTeeWeeError> {
     let s = read_str_value(v)?;
     let mut vf = vec![];
     for t in s.split(';') {
@@ -344,14 +344,14 @@ fn read_f64_values(v: &[&str]) -> Result<Vec<f64>, DosimetryToolsError> {
     Ok(vf)
 }
 
-fn read_int_as_bool_value(v: &[&str]) -> Result<bool, DosimetryToolsError> {
+fn read_int_as_bool_value(v: &[&str]) -> Result<bool, PeeTeeWeeError> {
     let s = read_str_value(v)?;
     if s == "1" {
         Ok(true)
     } else if s == "0" {
         Ok(false)
     } else {
-        Err(DosimetryToolsError::ParseBoolError(s))
+        Err(PeeTeeWeeError::ParseBoolError(s))
     }
 }
 

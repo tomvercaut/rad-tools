@@ -1,5 +1,5 @@
 [workspace]
-members = ["ls_dcm", "mpc_checks_cleaner", "one_way_sync"]
+members = ["ls_dcm", "mpc_checks_cleaner", "one_way_sync", "peeteewee"]
 resolver = "2"
 
 [workspace.package]
@@ -26,6 +26,8 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 comfy-table = "7"
 chrono = "0.4"
+serde = { version = "1", features = ["default", "serde_derive"] }
+serde-xml-rs = "0.6"
 
 #[workspace.dev-dependencies]
 log = "0.4"

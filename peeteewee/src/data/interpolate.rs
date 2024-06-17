@@ -92,6 +92,7 @@
 /// * `q22`: value at (x2, y2)
 ///
 /// returns: f64 value at (x,y)
+#[allow(clippy::too_many_arguments)]
 pub fn bilinear(
     x: f64,
     y: f64,
@@ -127,8 +128,7 @@ pub fn bilinear(
         let w21 = x_minus_x1 * y2_minus_y * d;
         let w22 = x_minus_x1 * y_minus_y1 * d;
 
-        let value = w11 * q11 + w12 * q12 + w21 * q21 + w22 * q22;
-        value
+        w11 * q11 + w12 * q12 + w21 * q21 + w22 * q22
     }
 }
 

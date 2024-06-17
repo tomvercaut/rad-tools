@@ -1,6 +1,8 @@
 use std::str::FromStr;
 
-use crate::DosimetryToolsError;
+use serde::{Deserialize, Serialize};
+
+use crate::PeeTeeWeeError;
 
 /// Represents the type of task.
 ///
@@ -22,9 +24,10 @@ use crate::DosimetryToolsError;
 /// # Notes
 ///
 /// - The `Clone`, `Debug`, `Eq`, and `PartialEq` traits are implemented for `TaskType`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum TaskType {
     None,
+    #[serde(rename = "2D_ARRAY_MEASUREMENT")]
     Measurement2dArray,
 }
 
@@ -35,13 +38,13 @@ impl Default for TaskType {
 }
 
 impl FromStr for TaskType {
-    type Err = DosimetryToolsError;
+    type Err = PeeTeeWeeError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s == "2D_ARRAY_MEASUREMENT" {
             Ok(Self::Measurement2dArray)
         } else {
-            Err(DosimetryToolsError::ParseTaskTypeError(s.to_string()))
+            Err(PeeTeeWeeError::ParseTaskTypeError(s.to_string()))
         }
     }
 }
@@ -66,9 +69,10 @@ impl FromStr for TaskType {
 /// # Notes
 ///
 /// - The `Clone`, `Debug`, `Eq`, and `PartialEq` traits are implemented for `DetectorType`.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum DetectorType {
     None,
+    #[serde(rename = "PTW_DETECTOR_OCTAVIUS_1500")]
     Octavius1500,
 }
 
@@ -79,13 +83,13 @@ impl Default for DetectorType {
 }
 
 impl FromStr for DetectorType {
-    type Err = DosimetryToolsError;
+    type Err = PeeTeeWeeError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s == "PTW_DETECTOR_OCTAVIUS_1500" {
             Ok(Self::Octavius1500)
         } else {
-            Err(DosimetryToolsError::ParseDetectorTypeError(s.to_string()))
+            Err(PeeTeeWeeError::ParseDetectorTypeError(s.to_string()))
         }
     }
 }

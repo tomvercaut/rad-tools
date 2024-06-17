@@ -111,9 +111,9 @@ mod tests {
         assert_eq!(5.0, da.chamber_dimension_lr);
         assert_eq!(5.0, da.chamber_dimension_gt);
 
-        let meas_data = &content.measurement_data;
+        let meas_data = &content.measurement_data.measurements;
         assert!(!meas_data.is_empty());
-        let mut meas = meas_data.get(0).unwrap();
+        let mut meas = meas_data.first().unwrap();
         assert!((meas.time - 0.2).abs() < f64::EPSILON);
         assert!((meas.angle - 329.8).abs() < f64::EPSILON);
         assert_eq!(ndn, meas.data.len());

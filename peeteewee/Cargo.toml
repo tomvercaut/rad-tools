@@ -8,10 +8,11 @@ authors.workspace = true
 
 [dependencies]
 thiserror.workspace = true
-quick-xml.workspace = true
 base64.workspace = true
 ndarray.workspace = true
+serde.workspace = true
+serde-xml-rs.workspace = true
+log.workspace = true
 
 [dev-dependencies]
-log.workspace = true
 env_logger.workspace = true

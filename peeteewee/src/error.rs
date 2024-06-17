@@ -2,21 +2,21 @@ use std::num::{ParseFloatError, ParseIntError};
 use std::str::Utf8Error;
 
 #[derive(thiserror::Error, Debug)]
-pub enum DosimetryToolsError {
+pub enum PeeTeeWeeError {
     #[error(transparent)]
     IO(#[from] std::io::Error),
     #[error(transparent)]
     ParseIntError(#[from] ParseIntError),
     #[error(transparent)]
     ParseFloatError(#[from] ParseFloatError),
-    #[error(transparent)]
-    QuickXml(#[from] quick_xml::Error),
+    #[error("Serde deserialization error: {0}")]
+    SerdeDeserializeError(String),
     #[error(transparent)]
     Utf8Error(#[from] Utf8Error),
-    #[error("Unknown XML element: {0}")]
-    UndefinedXMLElement(String),
     #[error(transparent)]
     Base64DecodeError(#[from] base64::DecodeError),
+    #[error("Invalid number of bytes [{0}] for a datatype sequence with {1} byte size.")]
+    InvalidByteSequence(usize, usize),
     #[error("Invalid number of bytes [{0}] to convert data to a u16.")]
     InvalidBytesU16(usize),
     #[error("Invalid number of bytes [{0}] to convert data to a 32 bit float.")]

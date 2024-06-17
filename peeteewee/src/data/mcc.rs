@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use crate::DosimetryToolsError;
-use crate::DosimetryToolsError::{
+use crate::PeeTeeWeeError;
+use crate::PeeTeeWeeError::{
     InvalidStrToCurveType, InvalidStrToOrientation, InvalidStrToRotationDirection,
 };
 
@@ -27,7 +27,7 @@ impl Default for Rotation {
 }
 
 impl FromStr for Rotation {
-    type Err = DosimetryToolsError;
+    type Err = PeeTeeWeeError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s == "CW" {
@@ -50,7 +50,7 @@ pub enum Orientation {
 }
 
 impl FromStr for Orientation {
-    type Err = DosimetryToolsError;
+    type Err = PeeTeeWeeError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s == "HORIZONTAL" {
@@ -79,7 +79,7 @@ pub enum CurveType {
 }
 
 impl FromStr for CurveType {
-    type Err = DosimetryToolsError;
+    type Err = PeeTeeWeeError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s == "INPLANE_PROFILE" {
