@@ -1,0 +1,13 @@
+[package]
+name = "serde-mcc"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+log.workspace = true
+
+[dev-dependencies]
+env_logger.workspace = true
