@@ -1,0 +1,18 @@
+[package]
+name = "catalyst"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+chrono.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+log.workspace = true
+env_logger.workspace = true
+clap.workspace = true
+csv.workspace = true
+
+[[bin]]
+name = "catalyst_smooth_couch_calibration"
+path = "src/bin/smooth_couch_calib.rs"

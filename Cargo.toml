@@ -1,5 +1,5 @@
 [workspace]
-members = ["ls_dcm", "mpc_checks_cleaner", "one_way_sync"]
+members = ["catalyst", "ls_dcm", "mpc_checks_cleaner", "one_way_sync"]
 resolver = "2"
 
 [workspace.package]
@@ -26,6 +26,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 comfy-table = "7"
 chrono = "0.4"
+csv = "1"
 
 #[workspace.dev-dependencies]
 log = "0.4"
