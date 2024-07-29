@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use dicom_core::{Tag, VR};
 use dicom_dictionary_std::tags::{
@@ -43,7 +43,7 @@ pub fn read_dicom_file_partial<P: AsRef<Path>>(p: P) -> Result<DicomFile, DicomE
         Modality::RtPlan,
         Modality::RtDose,
     ];
-    read_dicom_file_partial_by_modalities(p.as_ref().to_path_buf(), modalities)
+    read_dicom_file_partial_by_modalities(p, &modalities)
 }
 
 /// Reads a DICOM file partially based on the given modalities.
@@ -56,14 +56,13 @@ pub fn read_dicom_file_partial<P: AsRef<Path>>(p: P) -> Result<DicomFile, DicomE
 /// # Returns
 ///
 /// * `Result<DicomFile, DicomError>` - A result indicating either a success with the read DICOM file or an error.
-pub fn read_dicom_file_partial_by_modalities(
-    p: PathBuf,
-    modalities: Vec<Modality>,
+pub fn read_dicom_file_partial_by_modalities<P: AsRef<Path>>(
+    p: P,
+    modalities: &[Modality],
 ) -> Result<DicomFile, DicomError> {
+    let p = p.as_ref();
     trace!("Reading DICOM file: {:#?}", &p);
-    let obj = OpenFileOptions::new()
-        .read_until(PIXEL_DATA)
-        .open_file(&p)?;
+    let obj = OpenFileOptions::new().read_until(PIXEL_DATA).open_file(p)?;
     let sop_class_uid = get_string(&obj, SOP_CLASS_UID)?;
     if (sop_class_uid == CT_IMAGE_STORAGE && modalities.contains(&Modality::Ct))
         || (sop_class_uid == ENHANCED_CT_IMAGE_STORAGE

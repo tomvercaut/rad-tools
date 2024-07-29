@@ -2,6 +2,7 @@ use dicom_core::value::ConvertValueError;
 
 pub mod io;
 pub mod model;
+pub mod view;
 
 #[derive(thiserror::Error, Debug)]
 pub enum DicomError {
