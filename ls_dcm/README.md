@@ -9,10 +9,11 @@ Read minimal data from DICOM files and a print it in the terminal.
 ```shell
 cargo build --release
 ```
+
 ## Usage
 
-```
-ls_rtplan.exe --help
+```shell
+ls_rtplan --help
 A command line interface (CLI) application for reading and listing RTPLAN DICOM files.
 
 Application enables the user to specify the directory from which the DICOM files are read,
@@ -20,7 +21,7 @@ as well as additional options such as filtering by filename prefixes, limiting t
 sorting the files by last modified timestamp, and enabling logging at different levels.
 
 
-Usage: ls_rtplan.exe [OPTIONS]
+Usage: ls_rtplan_r.exe [OPTIONS]
 
 Options:
   -d, --dir <DIR>
@@ -47,4 +48,3 @@ Options:
   -V, --version
           Print version
 ```
-
