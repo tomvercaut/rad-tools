@@ -34,7 +34,7 @@ use crate::DicomError::UnsupportedSOPClassUIDReader;
 ///
 /// * `Result<DicomFile, DicomError>` - The `DicomFile` if the file is successfully read, or a `DicomError` if an error occurs.
 pub fn read_dicom_file_partial<P: AsRef<Path>>(p: P) -> Result<DicomFile, DicomError> {
-    let modalities = vec![
+    let modalities = [
         Modality::Ct,
         Modality::EnhancedCt,
         Modality::Mr,
