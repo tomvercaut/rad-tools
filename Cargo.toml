@@ -1,5 +1,5 @@
 [workspace]
-members = ["ls_dcm"]
+members = ["ls_dcm", "mpc_checks_cleaner", "one_way_sync"]
 resolver = "2"
 
 [workspace.package]
@@ -11,21 +11,22 @@ authors = ["Tom Vercauteren"]
 [workspace.dependencies]
 thiserror = "1"
 anyhow = "1"
-quick-xml = "0.31"
+quick-xml = "0.32"
 base64 = "0.22"
 ndarray = "0.15.6"
-clap = { version = "4.5.3", features = ["derive"] }
-dicom-core = "0.6"
-dicom-object = "0.6"
-dicom-dictionary-std = "0.6"
+clap = { version = "4", features = ["derive"] }
+dicom-core = "0.7"
+dicom-object = "0.7"
+dicom-dictionary-std = "0.7"
 walkdir = "2"
 tokio = { version = "1", features = ["full"] }
 crossterm = "0.27.0"
-ratatui = { version = "0.26.1", features = ["default"] }
+ratatui = { version = "0.26", features = ["default"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
 comfy-table = "7"
 rayon = "1"
+chrono = "0.4"
 
 #[workspace.dev-dependencies]
 log = "0.4"
