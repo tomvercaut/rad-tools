@@ -1,5 +1,5 @@
 [workspace]
-members = ["ls_dcm", "mpc_checks_cleaner", "one_way_sync"]
+members = ["dcmcp", "ls_dcm", "mpc_checks_cleaner", "one_way_sync"]
 resolver = "2"
 
 [workspace.package]
@@ -27,6 +27,7 @@ tracing-subscriber = "0.3"
 comfy-table = "7"
 rayon = "1"
 chrono = "0.4"
+async-std = "1"
 
 #[workspace.dev-dependencies]
 log = "0.4"
