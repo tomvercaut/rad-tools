@@ -1,12 +1,7 @@
-use std::path::{Path, PathBuf};
-
 use clap::Parser;
-use dicom_core::Tag;
-use dicom_dictionary_std::tags::{
-    MODALITY, PATIENT_ID, PIXEL_DATA, SERIES_DESCRIPTION, SERIES_INSTANCE_UID, SERIES_NUMBER,
-    STUDY_DESCRIPTION, STUDY_INSTANCE_UID,
-};
-use dicom_object::{FileDicomObject, InMemDicomObject, OpenFileOptions};
+use dcm_sort::TryFromDicomObject;
+use dicom_dictionary_std::tags::PIXEL_DATA;
+use dicom_object::OpenFileOptions;
 use tracing::{debug, error, info, trace, Level};
 use walkdir::WalkDir;
 
@@ -19,6 +14,10 @@ use walkdir::WalkDir;
 /// - Series ID
 /// - Series Number
 /// - Modality
+///
+/// Format of the path being created:
+/// <output directory>/<patient ID>/<study>/<series>/<series nr>/<modality>
+///
 #[derive(Parser, Debug, Clone)]
 #[command(
     author,
@@ -33,6 +32,9 @@ The DICOM data will be sorted by:
 - Series ID
 - Series Number
 - Modality
+
+Format of the path being created:
+<output directory>/<patient ID>/<study>/<series>/<series nr>/<modality>
 "
 )]
 struct Cli {
@@ -48,55 +50,6 @@ struct Cli {
     /// Enable logging at TRACE level.
     #[arg(long, default_value_t = false)]
     trace: bool,
-}
-
-#[derive(Clone, Debug)]
-struct Data {
-    patient_id: String,
-    study_uid: String,
-    study_descr: String,
-    series_uid: String,
-    series_descr: String,
-    series_nr: String,
-    modality: String,
-}
-
-impl Data {
-    pub fn to_path_buf<P>(&self, p: P) -> PathBuf
-    where
-        P: AsRef<Path>,
-    {
-        let p = p.as_ref();
-        p.join(&self.patient_id)
-            .join(
-                if self.study_uid.is_empty() && self.study_descr.is_empty() {
-                    "STUDY_UID_UNKNOWN"
-                } else if !self.study_descr.is_empty() {
-                    &self.study_descr
-                } else {
-                    &self.study_uid
-                },
-            )
-            .join(
-                if self.series_uid.is_empty() && self.series_descr.is_empty() {
-                    "SERIES_UID_UNKNOWN"
-                } else if !self.series_descr.is_empty() {
-                    &self.series_descr
-                } else {
-                    &self.series_uid
-                },
-            )
-            .join(if self.series_nr.is_empty() {
-                "SERIES_NUMBER_UNKNOWN"
-            } else {
-                &self.series_nr
-            })
-            .join(if self.modality.is_empty() {
-                "MODALITY_UNKNOWN"
-            } else {
-                &self.modality
-            })
-    }
 }
 
 fn main() {
@@ -135,24 +88,10 @@ fn main() {
         }
         let obj = r.unwrap();
 
-        let patient_id = get_str(&obj, PATIENT_ID, path);
-        let study_uid = get_str(&obj, STUDY_INSTANCE_UID, path);
-        let study_descr = get_str(&obj, STUDY_DESCRIPTION, path);
-        let series_uid = get_str(&obj, SERIES_INSTANCE_UID, path);
-        let series_descr = get_str(&obj, SERIES_DESCRIPTION, path);
-        let series_nr = get_str(&obj, SERIES_NUMBER, path);
-        let modality = get_str(&obj, MODALITY, path);
-        let data = Data {
-            patient_id,
-            study_uid,
-            study_descr,
-            series_uid,
-            series_descr,
-            series_nr,
-            modality,
-        };
+        let data = dcm_sort::Data::try_from_dicom_obj(&obj)
+            .expect("Unable to create Data from DicomObject");
         trace!("Data read from: {:#?}\n{:#?}", path, &data);
-        let odir = data.to_path_buf(&cli.output);
+        let odir = dcm_sort::to_path_buf(&data, &cli.output).unwrap();
         debug!("Output directory: {:#?}", &odir);
         std::fs::create_dir_all(&odir)
             .unwrap_or_else(|e| panic!("Error occurred while creating: {:#?}\n{:#?}", &odir, e));
@@ -166,28 +105,4 @@ fn main() {
             )
         });
     }
-}
-
-fn get_str(obj: &FileDicomObject<InMemDicomObject>, tag: Tag, path: &Path) -> String {
-    obj.element(tag)
-        .unwrap_or_else(|e| {
-            panic!(
-                "{:?} not found in DICOM file: {:#?}\n{:#?}",
-                tag.to_string(),
-                path,
-                e
-            )
-        })
-        .to_str()
-        .unwrap_or_else(|e| {
-            panic!(
-                "{:?} cannot be converted from DICOM file: {:#?}\n{:#?}",
-                tag.to_string(),
-                path,
-                e
-            )
-        })
-        .to_string()
-        .trim()
-        .to_string()
 }
