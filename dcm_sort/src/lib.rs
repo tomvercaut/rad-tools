@@ -6,7 +6,7 @@ use dicom_dictionary_std::tags::{
     MODALITY, PATIENT_ID, SERIES_DESCRIPTION, SERIES_INSTANCE_UID, SERIES_NUMBER,
     STUDY_DESCRIPTION, STUDY_INSTANCE_UID,
 };
-use dicom_object::DefaultDicomObject;
+use dicom_object::InMemDicomObject;
 
 const STUDY_INSTANCE_UID_UNKNOWN: &str = "STUDY_UID_UNKNOWN";
 const SERIES_INSTANCE_UID_UNKNOWN: &str = "SERIES_UID_UNKNOWN";
@@ -30,7 +30,7 @@ pub trait TryFromDicomObject: Sized {
     ///
     /// If an error is detected, it's returned.
     fn try_from_dicom_obj(
-        obj: &DefaultDicomObject,
+        obj: &InMemDicomObject,
     ) -> std::result::Result<Self, Self::DicomObjectError>;
 }
 
@@ -97,7 +97,7 @@ impl TryFromDicomObject for Data {
     type DicomObjectError = FromDicomObjectError;
 
     fn try_from_dicom_obj(
-        obj: &DefaultDicomObject,
+        obj: &InMemDicomObject,
     ) -> std::result::Result<Self, Self::DicomObjectError> {
         let patient_id = support::get_str(obj, PATIENT_ID).unwrap();
         let study_uid = support::get_str(obj, STUDY_INSTANCE_UID).unwrap();
