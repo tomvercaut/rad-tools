@@ -1,12 +1,7 @@
-use std::path::Path;
-
 use clap::Parser;
-use dicom_core::Tag;
-use dicom_dictionary_std::tags::{
-    MODALITY, PATIENT_ID, PIXEL_DATA, SERIES_DESCRIPTION, SERIES_INSTANCE_UID, SERIES_NUMBER,
-    STUDY_DESCRIPTION, STUDY_INSTANCE_UID,
-};
-use dicom_object::{FileDicomObject, InMemDicomObject, OpenFileOptions};
+use dcm_sort::TryFromDicomObject;
+use dicom_dictionary_std::tags::PIXEL_DATA;
+use dicom_object::OpenFileOptions;
 use tracing::{debug, error, info, trace, Level};
 use walkdir::WalkDir;
 
@@ -86,22 +81,8 @@ fn main() {
         }
         let obj = r.unwrap();
 
-        let patient_id = get_str(&obj, PATIENT_ID, path);
-        let study_uid = get_str(&obj, STUDY_INSTANCE_UID, path);
-        let study_descr = get_str(&obj, STUDY_DESCRIPTION, path);
-        let series_uid = get_str(&obj, SERIES_INSTANCE_UID, path);
-        let series_descr = get_str(&obj, SERIES_DESCRIPTION, path);
-        let series_nr = get_str(&obj, SERIES_NUMBER, path);
-        let modality = get_str(&obj, MODALITY, path);
-        let data = dcm_sort::Data {
-            patient_id,
-            study_uid,
-            study_descr,
-            series_uid,
-            series_descr,
-            series_nr,
-            modality,
-        };
+        let data = dcm_sort::Data::try_from_dicom_obj(&obj)
+            .expect("Unable to create Data from DicomObject");
         trace!("Data read from: {:#?}\n{:#?}", path, &data);
         let odir = dcm_sort::to_path_buf(&data, &cli.output).unwrap();
         debug!("Output directory: {:#?}", &odir);
@@ -117,28 +98,4 @@ fn main() {
             )
         });
     }
-}
-
-fn get_str(obj: &FileDicomObject<InMemDicomObject>, tag: Tag, path: &Path) -> String {
-    obj.element(tag)
-        .unwrap_or_else(|e| {
-            panic!(
-                "{:?} not found in DICOM file: {:#?}\n{:#?}",
-                tag.to_string(),
-                path,
-                e
-            )
-        })
-        .to_str()
-        .unwrap_or_else(|e| {
-            panic!(
-                "{:?} cannot be converted from DICOM file: {:#?}\n{:#?}",
-                tag.to_string(),
-                path,
-                e
-            )
-        })
-        .to_string()
-        .trim()
-        .to_string()
 }

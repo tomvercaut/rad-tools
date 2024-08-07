@@ -1,34 +1,122 @@
+mod support;
+
 use std::path::{Path, PathBuf};
+
+use dicom_dictionary_std::tags::{
+    MODALITY, PATIENT_ID, SERIES_DESCRIPTION, SERIES_INSTANCE_UID, SERIES_NUMBER,
+    STUDY_DESCRIPTION, STUDY_INSTANCE_UID,
+};
+use dicom_object::DefaultDicomObject;
 
 const STUDY_INSTANCE_UID_UNKNOWN: &str = "STUDY_UID_UNKNOWN";
 const SERIES_INSTANCE_UID_UNKNOWN: &str = "SERIES_UID_UNKNOWN";
 const SERIES_NUMBER_UNKNOWN: &str = "SERIES_NUMBER_UNKNOWN";
 const MODALITY_UNKNOWN: &str = "MODALITY_UNKNOWN";
 
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("Patient ID is undefined or not set.")]
     PatientIdUnknown,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// A trait to convert a DICOM object into another data type.
+pub trait TryFromDicomObject: Sized {
+    /// Type of error that can be generated while trying to convert a DICOM object.
+    type DicomObjectError;
+
+    /// Tries to convert a DICOM object into `Self`.
+    ///
+    /// If an error is detected, it's returned.
+    fn try_from_dicom_obj(
+        obj: &DefaultDicomObject,
+    ) -> std::result::Result<Self, Self::DicomObjectError>;
+}
+
 /// Data by which the DICOM files can be categorized.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Data {
     /// Unique patient identifier
-    pub patient_id: String,
+    patient_id: String,
     /// Study Instance UID
-    pub study_uid: String,
+    study_uid: String,
     /// Study description
-    pub study_descr: String,
+    study_descr: String,
     /// Series Instance UID
-    pub series_uid: String,
+    series_uid: String,
     /// Series description
-    pub series_descr: String,
+    series_descr: String,
     /// Series number
-    pub series_nr: String,
+    series_nr: String,
     /// Modality
-    pub modality: String,
+    modality: String,
+}
+
+impl Data {
+    /// Get the patient ID.
+    pub fn patient_id(&self) -> &str {
+        &self.patient_id
+    }
+
+    /// Get the study instance UID.
+    pub fn study_uid(&self) -> &str {
+        &self.study_uid
+    }
+
+    /// Get the study description.
+    pub fn study_descr(&self) -> &str {
+        &self.study_descr
+    }
+
+    /// Get the series instance UID.
+    pub fn series_uid(&self) -> &str {
+        &self.series_uid
+    }
+
+    /// Get the series description.
+    pub fn series_descr(&self) -> &str {
+        &self.series_descr
+    }
+
+    /// Get the series number.
+    pub fn series_nr(&self) -> &str {
+        &self.series_nr
+    }
+
+    /// Get the modality.
+    pub fn modality(&self) -> &str {
+        &self.modality
+    }
+}
+
+#[derive(Debug)]
+pub enum FromDicomObjectError {}
+
+impl TryFromDicomObject for Data {
+    type DicomObjectError = FromDicomObjectError;
+
+    fn try_from_dicom_obj(
+        obj: &DefaultDicomObject,
+    ) -> std::result::Result<Self, Self::DicomObjectError> {
+        let patient_id = support::get_str(obj, PATIENT_ID).unwrap();
+        let study_uid = support::get_str(obj, STUDY_INSTANCE_UID).unwrap();
+        let study_descr = support::get_str_or_default(obj, STUDY_DESCRIPTION);
+        let series_uid = support::get_str(obj, SERIES_INSTANCE_UID).unwrap();
+        let series_descr = support::get_str_or_default(obj, SERIES_DESCRIPTION);
+        let series_nr = support::get_str_or_default(obj, SERIES_NUMBER);
+        let modality = support::get_str(obj, MODALITY).unwrap();
+        let data = Data {
+            patient_id,
+            study_uid,
+            study_descr,
+            series_uid,
+            series_descr,
+            series_nr,
+            modality,
+        };
+        Ok(data)
+    }
 }
 
 /// Create a file path based on the data.
@@ -61,30 +149,32 @@ where
     }
     let p = p.as_ref();
     let pb = p
-        .join(&d.patient_id)
-        .join(if d.study_uid.is_empty() && d.study_descr.is_empty() {
+        .join(d.patient_id())
+        .join(if d.study_uid().is_empty() && d.study_descr().is_empty() {
             STUDY_INSTANCE_UID_UNKNOWN
-        } else if !d.study_descr.is_empty() {
-            &d.study_descr
+        } else if !d.study_descr().is_empty() {
+            d.study_descr()
         } else {
-            &d.study_uid
+            d.study_uid()
         })
-        .join(if d.series_uid.is_empty() && d.series_descr.is_empty() {
-            SERIES_INSTANCE_UID_UNKNOWN
-        } else if !d.series_descr.is_empty() {
-            &d.series_descr
-        } else {
-            &d.series_uid
-        })
-        .join(if d.series_nr.is_empty() {
+        .join(
+            if d.series_uid().is_empty() && d.series_descr().is_empty() {
+                SERIES_INSTANCE_UID_UNKNOWN
+            } else if !d.series_descr().is_empty() {
+                d.series_descr()
+            } else {
+                d.series_uid()
+            },
+        )
+        .join(if d.series_nr().is_empty() {
             SERIES_NUMBER_UNKNOWN
         } else {
-            &d.series_nr
+            d.series_nr()
         })
-        .join(if d.modality.is_empty() {
+        .join(if d.modality().is_empty() {
             MODALITY_UNKNOWN
         } else {
-            &d.modality
+            d.modality()
         });
     Ok(pb)
 }
