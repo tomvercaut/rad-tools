@@ -32,10 +32,17 @@ fn get_str_internal(obj: &InMemDicomObject, tag: Tag, log_errors: bool) -> Resul
     Ok(elem_value.trim().to_string())
 }
 
+/// Get the String value from a DICOM element (by `Tag`) in a DicomObject.
+///
+/// The DICOM element must exist, otherwise an error is returned.
+/// The value must also be convertable into a String.
 pub(crate) fn get_str(obj: &InMemDicomObject, tag: Tag) -> Result<String> {
     get_str_internal(obj, tag, true)
 }
-
+/// Get the String value from a DICOM element (by `Tag`) in a DicomObject.
+///
+/// If the DICOM element doesn't exist, or if the value can't be converted
+/// into a String, a default String is returned.
 pub(crate) fn get_str_or_default(obj: &InMemDicomObject, tag: Tag) -> String {
     get_str_internal(obj, tag, false).unwrap_or_default()
 }
