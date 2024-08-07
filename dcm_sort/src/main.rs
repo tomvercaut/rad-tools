@@ -103,7 +103,7 @@ fn main() {
             modality,
         };
         trace!("Data read from: {:#?}\n{:#?}", path, &data);
-        let odir = data.to_path_buf(&cli.output).unwrap();
+        let odir = dcm_sort::to_path_buf(&data, &cli.output).unwrap();
         debug!("Output directory: {:#?}", &odir);
         std::fs::create_dir_all(&odir)
             .unwrap_or_else(|e| panic!("Error occurred while creating: {:#?}\n{:#?}", &odir, e));
