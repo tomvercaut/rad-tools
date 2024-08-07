@@ -50,18 +50,47 @@ struct Cli {
     trace: bool,
 }
 
+/// Data by which the DICOM files can be categorized.
 #[derive(Clone, Debug)]
 struct Data {
+    /// Unique patient identifier
     patient_id: String,
+    /// Study Instance UID
     study_uid: String,
+    /// Study description
     study_descr: String,
+    /// Series Instance UID
     series_uid: String,
+    /// Series description
     series_descr: String,
+    /// Series number
     series_nr: String,
+    /// Modality
     modality: String,
 }
 
 impl Data {
+    /// Create a file path based on the data.
+    ///
+    /// Format of the path being created:
+    /// <p>/<study>/<series>/<series nr>/<modality>
+    ///
+    /// where:
+    /// - `p`: input path
+    /// - `study`:
+    ///     - study description, if not empty
+    ///     - study instance UID, if not empty
+    ///     - STUDY_UID_UNKNOWN
+    /// - `series`:
+    ///     - series description, if not empty
+    ///     - series instance UID, if not empty
+    ///     - SERIES_UID_UNKNOWN
+    /// - `series nr`:
+    ///     - series number, if not empty
+    ///     - SERIES_UID_UNKNOWN
+    /// - `modality`:
+    ///     - modality, if not empty
+    ///     - MODALITY_UNKNOWN
     pub fn to_path_buf<P>(&self, p: P) -> PathBuf
     where
         P: AsRef<Path>,
