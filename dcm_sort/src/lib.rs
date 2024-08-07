@@ -122,10 +122,11 @@ impl TryFromDicomObject for Data {
 /// Create a file path based on the data.
 ///
 /// Format of the path being created:
-/// <p>/<study>/<series>/<series nr>/<modality>
+/// <p>/<patient ID>/<study>/<series>/<series nr>/<modality>
 ///
 /// where:
 /// - `p`: input path
+/// - `patient ID`: unique patient identifier
 /// - `study`:
 ///     - study description, if not empty
 ///     - study instance UID, if not empty

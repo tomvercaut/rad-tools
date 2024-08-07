@@ -14,6 +14,10 @@ use walkdir::WalkDir;
 /// - Series ID
 /// - Series Number
 /// - Modality
+///
+/// Format of the path being created:
+/// <output directory>/<patient ID>/<study>/<series>/<series nr>/<modality>
+///
 #[derive(Parser, Debug, Clone)]
 #[command(
     author,
@@ -28,6 +32,9 @@ The DICOM data will be sorted by:
 - Series ID
 - Series Number
 - Modality
+
+Format of the path being created:
+<output directory>/<patient ID>/<study>/<series>/<series nr>/<modality>
 "
 )]
 struct Cli {
