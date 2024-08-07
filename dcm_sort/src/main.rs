@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use clap::Parser;
 use dicom_core::Tag;
@@ -50,84 +50,6 @@ struct Cli {
     trace: bool,
 }
 
-/// Data by which the DICOM files can be categorized.
-#[derive(Clone, Debug)]
-struct Data {
-    /// Unique patient identifier
-    patient_id: String,
-    /// Study Instance UID
-    study_uid: String,
-    /// Study description
-    study_descr: String,
-    /// Series Instance UID
-    series_uid: String,
-    /// Series description
-    series_descr: String,
-    /// Series number
-    series_nr: String,
-    /// Modality
-    modality: String,
-}
-
-impl Data {
-    /// Create a file path based on the data.
-    ///
-    /// Format of the path being created:
-    /// <p>/<study>/<series>/<series nr>/<modality>
-    ///
-    /// where:
-    /// - `p`: input path
-    /// - `study`:
-    ///     - study description, if not empty
-    ///     - study instance UID, if not empty
-    ///     - STUDY_UID_UNKNOWN
-    /// - `series`:
-    ///     - series description, if not empty
-    ///     - series instance UID, if not empty
-    ///     - SERIES_UID_UNKNOWN
-    /// - `series nr`:
-    ///     - series number, if not empty
-    ///     - SERIES_UID_UNKNOWN
-    /// - `modality`:
-    ///     - modality, if not empty
-    ///     - MODALITY_UNKNOWN
-    pub fn to_path_buf<P>(&self, p: P) -> PathBuf
-    where
-        P: AsRef<Path>,
-    {
-        let p = p.as_ref();
-        p.join(&self.patient_id)
-            .join(
-                if self.study_uid.is_empty() && self.study_descr.is_empty() {
-                    "STUDY_UID_UNKNOWN"
-                } else if !self.study_descr.is_empty() {
-                    &self.study_descr
-                } else {
-                    &self.study_uid
-                },
-            )
-            .join(
-                if self.series_uid.is_empty() && self.series_descr.is_empty() {
-                    "SERIES_UID_UNKNOWN"
-                } else if !self.series_descr.is_empty() {
-                    &self.series_descr
-                } else {
-                    &self.series_uid
-                },
-            )
-            .join(if self.series_nr.is_empty() {
-                "SERIES_NUMBER_UNKNOWN"
-            } else {
-                &self.series_nr
-            })
-            .join(if self.modality.is_empty() {
-                "MODALITY_UNKNOWN"
-            } else {
-                &self.modality
-            })
-    }
-}
-
 fn main() {
     let cli = Cli::parse();
     let level = if cli.trace {
@@ -171,7 +93,7 @@ fn main() {
         let series_descr = get_str(&obj, SERIES_DESCRIPTION, path);
         let series_nr = get_str(&obj, SERIES_NUMBER, path);
         let modality = get_str(&obj, MODALITY, path);
-        let data = Data {
+        let data = dcm_sort::Data {
             patient_id,
             study_uid,
             study_descr,
@@ -181,7 +103,7 @@ fn main() {
             modality,
         };
         trace!("Data read from: {:#?}\n{:#?}", path, &data);
-        let odir = data.to_path_buf(&cli.output);
+        let odir = data.to_path_buf(&cli.output).unwrap();
         debug!("Output directory: {:#?}", &odir);
         std::fs::create_dir_all(&odir)
             .unwrap_or_else(|e| panic!("Error occurred while creating: {:#?}\n{:#?}", &odir, e));
