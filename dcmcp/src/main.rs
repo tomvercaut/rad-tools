@@ -1,9 +1,6 @@
 use clap::Parser;
-use pathdiff::diff_paths;
-use rad_tools_cp_dcm::{dcm_cp_file, DcmcpError};
-use std::path::Path;
-use tracing::{debug, error, trace, Level};
-use walkdir::WalkDir;
+use rad_tools_cp_dcm::dcm_cp_files;
+use tracing::{trace, Level};
 
 #[derive(Parser, Debug, Clone)]
 #[command(
@@ -14,7 +11,7 @@ use walkdir::WalkDir;
 A command line interface (CLI) application to copy DICOM files by patient ID.
 "
 )]
-struct Cli {
+pub struct Cli {
     /// File(s) or director(y/ies) from where DICOM files are copied (recursively).
     #[arg(required = true, value_name = "SOURCE")]
     input: Vec<String>,
@@ -26,13 +23,13 @@ struct Cli {
     patient_id: String,
     /// Enable logging at INFO level.
     #[arg(short, long, default_value_t = false)]
-    verbose: bool,
+    pub verbose: bool,
     /// Enable logging at DEBUG level.
     #[arg(long, default_value_t = false)]
-    debug: bool,
+    pub debug: bool,
     /// Enable logging at TRACE level.
     #[arg(long, default_value_t = false)]
-    trace: bool,
+    pub trace: bool,
 }
 
 fn main() {
@@ -54,58 +51,5 @@ fn main() {
 
     trace!("Commandline arguments: {:#?}", &cli);
 
-    for input in &cli.input {
-        let input_path = Path::new(input);
-        if !input_path.exists() {
-            panic!("Input path [{:#?}] doesn't exist", input);
-        }
-        let output_dir_path = Path::new(&cli.output);
-        if !output_dir_path.exists() {
-            panic!("Output path [{:#?}] doesn't exist", &cli.output);
-        }
-        if !output_dir_path.is_dir() {
-            panic!("Output path [{:#?}] is not a directory", &cli.output);
-        }
-        if input_path == output_dir_path {
-            debug!("Input path is the same as the output path.");
-        }
-
-        let dcm_cp = |input_path: &Path, output_dir_path: &Path, patient_id: &str| match dcm_cp_file(
-            input_path,
-            output_dir_path,
-            patient_id,
-        ) {
-            Ok(_) => {}
-            Err(e) => match *e {
-                DcmcpError::PatientIdNotFound(_) => {}
-                _ => {
-                    error!("{:#?}", e);
-                }
-            },
-        };
-
-        if input_path.is_file() {
-            trace!("Input path [{:#?}] is a file", input_path);
-            dcm_cp(input_path, output_dir_path, &cli.patient_id);
-        } else if input_path.is_dir() {
-            let entries = WalkDir::new(input_path);
-            for entry in entries {
-                if entry.is_err() {
-                    panic!(
-                        "Error while walking through {:#?}: {:#?}",
-                        input_path,
-                        entry.err()
-                    );
-                }
-                let entry = entry.unwrap();
-                let entry_path = entry.path();
-                if !entry_path.is_file() {
-                    continue;
-                }
-                let rel_path = diff_paths(entry_path, output_dir_path).unwrap();
-                let output_path = output_dir_path.join(rel_path);
-                dcm_cp(entry_path, &output_path, &cli.patient_id);
-            }
-        }
-    }
+    dcm_cp_files(&cli.input, &cli.output, &cli.patient_id);
 }
