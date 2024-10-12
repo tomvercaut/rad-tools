@@ -28,7 +28,6 @@ pub enum DcmcpError {
 
 pub type DcmResult<T> = Result<T, Box<DcmcpError>>;
 
-
 /// Copy a DICOM file(s) and or directories to a destination directory if the patient ID matches.
 ///
 /// # Arguments
@@ -37,7 +36,7 @@ pub type DcmResult<T> = Result<T, Box<DcmcpError>>;
 /// * `output`: output directory
 pub fn dcm_cp_files(inputs: &[String], output: &str, patient_id: &str) {
     for input in inputs {
-       dcm_cp_file(input, output, patient_id); 
+        dcm_cp_file(input, output, patient_id);
     }
 }
 
@@ -98,7 +97,16 @@ pub fn dcm_cp_file(input: &str, output: &str, patient_id: &str) {
             if !entry_path.is_file() {
                 continue;
             }
-            let rel_path = diff_paths(entry_path, output_dir_path).unwrap();
+            let entry_dir_path = entry_path.parent().unwrap();
+            if !entry_dir_path.is_dir() {
+                panic!(
+                    "Entry path [{:#?}] is a file, but parent directory [{:#?}] is not a directory",
+                    entry_path,
+                    entry_dir_path
+                );
+            }
+            let rel_path = diff_paths(entry_dir_path, input_path).unwrap();
+            trace!("diff_paths({:#?}, {:#?}) = {:#?}", entry_path, output_dir_path, rel_path);
             let output_path = output_dir_path.join(rel_path);
             dcm_cp(entry_path, &output_path, patient_id);
         }
@@ -252,7 +260,7 @@ mod internal {
         use dicom_dictionary_std::tags::{PATIENT_ID, PATIENT_NAME};
         use dicom_dictionary_std::uids::CT_IMAGE_STORAGE;
         use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
-        use log::{trace, warn, LevelFilter};
+        use log::{trace, LevelFilter};
         use std::path::PathBuf;
 
         fn init_logger() {
@@ -279,7 +287,7 @@ mod internal {
             let result = super::get_patient_id_from_obj(&obj, PathBuf::from("test.dcm"));
             assert!(result.is_err());
             match *result.unwrap_err() {
-                super::DcmcpError::PatientIdNotFound(e) => {
+                super::DcmcpError::PatientIdNotFound(_) => {
                     trace!("PatientIdNotFound was an expected error.");
                 }
                 _ => panic!("Expected DcmcpError::PatientIdNotFound"),
@@ -319,7 +327,7 @@ mod internal {
             if tmp_input.is_file() {
                 std::fs::remove_file(&tmp_input).unwrap();
             }
-            let tmp_out_dir = temp_dir.join("rad_tools_dcm_cp");
+            let tmp_out_dir = temp_dir.join("rad_tools_dcm_cp_internal");
             if tmp_out_dir.is_dir() {
                 std::fs::remove_dir_all(&tmp_out_dir).unwrap();
             }
@@ -354,5 +362,100 @@ mod internal {
             std::fs::remove_file(&tmp_output).unwrap();
             std::fs::remove_dir_all(&tmp_out_dir).unwrap();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use dicom_core::VR;
+    use dicom_dictionary_std::tags::{PATIENT_ID, PATIENT_NAME};
+    use dicom_dictionary_std::uids::CT_IMAGE_STORAGE;
+    use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
+    use log::LevelFilter;
+
+    fn init_logger() {
+        let _ = env_logger::builder()
+            .is_test(true)
+            .filter_level(LevelFilter::Trace)
+            .try_init();
+    }
+
+    #[test]
+    fn dcm_cp_files() {
+        init_logger();
+        let temp_dir = std::env::temp_dir();
+        let idir = temp_dir.join("rad_tools_dcm_cp").join("input");
+        let odir = temp_dir.join("rad_tools_dcm_cp").join("output");
+        if idir.is_dir() {
+            std::fs::remove_dir_all(&idir).unwrap();
+        }
+        if odir.is_dir() {
+            std::fs::remove_dir_all(&odir).unwrap();
+        }
+        std::fs::create_dir_all(&idir).unwrap();
+        std::fs::create_dir_all(&odir).unwrap();
+        assert!(idir.is_dir());
+        assert!(odir.is_dir());
+
+        let abc = &["a", "b", "c"];
+        let nums = &[1, 2, 3, 4, 5];
+        let prefix_id = "12345";
+        let pt_id = |prefix, i, j| format!("{}{}{}", prefix, i, j);
+        for i in abc {
+            let tdir = idir.join(i);
+            std::fs::create_dir(&tdir).unwrap();
+            // Add a non DICOM file to verify the functionality isn't affected.
+            std::fs::write(tdir.join("dummy.txt"), "Rust test: dcm_cp_files!").unwrap();
+            for j in nums {
+                let mut obj = InMemDicomObject::new_empty();
+                // Create dicom files
+                let patient_id = pt_id(prefix_id, i, j);
+                obj.put_str(PATIENT_ID, VR::LO, patient_id.clone());
+                obj.put_str(PATIENT_NAME, VR::PN, "Last^First");
+
+                // Write a temporary DICOM file
+                let file_obj = obj
+                    .with_meta(
+                        FileMetaTableBuilder::new()
+                            .transfer_syntax(
+                                dicom_transfer_syntax_registry::default().erased().uid(),
+                            )
+                            .media_storage_sop_class_uid(CT_IMAGE_STORAGE),
+                    )
+                    .unwrap();
+                let tmp_input = tdir.join(format!("{}.dcm", &patient_id));
+                file_obj.write_to_file(tmp_input.as_path()).unwrap();
+                assert!(tmp_input.is_file());
+            }
+        }
+        let clean_odirs = || {
+            for i in abc {
+                let todir = odir.join(i);
+                if todir.is_dir() {
+                    std::fs::remove_dir_all(&todir).unwrap();
+                }
+            }
+        };
+        for i in abc {
+            for j in nums {
+                // clean output sub directories
+                clean_odirs();
+                let patient_id = pt_id(prefix_id, i, j);
+                super::dcm_cp_files(
+                    &[idir.to_str().unwrap().to_string()],
+                    odir.to_str().unwrap(),
+                    &patient_id,
+                );
+
+                let tmp_input = idir.join(*i).join(format!("{}.dcm", &patient_id));
+                let tmp_output = odir.join(*i).join(format!("{}.dcm", &patient_id));
+                let v1 = std::fs::read(&tmp_input).unwrap();
+                let v2 = std::fs::read(&tmp_output).unwrap();
+                assert_eq!(v1, v2);
+            }
+        }
+        clean_odirs();
+        std::fs::remove_dir_all(&idir).unwrap();
+        std::fs::remove_dir_all(&odir).unwrap();
     }
 }
