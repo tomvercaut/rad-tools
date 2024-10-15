@@ -1,5 +1,6 @@
 use clap::Parser;
-use rad_tools_cp_dcm::dcm_cp_files;
+use log::error;
+use rad_tools_cp_dcm::{dcm_cp_files, DcmcpError};
 use tracing::{trace, Level};
 
 #[derive(Parser, Debug, Clone)]
@@ -32,7 +33,7 @@ pub struct Cli {
     pub trace: bool,
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let level = if cli.trace {
         Level::TRACE
@@ -51,5 +52,43 @@ fn main() {
 
     trace!("Commandline arguments: {:#?}", &cli);
 
-    dcm_cp_files(&cli.input, &cli.output, &cli.patient_id);
+    let mut has_errors = 0;
+    match dcm_cp_files(&cli.input, &cli.output, &cli.patient_id) {
+        Ok(_) => {}
+        Err(v) => {
+            for be in v {
+                match be.as_ref() {
+                    // DcmcpError::PathDoesNotExist(_) => {}
+                    // DcmcpError::PathNotDir(_) => {}
+                    // DcmcpError::InputOutputDirectoryEqual(_) => {}
+                    // DcmcpError::InputNotFile(_) => {}
+                    // DcmcpError::UnableToCreateDestinationDirectory(_) => {}
+                    // DcmcpError::DestinationNotDirectory(_) => {}
+                    // DcmcpError::PatientIdCastError(_) => {}
+                    // DcmcpError::PatientIdNoMatch(_) => {}
+                    // DcmcpError::ReadData(_, _) => {}
+                    // DcmcpError::IO(_) => {}
+                    // DcmcpError::DestinationNotWritable(_) => {}
+                    DcmcpError::PatientIdNotFound(_) => {}
+                    e => {
+                        has_errors += 1;
+                        error!("Error: {}", e);
+                    }
+                }
+            }
+        }
+    }
+    if has_errors > 0 {
+        if has_errors == 1 {
+            Err(anyhow::anyhow!(
+                "An error has been detected while copying the DICOM data."
+            ))
+        } else {
+            Err(anyhow::anyhow!(
+                "Errors have been detected while copying the DICOM data."
+            ))
+        }
+    } else {
+        Ok(())
+    }
 }

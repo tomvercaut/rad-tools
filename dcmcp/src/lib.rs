@@ -1,11 +1,17 @@
 use dicom_object::ReadError;
 use pathdiff::diff_paths;
 use std::path::Path;
-use tracing::{debug, error, trace};
+use tracing::{error, trace};
 use walkdir::WalkDir;
 
 #[derive(thiserror::Error, Debug)]
 pub enum DcmcpError {
+    #[error("Expected path doesn't exist: {0:#?}")]
+    PathDoesNotExist(std::path::PathBuf),
+    #[error("Path is not a directory: {0:#?}")]
+    PathNotDir(std::path::PathBuf),
+    #[error("Input and output directory are identical: {0:#?}")]
+    InputOutputDirectoryEqual(std::path::PathBuf),
     #[error("Expected an input file to copy: {0:#?}")]
     InputNotFile(std::path::PathBuf),
     #[error("Unable to create destination directory: {0:#?}")]
@@ -27,6 +33,7 @@ pub enum DcmcpError {
 }
 
 pub type DcmResult<T> = Result<T, Box<DcmcpError>>;
+pub type DcmResults<T> = Result<T, Vec<Box<DcmcpError>>>;
 
 /// Copy a DICOM file(s) and or directories to a destination directory if the patient ID matches.
 ///
@@ -34,9 +41,20 @@ pub type DcmResult<T> = Result<T, Box<DcmcpError>>;
 ///
 /// * `input`: input file
 /// * `output`: output directory
-pub fn dcm_cp_files(inputs: &[String], output: &str, patient_id: &str) {
+pub fn dcm_cp_files(inputs: &[String], output: &str, patient_id: &str) -> DcmResults<()> {
+    let mut errors = Vec::new();
     for input in inputs {
-        dcm_cp_file(input, output, patient_id);
+        match dcm_cp_file(input, output, patient_id) {
+            Ok(_) => {}
+            Err(e) => {
+                errors.push(e);
+            }
+        }
+    }
+    if !errors.is_empty() {
+        Err(errors)
+    } else {
+        Ok(())
     }
 }
 
@@ -48,40 +66,48 @@ pub fn dcm_cp_files(inputs: &[String], output: &str, patient_id: &str) {
 /// * `output`: output directory
 /// * `patient_id`: patient ID to match
 ///
-pub fn dcm_cp_file(input: &str, output: &str, patient_id: &str) {
+pub fn dcm_cp_file(input: &str, output: &str, patient_id: &str) -> DcmResult<()> {
     let input_path = Path::new(input);
     if !input_path.exists() {
-        panic!("Input path [{:#?}] doesn't exist", input);
+        error!("Input path [{:#?}] doesn't exist", input);
+        return Err(Box::new(DcmcpError::PathDoesNotExist(
+            input_path.to_path_buf(),
+        )));
     }
     let output_dir_path = Path::new(&output);
     if !output_dir_path.exists() {
-        panic!("Output path [{:#?}] doesn't exist", &output);
+        error!("Output path [{:#?}] doesn't exist", &output);
+        return Err(Box::new(DcmcpError::PathDoesNotExist(
+            input_path.to_path_buf(),
+        )));
     }
     if !output_dir_path.is_dir() {
-        panic!("Output path [{:#?}] is not a directory", &output);
+        error!("Output path [{:#?}] is not a directory", &output);
+        return Err(Box::new(DcmcpError::PathNotDir(input_path.to_path_buf())));
     }
     if input_path == output_dir_path {
-        debug!("Input path is the same as the output path.");
+        error!("Input path is the same as the output path.");
+        return Err(Box::new(DcmcpError::InputOutputDirectoryEqual(
+            input_path.to_path_buf(),
+        )));
     }
 
-    let dcm_cp =
-        |input_path: &Path, output_dir_path: &Path, patient_id: &str| match internal::dcm_cp_file(
-            input_path,
-            output_dir_path,
-            patient_id,
-        ) {
-            Ok(_) => {}
+    let dcm_cp = |input_path: &Path, output_dir_path: &Path, patient_id: &str| {
+        match internal::dcm_cp_file(input_path, output_dir_path, patient_id) {
+            Ok(_) => Ok(()),
             Err(e) => match *e {
-                DcmcpError::PatientIdNotFound(_) => {}
-                _ => {
-                    error!("{:#?}", e);
+                DcmcpError::PatientIdNotFound(_) => Ok(()),
+                e => {
+                    // error!("{:#?}", e);
+                    Err(Box::new(e))
                 }
             },
-        };
+        }
+    };
 
     if input_path.is_file() {
         trace!("Input path [{:#?}] is a file", input_path);
-        dcm_cp(input_path, output_dir_path, patient_id);
+        dcm_cp(input_path, output_dir_path, patient_id)?;
     } else if input_path.is_dir() {
         let entries = WalkDir::new(input_path);
         for entry in entries {
@@ -101,16 +127,21 @@ pub fn dcm_cp_file(input: &str, output: &str, patient_id: &str) {
             if !entry_dir_path.is_dir() {
                 panic!(
                     "Entry path [{:#?}] is a file, but parent directory [{:#?}] is not a directory",
-                    entry_path,
-                    entry_dir_path
+                    entry_path, entry_dir_path
                 );
             }
             let rel_path = diff_paths(entry_dir_path, input_path).unwrap();
-            trace!("diff_paths({:#?}, {:#?}) = {:#?}", entry_path, output_dir_path, rel_path);
+            trace!(
+                "diff_paths({:#?}, {:#?}) = {:#?}",
+                entry_path,
+                output_dir_path,
+                rel_path
+            );
             let output_path = output_dir_path.join(rel_path);
-            dcm_cp(entry_path, &output_path, patient_id);
+            dcm_cp(entry_path, &output_path, patient_id)?;
         }
     }
+    Ok(())
 }
 
 mod internal {
@@ -367,6 +398,7 @@ mod internal {
 
 #[cfg(test)]
 mod tests {
+    use crate::DcmcpError;
     use dicom_core::VR;
     use dicom_dictionary_std::tags::{PATIENT_ID, PATIENT_NAME};
     use dicom_dictionary_std::uids::CT_IMAGE_STORAGE;
@@ -441,17 +473,34 @@ mod tests {
                 // clean output sub directories
                 clean_odirs();
                 let patient_id = pt_id(prefix_id, i, j);
-                super::dcm_cp_files(
+                let mut pt_id_match = false;
+                match super::dcm_cp_files(
                     &[idir.to_str().unwrap().to_string()],
                     odir.to_str().unwrap(),
                     &patient_id,
-                );
+                ) {
+                    Ok(_) => {
+                        pt_id_match = true;
+                    }
+                    Err(ve) => {
+                        for be in &ve {
+                            match be.as_ref() {
+                                DcmcpError::PatientIdNoMatch(_) => {}
+                                e => {
+                                    panic!("Unexpected error: {}", e);
+                                }
+                            }
+                        }
+                    }
+                }
 
-                let tmp_input = idir.join(*i).join(format!("{}.dcm", &patient_id));
-                let tmp_output = odir.join(*i).join(format!("{}.dcm", &patient_id));
-                let v1 = std::fs::read(&tmp_input).unwrap();
-                let v2 = std::fs::read(&tmp_output).unwrap();
-                assert_eq!(v1, v2);
+                if pt_id_match {
+                    let tmp_input = idir.join(*i).join(format!("{}.dcm", &patient_id));
+                    let tmp_output = odir.join(*i).join(format!("{}.dcm", &patient_id));
+                    let v1 = std::fs::read(&tmp_input).unwrap();
+                    let v2 = std::fs::read(&tmp_output).unwrap();
+                    assert_eq!(v1, v2);
+                }
             }
         }
         clean_odirs();
