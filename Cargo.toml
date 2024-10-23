@@ -1,5 +1,5 @@
 [workspace]
-members = ["ls_dcm", "dcm_cp", "mpc_checks_cleaner", "one_way_sync"]
+members = ["dcm_ls", "dcm_cp", "mpc_checks_cleaner", "one_way_sync"]
 resolver = "2"
 
 [workspace.package]

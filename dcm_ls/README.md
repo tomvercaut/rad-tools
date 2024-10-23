@@ -1,4 +1,4 @@
-# ls-dcm
+# dcm_ls
 
 ## Description
 
@@ -13,7 +13,7 @@ cargo build --release
 ## Usage
 
 ```shell
-ls_rtplan --help
+dcm_ls_rtplan --help`
 A command line interface (CLI) application for reading and listing RTPLAN DICOM files.
 
 Application enables the user to specify the directory from which the DICOM files are read,
@@ -21,7 +21,7 @@ as well as additional options such as filtering by filename prefixes, limiting t
 sorting the files by last modified timestamp, and enabling logging at different levels.
 
 
-Usage: ls_rtplan_r.exe [OPTIONS]
+Usage: dcm_ls_rtplan [OPTIONS]
 
 Options:
   -d, --dir <DIR>
