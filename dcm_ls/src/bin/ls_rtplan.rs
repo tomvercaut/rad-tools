@@ -1,5 +1,5 @@
-use rad_tools_ls_dcm::model::{DicomFile, Modality};
-use rad_tools_ls_dcm::DicomError;
+use rad_tools_dcm_ls::model::{DicomFile, Modality};
+use rad_tools_dcm_ls::DicomError;
 use rayon::prelude::*;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -9,8 +9,8 @@ use clap::Parser;
 use tracing::{debug, error, trace, warn, Level};
 use walkdir::WalkDir;
 
-use rad_tools_ls_dcm::io::read_dicom_file_partial_by_modalities;
-use rad_tools_ls_dcm::view;
+use rad_tools_dcm_ls::io::read_dicom_file_partial_by_modalities;
+use rad_tools_dcm_ls::view;
 
 /// A command line interface (CLI) application for reading and listing RTPLAN DICOM files.
 ///
