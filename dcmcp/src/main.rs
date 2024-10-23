@@ -1,6 +1,8 @@
 use clap::Parser;
-use log::error;
+use dicom_object::ReadError;
+use log::{error, warn};
 use rad_tools_cp_dcm::{dcm_cp_files, DcmcpError};
+use std::io::ErrorKind;
 use tracing::{trace, Level};
 
 #[derive(Parser, Debug, Clone)]
@@ -58,18 +60,22 @@ fn main() -> anyhow::Result<()> {
         Err(v) => {
             for be in v {
                 match be.as_ref() {
-                    // DcmcpError::PathDoesNotExist(_) => {}
-                    // DcmcpError::PathNotDir(_) => {}
-                    // DcmcpError::InputOutputDirectoryEqual(_) => {}
-                    // DcmcpError::InputNotFile(_) => {}
-                    // DcmcpError::UnableToCreateDestinationDirectory(_) => {}
-                    // DcmcpError::DestinationNotDirectory(_) => {}
-                    // DcmcpError::PatientIdCastError(_) => {}
-                    // DcmcpError::PatientIdNoMatch(_) => {}
-                    // DcmcpError::ReadData(_, _) => {}
-                    // DcmcpError::IO(_) => {}
-                    // DcmcpError::DestinationNotWritable(_) => {}
-                    DcmcpError::PatientIdNotFound(_) => {}
+                    DcmcpError::ReadData(_p, e) => match e {
+                        ReadError::ReadFile {
+                            filename: _,
+                            backtrace: _,
+                            source,
+                        } => match source.kind() {
+                            ErrorKind::UnexpectedEof => {}
+                            _ => {
+                                warn!("{:#?}", e);
+                            }
+                        },
+                        e => {
+                            has_errors += 1;
+                            error!("ReadError: {:#?}", e);
+                        }
+                    },
                     e => {
                         has_errors += 1;
                         error!("Error: {}", e);

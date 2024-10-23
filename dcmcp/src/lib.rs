@@ -1,4 +1,5 @@
 use dicom_object::ReadError;
+use log::debug;
 use pathdiff::diff_paths;
 use std::path::Path;
 use tracing::{error, trace};
@@ -12,6 +13,10 @@ pub enum DcmcpError {
     PathNotDir(std::path::PathBuf),
     #[error("Input and output directory are identical: {0:#?}")]
     InputOutputDirectoryEqual(std::path::PathBuf),
+    #[error("{0:#?}")]
+    ParentDirectoryNotExist(String),
+    #[error("Error while walking {0:#?}:\n{1:#?}")]
+    WalkDirIter(std::path::PathBuf, walkdir::Error),
     #[error("Expected an input file to copy: {0:#?}")]
     InputNotFile(std::path::PathBuf),
     #[error("Unable to create destination directory: {0:#?}")]
@@ -47,7 +52,7 @@ pub fn dcm_cp_files(inputs: &[String], output: &str, patient_id: &str) -> DcmRes
         match dcm_cp_file(input, output, patient_id) {
             Ok(_) => {}
             Err(e) => {
-                errors.push(e);
+                errors.extend(e);
             }
         }
     }
@@ -66,30 +71,35 @@ pub fn dcm_cp_files(inputs: &[String], output: &str, patient_id: &str) -> DcmRes
 /// * `output`: output directory
 /// * `patient_id`: patient ID to match
 ///
-pub fn dcm_cp_file(input: &str, output: &str, patient_id: &str) -> DcmResult<()> {
+pub fn dcm_cp_file(input: &str, output: &str, patient_id: &str) -> DcmResults<()> {
     let input_path = Path::new(input);
+    let mut errs = vec![];
     if !input_path.exists() {
         error!("Input path [{:#?}] doesn't exist", input);
-        return Err(Box::new(DcmcpError::PathDoesNotExist(
+        errs.push(Box::new(DcmcpError::PathDoesNotExist(
             input_path.to_path_buf(),
         )));
+        return Err(errs);
     }
     let output_dir_path = Path::new(&output);
     if !output_dir_path.exists() {
         error!("Output path [{:#?}] doesn't exist", &output);
-        return Err(Box::new(DcmcpError::PathDoesNotExist(
+        errs.push(Box::new(DcmcpError::PathDoesNotExist(
             input_path.to_path_buf(),
         )));
+        return Err(errs);
     }
     if !output_dir_path.is_dir() {
         error!("Output path [{:#?}] is not a directory", &output);
-        return Err(Box::new(DcmcpError::PathNotDir(input_path.to_path_buf())));
+        errs.push(Box::new(DcmcpError::PathNotDir(input_path.to_path_buf())));
+        return Err(errs);
     }
     if input_path == output_dir_path {
         error!("Input path is the same as the output path.");
-        return Err(Box::new(DcmcpError::InputOutputDirectoryEqual(
+        errs.push(Box::new(DcmcpError::InputOutputDirectoryEqual(
             input_path.to_path_buf(),
         )));
+        return Err(errs);
     }
 
     let dcm_cp = |input_path: &Path, output_dir_path: &Path, patient_id: &str| {
@@ -106,29 +116,41 @@ pub fn dcm_cp_file(input: &str, output: &str, patient_id: &str) -> DcmResult<()>
     };
 
     if input_path.is_file() {
-        trace!("Input path [{:#?}] is a file", input_path);
-        dcm_cp(input_path, output_dir_path, patient_id)?;
+        debug!("Input path [{:#?}] is a file", input_path);
+        match dcm_cp(input_path, output_dir_path, patient_id) {
+            Ok(_) => {}
+            Err(e) => {
+                errs.push(e);
+                return Err(errs);
+            }
+        }
     } else if input_path.is_dir() {
         let entries = WalkDir::new(input_path);
         for entry in entries {
             if entry.is_err() {
-                panic!(
-                    "Error while walking through {:#?}: {:#?}",
-                    input_path,
-                    entry.err()
-                );
+                errs.push(Box::new(DcmcpError::WalkDirIter(
+                    input_path.to_path_buf(),
+                    entry.err().unwrap()
+                )));
+                continue;
             }
             let entry = entry.unwrap();
             let entry_path = entry.path();
+            debug!(
+                "entry_path = {:#?} [dir={}]",
+                entry_path,
+                entry_path.is_dir()
+            );
             if !entry_path.is_file() {
                 continue;
             }
             let entry_dir_path = entry_path.parent().unwrap();
             if !entry_dir_path.is_dir() {
-                panic!(
+                errs.push(Box::new(DcmcpError::ParentDirectoryNotExist(format!(
                     "Entry path [{:#?}] is a file, but parent directory [{:#?}] is not a directory",
                     entry_path, entry_dir_path
-                );
+                ))));
+                continue;
             }
             let rel_path = diff_paths(entry_dir_path, input_path).unwrap();
             trace!(
@@ -138,7 +160,12 @@ pub fn dcm_cp_file(input: &str, output: &str, patient_id: &str) -> DcmResult<()>
                 rel_path
             );
             let output_path = output_dir_path.join(rel_path);
-            dcm_cp(entry_path, &output_path, patient_id)?;
+            match dcm_cp(entry_path, &output_path, patient_id) {
+                Ok(_) => {}
+                Err(e) => {
+                    errs.push(e);
+                }
+            }
         }
     }
     Ok(())
@@ -149,7 +176,7 @@ mod internal {
     use dicom_dictionary_std::tags::{ISSUER_OF_PATIENT_ID, PATIENT_ID};
     use dicom_object::file::ReadPreamble;
     use dicom_object::{InMemDicomObject, OpenFileOptions};
-    use log::{error, info, trace};
+    use log::{debug, error, info, trace, warn};
 
     /// Read the patient ID from a DICOM file
     ///
@@ -220,7 +247,7 @@ mod internal {
         let dst = dst.as_ref();
         trace!("Checking if copying {src:#?} to {dst:#?} is valid");
         if !src.is_file() {
-            trace!("Copying {src:#?} to {dst:#?} is not possible: source is not a file");
+            warn!("Copying {src:#?} to {dst:#?} is not possible: source is not a file");
             return Err(Box::new(DcmcpError::InputNotFile(src.to_path_buf())));
         }
 
@@ -231,20 +258,20 @@ mod internal {
 
         // Only create the output directory if the file is a DICOM file.
         if !dst.is_dir() {
-            trace!("Copying {src:#?} to {dst:#?}: destination directory doesn't exist");
+            debug!("Copying {src:#?} to {dst:#?}: destination directory doesn't exist");
             let r = std::fs::create_dir_all(dst);
             if r.is_err() {
-                trace!("Copying {src:#?} to {dst:#?}: destination directory couldn't be created");
+                debug!("Copying {src:#?} to {dst:#?}: destination directory couldn't be created");
             }
         }
         if !dst.is_dir() {
-            trace!("Copying {src:#?} to {dst:#?} is not possible: destination is not a directory");
+            warn!("Copying {src:#?} to {dst:#?} is not possible: destination is not a directory");
             return Err(Box::new(DcmcpError::DestinationNotDirectory(
                 dst.to_path_buf(),
             )));
         }
         if !is_dir_writable(&dst) {
-            trace!(
+            error!(
             "Copying {src:#?} to {dst:#?} is not possible: destination directory is not writable"
         );
             return Err(Box::new(DcmcpError::DestinationNotWritable(
