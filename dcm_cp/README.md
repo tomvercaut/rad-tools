@@ -13,6 +13,8 @@ cargo build --release
 ## Usage
 
 ```shell
+dcm_cp --help
+
 A command line interface (CLI) application to copy DICOM files by patient ID.
 
 
