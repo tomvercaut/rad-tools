@@ -8,7 +8,7 @@ An ecosystem of libraries and tools that can used in the field of radiotherapy.
 
 The project at this stage has one library.
 
-- [`radtools-ls-dcm`](dcm_ls) library used to read DICOM files by modality.
+- [`radtools-dcm-ls`](dcm_ls) library used to read DICOM files by modality.
 
 ### Tools
 
