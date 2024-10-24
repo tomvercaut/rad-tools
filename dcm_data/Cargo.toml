@@ -1,0 +1,15 @@
+[package]
+name = "dcm_data"
+description = "A library with data types that represent multiple DICOM objects."
+
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+chrono.workspace = true
+log.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+env_logger.workspace = true
