@@ -1,5 +1,5 @@
 use crate::{CodeItem, PatientPosition, PersonName, PhotometricInterpretation, PixelRepresentation, RotationDirection, Sop};
-use chrono::NaiveDateTime;
+use chrono::{NaiveDate, NaiveDateTime};
 
 #[derive(Clone, Debug, Default, )]
 pub struct CT {
@@ -16,7 +16,7 @@ pub struct CT {
     pub irradiation_event_uid: String,
     pub patient_name: PersonName,
     pub patient_id: String,
-    pub patient_birth_date: NaiveDateTime,
+    pub patient_birth_date: NaiveDate,
     pub patient_sex: String,
     pub patient_identity_removed: String,
     pub body_part_examined: String,
