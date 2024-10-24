@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-#[derive(Clone, Debug, Default, )]
+#[derive(Clone, Debug, Default)]
 pub struct Sop {
     pub class_uid: String,
     pub instance_uid: String,
@@ -70,7 +70,6 @@ impl FromStr for RotationDirection {
     }
 }
 
-
 #[derive(thiserror::Error, Debug)]
 pub enum PatientPositionError {
     #[error("Invalid patient position: {0}")]
@@ -81,14 +80,14 @@ pub enum PatientPositionError {
 pub enum PatientPosition {
     #[default]
     NONE, // Undefined default
-    HFP, // Head First-Prone
-    HFS, // Head First-Supine
+    HFP,  // Head First-Prone
+    HFS,  // Head First-Supine
     HFDR, // Head First-Decubitus Right
     HFDL, // Head First-Decubitus Left
     FFDR, // Feet First-Decubitus Right
     FFDL, // Feet First-Decubitus Left
-    FFP, // Feet First-Prone
-    FFS, // Feet First-Supine
+    FFP,  // Feet First-Prone
+    FFS,  // Feet First-Supine
 }
 
 impl FromStr for PatientPosition {
@@ -116,7 +115,6 @@ pub struct CodeItem {
     pub code_meaning: String,
 }
 
-
 #[derive(thiserror::Error, Debug)]
 pub enum PhotometricInterpretationError {
     #[error("Invalid photometric interpretation: {0}")]
@@ -126,17 +124,17 @@ pub enum PhotometricInterpretationError {
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 #[allow(non_camel_case_types)]
 pub enum PhotometricInterpretation {
-    MONOCHROME1,      // Monochrome 1
+    MONOCHROME1, // Monochrome 1
     #[default]
-    MONOCHROME2,      // Monochrome 2
-    PALETTE_COLOR,    // Palette Color
-    RGB,              // RGB
-    YBR_FULL,         // YBR_FULL
-    YBR_FULL_422,     // YBR_FULL_422
-    YBR_PARTIAL_422,  // YBR_PARTIAL_422
-    YBR_PARTIAL_420,  // YBR_PARTIAL_420
-    YBR_ICT,          // YBR_ICT
-    YBR_RCT,          // YBR_RCT
+    MONOCHROME2, // Monochrome 2
+    PALETTE_COLOR, // Palette Color
+    RGB,         // RGB
+    YBR_FULL,    // YBR_FULL
+    YBR_FULL_422, // YBR_FULL_422
+    YBR_PARTIAL_422, // YBR_PARTIAL_422
+    YBR_PARTIAL_420, // YBR_PARTIAL_420
+    YBR_ICT,     // YBR_ICT
+    YBR_RCT,     // YBR_RCT
 }
 
 impl FromStr for PhotometricInterpretation {
@@ -154,11 +152,12 @@ impl FromStr for PhotometricInterpretation {
             "YBR_PARTIAL_420" => Ok(PhotometricInterpretation::YBR_PARTIAL_420),
             "YBR_ICT" => Ok(PhotometricInterpretation::YBR_ICT),
             "YBR_RCT" => Ok(PhotometricInterpretation::YBR_RCT),
-            _ => Err(PhotometricInterpretationError::InvalidPhotometricInterpretation(s.to_string())),
+            _ => {
+                Err(PhotometricInterpretationError::InvalidPhotometricInterpretation(s.to_string()))
+            }
         }
     }
 }
-
 
 #[derive(thiserror::Error, Debug)]
 pub enum PixelRepresentationError {
@@ -170,7 +169,7 @@ pub enum PixelRepresentationError {
 pub enum PixelRepresentation {
     #[default]
     Unsigned, // Unsigned integer
-    Signed,   // Signed integer (2's complement)
+    Signed, // Signed integer (2's complement)
 }
 
 impl FromStr for PixelRepresentation {
@@ -180,7 +179,9 @@ impl FromStr for PixelRepresentation {
         match s {
             "0" => Ok(PixelRepresentation::Unsigned),
             "1" => Ok(PixelRepresentation::Signed),
-            _ => Err(PixelRepresentationError::InvalidPixelRepresentation(s.to_string())),
+            _ => Err(PixelRepresentationError::InvalidPixelRepresentation(
+                s.to_string(),
+            )),
         }
     }
 }
@@ -195,7 +196,7 @@ pub enum RescaleTypeError {
 #[allow(non_camel_case_types)]
 pub enum RescaleType {
     #[default]
-    US,     // Unspecified
+    US, // Unspecified
     OD,     // Optical Density
     HU,     // Hounsfield Units
     MGML,   // Milligram per Milliliter
@@ -223,6 +224,33 @@ impl FromStr for RescaleType {
             _ => Err(RescaleTypeError::InvalidRescaleType(s.to_string())),
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub enum ApprovalStatus {
+    APPROVED,
+    #[default]
+    UNAPPROVED,
+    REJECTED,
+}
+
+impl FromStr for ApprovalStatus {
+    type Err = ApprovalStatusError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().as_str() {
+            "APPROVED" => Ok(ApprovalStatus::APPROVED),
+            "UNAPPROVED" => Ok(ApprovalStatus::UNAPPROVED),
+            "REJECTED" => Ok(ApprovalStatus::REJECTED),
+            _ => Err(ApprovalStatusError::InvalidApprovalStatus(s.into())),
+        }
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum ApprovalStatusError {
+    #[error("Invalid approval status: {0}")]
+    InvalidApprovalStatus(String),
 }
 
 #[cfg(test)]
@@ -295,7 +323,6 @@ mod tests {
         assert_eq!(name.prefix, "Mr.");
         assert_eq!(name.suffix, "Jr.");
     }
-
 
     #[test]
     fn test_rotation_direction_from_str_none() {
@@ -409,7 +436,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn test_photometric_interpretation_from_str_monochrome1() {
         let input = "MONOCHROME1";
@@ -478,7 +504,9 @@ mod tests {
         let input = "INVALID";
         let interpretation = PhotometricInterpretation::from_str(input);
         assert!(interpretation.is_err());
-        if let Err(PhotometricInterpretationError::InvalidPhotometricInterpretation(pos)) = interpretation {
+        if let Err(PhotometricInterpretationError::InvalidPhotometricInterpretation(pos)) =
+            interpretation
+        {
             assert_eq!(pos, "INVALID".to_string());
         } else {
             panic!("Expected InvalidPhotometricInterpretation error");
@@ -487,8 +515,14 @@ mod tests {
 
     #[test]
     fn test_pixel_representation_from_str() {
-        assert_eq!(PixelRepresentation::from_str("0").unwrap(), PixelRepresentation::Unsigned);
-        assert_eq!(PixelRepresentation::from_str("1").unwrap(), PixelRepresentation::Signed);
+        assert_eq!(
+            PixelRepresentation::from_str("0").unwrap(),
+            PixelRepresentation::Unsigned
+        );
+        assert_eq!(
+            PixelRepresentation::from_str("1").unwrap(),
+            PixelRepresentation::Signed
+        );
         assert!(PixelRepresentation::from_str("2").is_err());
     }
 
@@ -560,5 +594,33 @@ mod tests {
         let input = "INVALID";
         let rescale_type_result = RescaleType::from_str(input);
         assert!(rescale_type_result.is_err());
+    }
+
+    #[test]
+    fn test_approval_status_from_str_approved() {
+        let input = "Approved";
+        let status = ApprovalStatus::from_str(input).unwrap();
+        assert_eq!(status, ApprovalStatus::APPROVED);
+    }
+
+    #[test]
+    fn test_approval_status_from_str_pending() {
+        let input = "UNAPPROVED";
+        let status = ApprovalStatus::from_str(input).unwrap();
+        assert_eq!(status, ApprovalStatus::UNAPPROVED);
+    }
+
+    #[test]
+    fn test_approval_status_from_str_rejected() {
+        let input = "Rejected";
+        let status = ApprovalStatus::from_str(input).unwrap();
+        assert_eq!(status, ApprovalStatus::REJECTED);
+    }
+
+    #[test]
+    fn test_approval_status_from_str_invalid() {
+        let input = "INVALID";
+        let status_result = ApprovalStatus::from_str(input);
+        assert!(status_result.is_err());
     }
 }
