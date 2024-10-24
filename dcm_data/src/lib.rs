@@ -2,10 +2,12 @@
 
 mod common;
 mod ct;
-mod rtstruct;
+mod rtdose;
 mod rtplan;
+mod rtstruct;
 
 pub use common::*;
 pub use ct::*;
+pub use rtdose::*;
 pub use rtplan::*;
 pub use rtstruct::*;
