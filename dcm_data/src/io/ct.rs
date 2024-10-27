@@ -1,7 +1,7 @@
 use crate::io::common::read_sop;
 use crate::io::{
-    da_tm_to_ndt, da_tm_to_ndt_opt, from_seq, to_date, to_f64, to_f64_opt, to_f64s, to_int,
-    to_int_opt, to_string, to_string_opt, DcmIOError,
+    da_tm_to_ndt_opt, from_seq, to_date, to_f64, to_f64_opt, to_f64s, to_int, to_int_opt,
+    to_string, to_string_opt, DcmIOError,
 };
 use crate::{
     CodeItem, PatientPosition, PersonName, PhotometricInterpretation, PixelRepresentation,
@@ -101,12 +101,12 @@ pub fn read_ct_image<P: AsRef<Path>>(path: P) -> Result<CT, DcmIOError> {
             }
             Err(e) => Err(DcmIOError::from(e)),
         }?,
-        last_calibration_dt: da_tm_to_ndt(
+        last_calibration_dt: da_tm_to_ndt_opt(
             &obj,
             DATE_OF_LAST_CALIBRATION,
             TIME_OF_LAST_CALIBRATION,
         )?,
-        pixel_padding_value: to_int(&obj, PIXEL_PADDING_VALUE)?,
+        pixel_padding_value: to_int_opt(&obj, PIXEL_PADDING_VALUE)?,
         convolution_kernel: to_string(&obj, CONVOLUTION_KERNEL)?,
         patient_position: PatientPosition::from_str(&to_string(&obj, PATIENT_POSITION)?)?,
         revolution_time: to_f64(&obj, REVOLUTION_TIME)?,

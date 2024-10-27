@@ -1,5 +1,5 @@
 use crate::io::DcmIOError;
-use chrono::{NaiveDate, NaiveDateTime};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use dicom_core::value::Value;
 use dicom_core::Tag;
 use num_traits::NumCast;
@@ -101,8 +101,11 @@ pub(crate) fn da_tm_to_ndt(
 /// Reads and parses optional combined date and time from a DICOM object.
 ///
 /// This function retrieves the date and time elements from a DICOM object by their tags. The elements are optional,
-/// meaning they may or may not be present in the DICOM object. If both elements are found, they are combined and parsed
-/// into a [`NaiveDateTime`]. If either element is missing, `None` is returned.
+/// meaning they may or may not be present in the DICOM object.
+/// * If both elements are found, they are combined and parsed into a [`NaiveDateTime`].
+/// * If the date is not empty but the time is, the date is returned with the time set to 00:00:00.
+/// * If the date is empty but the time is not, an error `DcmIOError::InvalidDateTimeEmpytDate` is returned.
+/// * If either element is missing, `Ok(None)` is returned.
 ///
 /// # Arguments
 ///
@@ -129,11 +132,21 @@ pub(crate) fn da_tm_to_ndt_opt(
     if date.is_none() || time.is_none() {
         return Ok(None);
     }
-    let dt = NaiveDateTime::parse_from_str(
-        &format!("{}{}", date.unwrap(), time.unwrap()),
-        "%Y%m%d%H%M%S%.f",
-    )?;
-    Ok(Some(dt))
+    let date = date.unwrap().trim().to_string();
+    let time = time.unwrap().trim().to_string();
+    if date.is_empty() && time.is_empty() {
+        Ok(None)
+    } else if !date.is_empty() && time.is_empty() {
+        let naive_date = NaiveDate::parse_from_str(&date, "%Y%m%d")?;
+        let naive_time = NaiveTime::from_hms_opt(0, 0, 0).unwrap();
+        let dt = NaiveDateTime::new(naive_date, naive_time);
+        Ok(Some(dt))
+    } else if date.is_empty() && !time.is_empty() {
+        Err(DcmIOError::InvalidDateTimeEmpytDate(time.to_string()))
+    } else {
+        let dt = NaiveDateTime::parse_from_str(&format!("{}{}", date, time), "%Y%m%d%H%M%S%.f")?;
+        Ok(Some(dt))
+    }
 }
 
 /// Reads and parses a combined date and time from a single element in a DICOM object.

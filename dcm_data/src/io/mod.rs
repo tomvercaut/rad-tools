@@ -20,6 +20,8 @@ pub enum DcmIOError {
     ChronoError(#[from] chrono::ParseError),
     #[error("Invalid date range: {0:#?}")]
     InvalidDateRange(dicom_core::value::range::Error),
+    #[error("Invalid date time, unkown date with a defined time: {0:#?}")]
+    InvalidDateTimeEmpytDate(String),
     #[error("Invalid time")]
     InvalidTime,
     #[error("Invalid date/time")]
