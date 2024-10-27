@@ -32,6 +32,7 @@ chrono = "0.4"
 async-std = { version = "1", features = ["attributes"] }
 relative-path = "1"
 pathdiff = "0.2"
+num-traits = "0.2"
 
 #[workspace.dev-dependencies]
 log = "0.4"
