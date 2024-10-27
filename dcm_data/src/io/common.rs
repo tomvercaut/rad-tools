@@ -26,8 +26,8 @@ use dicom_object::InMemDicomObject;
 /// elements (`class_uid` or `instance_uid`) from the DICOM object.
 pub(crate) fn read_sop(obj: &InMemDicomObject, class_uid: Tag, instance_uid: Tag) -> Result<Sop, DcmIOError> {
     Ok(Sop {
-        class_uid: to_string(&obj, class_uid)?,
-        instance_uid: to_string(&obj, instance_uid)?,
+        class_uid: to_string(obj, class_uid)?,
+        instance_uid: to_string(obj, instance_uid)?,
     })
 }
 
