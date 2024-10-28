@@ -3,10 +3,7 @@ use crate::io::{
     da_tm_to_ndt_opt, from_seq, to_date, to_f64, to_f64_opt, to_f64s, to_int, to_int_opt,
     to_string, to_string_opt, DcmIOError,
 };
-use crate::{
-    CodeItem, PatientPosition, PersonName, PhotometricInterpretation, PixelRepresentation,
-    RescaleType, RotationDirection, CT,
-};
+use crate::{CodeItem, Modality, PatientPosition, PersonName, PhotometricInterpretation, PixelRepresentation, RescaleType, RotationDirection, CT};
 use dicom_dictionary_std::tags::{
     ACCESSION_NUMBER, ACQUISITION_NUMBER, BITS_ALLOCATED, BITS_STORED, BODY_PART_EXAMINED,
     BURNED_IN_ANNOTATION, CODE_MEANING, CODE_VALUE, CODING_SCHEME_DESIGNATOR, COLUMNS,
@@ -60,7 +57,7 @@ pub fn read_ct_image<P: AsRef<Path>>(path: P) -> Result<CT, DcmIOError> {
         series_dt: da_tm_to_ndt_opt(&obj, SERIES_DATE, SERIES_TIME)?,
         content_dt: da_tm_to_ndt_opt(&obj, CONTENT_DATE, CONTENT_TIME)?,
         accession_number: to_string_opt(&obj, ACCESSION_NUMBER)?,
-        modality: to_string(&obj, MODALITY)?,
+        modality: Modality::from_str(&to_string(&obj, MODALITY)?)?,
         ref_physician_name: to_string_opt(&obj, REFERRING_PHYSICIAN_NAME)?
             .map(|s| PersonName::from_str(&s).unwrap()),
         station_name: to_string_opt(&obj, STATION_NAME)?,

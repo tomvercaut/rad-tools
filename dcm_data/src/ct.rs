@@ -1,4 +1,4 @@
-use crate::{CodeItem, PatientPosition, PersonName, PhotometricInterpretation, PixelRepresentation, RescaleType, RotationDirection, Sop};
+use crate::{CodeItem, Modality, PatientPosition, PersonName, PhotometricInterpretation, PixelRepresentation, RescaleType, RotationDirection, Sop};
 use chrono::{NaiveDate, NaiveDateTime};
 
 #[derive(Clone, Debug, Default, )]
@@ -10,7 +10,7 @@ pub struct CT {
     pub series_dt: Option<NaiveDateTime>,
     pub content_dt: Option<NaiveDateTime>,
     pub accession_number: Option<String>,
-    pub modality: String,
+    pub modality: Modality,
     pub ref_physician_name: Option<PersonName>,
     pub station_name: Option<String>,
     pub study_description: Option<String>,

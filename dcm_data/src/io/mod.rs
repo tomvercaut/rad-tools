@@ -32,6 +32,8 @@ pub enum DcmIOError {
     InvalidPhotometricInterpretation(#[from] crate::PhotometricInterpretationError),
     #[error("Unable to create Pixel Representation from DICOM element")]
     InvalidPixelRepresentation(#[from] crate::PixelRepresentationError),
+    #[error("Unable to create Modality from DICOM element")]
+    InvalidModality(#[from] crate::ModalityError),
     #[error("Unable to create Rescale Type from DICOM element")]
     InvalidRescaleType(#[from] crate::RescaleTypeError),
     #[error("Unable to create PatientPosition from DICOM element")]
