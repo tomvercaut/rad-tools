@@ -31,6 +31,7 @@ use dicom_dictionary_std::tags::{
     TABLE_HEIGHT, TABLE_SPEED, TIME_OF_LAST_CALIBRATION, TOTAL_COLLIMATION_WIDTH, WINDOW_CENTER,
     WINDOW_CENTER_WIDTH_EXPLANATION, WINDOW_WIDTH, X_RAY_TUBE_CURRENT,
 };
+use dicom_dictionary_std::uids::CT_IMAGE_STORAGE;
 use dicom_object::InMemDicomObject;
 use dicom_pixeldata::PixelDecoder;
 use std::path::Path;
@@ -52,12 +53,11 @@ pub fn read_ct_image<P: AsRef<Path>>(path: P) -> Result<CT, DcmIOError> {
     let file_obj = dicom_object::open_file(path.as_ref())?;
     let decoded_pixels = file_obj.decode_pixel_data()?;
     let pixel_data = decoded_pixels.to_ndarray::<f64>()?;
-    // let shape = tpixel_data.shape();
-    // let pixel_data = Array4::from_shape_vec(
-    //     [shape[0], shape[1], shape[2], shape[3]],
-    //     tpixel_data.into_raw_vec(),
-    // ).unwrap();
     let obj = file_obj.into_inner();
+    let sop_class_uid = to_string(&obj, SOP_CLASS_UID)?;
+    if sop_class_uid != CT_IMAGE_STORAGE {
+        return Err(DcmIOError::NoMatchingSopClassUID(sop_class_uid));
+    }
     Ok(CT {
         specific_character_set: to_string(&obj, SPECIFIC_CHARACTER_SET)?,
 
