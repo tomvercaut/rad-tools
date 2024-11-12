@@ -1,12 +1,12 @@
-mod ct;
 mod common;
+mod ct;
 mod utils;
 
-use dicom_core::Tag;
+use crate::PatientPositionError;
 pub use ct::*;
 use dicom_core::value::ConvertValueError;
+use dicom_core::Tag;
 pub(crate) use utils::*;
-use crate::PatientPositionError;
 
 #[derive(thiserror::Error, Debug)]
 pub enum DcmIOError {
@@ -20,6 +20,8 @@ pub enum DcmIOError {
     ChronoError(#[from] chrono::ParseError),
     #[error("Invalid date range: {0:#?}")]
     InvalidDateRange(dicom_core::value::range::Error),
+    #[error("Invalid decoded pixel data: {0:#?}")]
+    InvalidDecodedPixelData(#[from] dicom_pixeldata::Error),
     #[error("Invalid date time, unkown date with a defined time: {0:#?}")]
     InvalidDateTimeEmpytDate(String),
     #[error("Invalid time")]

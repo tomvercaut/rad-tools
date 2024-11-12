@@ -1,33 +1,38 @@
 use crate::io::common::read_sop;
 use crate::io::{
     da_tm_to_ndt_opt, from_seq, to_date, to_f64, to_f64_opt, to_f64s, to_int, to_int_opt,
-    to_string, to_string_opt, DcmIOError,
+    to_string, to_string_opt, to_strings, DcmIOError,
 };
-use crate::{CodeItem, Modality, PatientPosition, PersonName, PhotometricInterpretation, PixelRepresentation, RescaleType, RotationDirection, CT};
+use crate::{
+    CodeItem, Modality, PatientPosition, PersonName, PhotometricInterpretation,
+    PixelRepresentation, RescaleType, RotationDirection, CT,
+};
 use dicom_dictionary_std::tags::{
     ACCESSION_NUMBER, ACQUISITION_NUMBER, BITS_ALLOCATED, BITS_STORED, BODY_PART_EXAMINED,
-    BURNED_IN_ANNOTATION, CODE_MEANING, CODE_VALUE, CODING_SCHEME_DESIGNATOR, COLUMNS,
-    CONTENT_DATE, CONTENT_TIME, CONVOLUTION_KERNEL, CTDI_PHANTOM_TYPE_CODE_SEQUENCE, CTD_IVOL,
-    DATA_COLLECTION_CENTER_PATIENT, DATA_COLLECTION_DIAMETER, DATE_OF_LAST_CALIBRATION,
+    BURNED_IN_ANNOTATION, CODE_MEANING, CODE_VALUE, CODING_SCHEME_DESIGNATOR,
+    CODING_SCHEME_VERSION, COLUMNS, CONTENT_DATE, CONTENT_TIME, CONVOLUTION_KERNEL,
+    CTDI_PHANTOM_TYPE_CODE_SEQUENCE, CTD_IVOL, DATA_COLLECTION_CENTER_PATIENT,
+    DATA_COLLECTION_DIAMETER, DATE_OF_LAST_CALIBRATION, DEIDENTIFICATION_METHOD,
     DEVICE_SERIAL_NUMBER, DISTANCE_SOURCE_TO_DETECTOR, DISTANCE_SOURCE_TO_PATIENT, EXPOSURE,
     EXPOSURE_MODULATION_TYPE, EXPOSURE_TIME, FILTER_TYPE, FOCAL_SPOTS, FRAME_OF_REFERENCE_UID,
-    GANTRY_DETECTOR_TILT, HIGH_BIT, IMAGE_ORIENTATION_PATIENT, IMAGE_POSITION_PATIENT, IMAGE_TYPE,
-    INSTANCE_NUMBER, IRRADIATION_EVENT_UID, KVP, LARGEST_IMAGE_PIXEL_VALUE,
-    LOSSY_IMAGE_COMPRESSION, MANUFACTURER, MANUFACTURER_MODEL_NAME, MODALITY, PATIENT_BIRTH_DATE,
-    PATIENT_ID, PATIENT_IDENTITY_REMOVED, PATIENT_NAME, PATIENT_ORIENTATION, PATIENT_POSITION,
-    PATIENT_SEX, PHOTOMETRIC_INTERPRETATION, PIXEL_DATA, PIXEL_PADDING_VALUE, PIXEL_REPRESENTATION,
-    PIXEL_SPACING, PLANAR_CONFIGURATION, POSITION_REFERENCE_INDICATOR, RECONSTRUCTION_DIAMETER,
-    RECONSTRUCTION_TARGET_CENTER_PATIENT, REFERRING_PHYSICIAN_NAME, RESCALE_INTERCEPT,
-    RESCALE_SLOPE, RESCALE_TYPE, REVOLUTION_TIME, ROTATION_DIRECTION, ROWS, SAMPLES_PER_PIXEL,
-    SERIES_DATE, SERIES_DESCRIPTION, SERIES_INSTANCE_UID, SERIES_NUMBER, SERIES_TIME,
-    SINGLE_COLLIMATION_WIDTH, SLICE_LOCATION, SLICE_THICKNESS, SMALLEST_IMAGE_PIXEL_VALUE,
-    SOFTWARE_VERSIONS, SOP_CLASS_UID, SOP_INSTANCE_UID, SPECIFIC_CHARACTER_SET,
-    SPIRAL_PITCH_FACTOR, STATION_NAME, STUDY_DATE, STUDY_DESCRIPTION, STUDY_ID, STUDY_INSTANCE_UID,
-    STUDY_TIME, TABLE_FEED_PER_ROTATION, TABLE_HEIGHT, TABLE_SPEED, TIME_OF_LAST_CALIBRATION,
-    TOTAL_COLLIMATION_WIDTH, WINDOW_CENTER, WINDOW_CENTER_WIDTH_EXPLANATION, WINDOW_WIDTH,
-    X_RAY_TUBE_CURRENT,
+    GANTRY_DETECTOR_TILT, GENERATOR_POWER, HIGH_BIT, IMAGE_ORIENTATION_PATIENT,
+    IMAGE_POSITION_PATIENT, IMAGE_TYPE, INSTANCE_NUMBER, IRRADIATION_EVENT_UID, KVP,
+    LARGEST_IMAGE_PIXEL_VALUE, LOSSY_IMAGE_COMPRESSION, MANUFACTURER, MANUFACTURER_MODEL_NAME,
+    MODALITY, PATIENT_BIRTH_DATE, PATIENT_ID, PATIENT_IDENTITY_REMOVED, PATIENT_NAME,
+    PATIENT_ORIENTATION, PATIENT_POSITION, PATIENT_SEX, PHOTOMETRIC_INTERPRETATION, PIXEL_DATA,
+    PIXEL_PADDING_VALUE, PIXEL_REPRESENTATION, PIXEL_SPACING, PLANAR_CONFIGURATION,
+    POSITION_REFERENCE_INDICATOR, RECONSTRUCTION_DIAMETER, RECONSTRUCTION_TARGET_CENTER_PATIENT,
+    REFERRING_PHYSICIAN_NAME, RESCALE_INTERCEPT, RESCALE_SLOPE, RESCALE_TYPE, REVOLUTION_TIME,
+    ROTATION_DIRECTION, ROWS, SAMPLES_PER_PIXEL, SERIES_DATE, SERIES_DESCRIPTION,
+    SERIES_INSTANCE_UID, SERIES_NUMBER, SERIES_TIME, SINGLE_COLLIMATION_WIDTH, SLICE_LOCATION,
+    SLICE_THICKNESS, SMALLEST_IMAGE_PIXEL_VALUE, SOFTWARE_VERSIONS, SOP_CLASS_UID,
+    SOP_INSTANCE_UID, SPECIFIC_CHARACTER_SET, SPIRAL_PITCH_FACTOR, STATION_NAME, STUDY_DATE,
+    STUDY_DESCRIPTION, STUDY_ID, STUDY_INSTANCE_UID, STUDY_TIME, TABLE_FEED_PER_ROTATION,
+    TABLE_HEIGHT, TABLE_SPEED, TIME_OF_LAST_CALIBRATION, TOTAL_COLLIMATION_WIDTH, WINDOW_CENTER,
+    WINDOW_CENTER_WIDTH_EXPLANATION, WINDOW_WIDTH, X_RAY_TUBE_CURRENT,
 };
 use dicom_object::InMemDicomObject;
+use dicom_pixeldata::PixelDecoder;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -44,21 +49,26 @@ use std::str::FromStr;
 /// * `Err(DcmIOError)` if any error occurs during reading or parsing the DICOM file.
 /// ```
 pub fn read_ct_image<P: AsRef<Path>>(path: P) -> Result<CT, DcmIOError> {
-    let obj = dicom_object::open_file(path.as_ref())?.into_inner();
+    let file_obj = dicom_object::open_file(path.as_ref())?;
+    let decoded_pixels = file_obj.decode_pixel_data()?;
+    let pixel_data = decoded_pixels.to_ndarray::<f64>()?;
+    // let shape = tpixel_data.shape();
+    // let pixel_data = Array4::from_shape_vec(
+    //     [shape[0], shape[1], shape[2], shape[3]],
+    //     tpixel_data.into_raw_vec(),
+    // ).unwrap();
+    let obj = file_obj.into_inner();
     Ok(CT {
         specific_character_set: to_string(&obj, SPECIFIC_CHARACTER_SET)?,
 
-        image_type: to_string(&obj, IMAGE_TYPE)?
-            .split('\\')
-            .map(|x| x.to_string())
-            .collect(),
+        image_type: to_strings(&obj, IMAGE_TYPE)?,
         sop: read_sop(&obj, SOP_CLASS_UID, SOP_INSTANCE_UID)?,
         study_dt: da_tm_to_ndt_opt(&obj, STUDY_DATE, STUDY_TIME)?,
         series_dt: da_tm_to_ndt_opt(&obj, SERIES_DATE, SERIES_TIME)?,
         content_dt: da_tm_to_ndt_opt(&obj, CONTENT_DATE, CONTENT_TIME)?,
         accession_number: to_string_opt(&obj, ACCESSION_NUMBER)?,
         modality: Modality::from_str(&to_string(&obj, MODALITY)?)?,
-        ref_physician_name: to_string_opt(&obj, REFERRING_PHYSICIAN_NAME)?
+        referring_physician_name: to_string_opt(&obj, REFERRING_PHYSICIAN_NAME)?
             .map(|s| PersonName::from_str(&s).unwrap()),
         station_name: to_string_opt(&obj, STATION_NAME)?,
         study_description: to_string_opt(&obj, STUDY_DESCRIPTION)?,
@@ -71,7 +81,8 @@ pub fn read_ct_image<P: AsRef<Path>>(path: P) -> Result<CT, DcmIOError> {
         patient_birth_date: to_date(&obj, PATIENT_BIRTH_DATE)?,
         patient_sex: to_string(&obj, PATIENT_SEX)?,
         patient_identity_removed: to_string(&obj, PATIENT_IDENTITY_REMOVED)? == "YES",
-        body_part_examined: to_string(&obj, BODY_PART_EXAMINED)?,
+        deidentification_method: to_string_opt(&obj, DEIDENTIFICATION_METHOD)?,
+        body_part_examined: to_string_opt(&obj, BODY_PART_EXAMINED)?,
         slice_thickness: to_f64_opt(&obj, SLICE_THICKNESS)?,
         kvp: to_f64(&obj, KVP)?,
         data_collection_diameter: to_f64(&obj, DATA_COLLECTION_DIAMETER)?,
@@ -87,7 +98,7 @@ pub fn read_ct_image<P: AsRef<Path>>(path: P) -> Result<CT, DcmIOError> {
         xray_tube_current: to_int(&obj, X_RAY_TUBE_CURRENT)?,
         exposure: to_int(&obj, EXPOSURE)?,
         filter_type: to_string(&obj, FILTER_TYPE)?,
-        genereator_power: to_int(&obj, GANTRY_DETECTOR_TILT)?,
+        genereator_power: to_int(&obj, GENERATOR_POWER)?,
         focal_spots: match obj.element(FOCAL_SPOTS)?.to_multi_float64() {
             Ok(v) => {
                 if v.len() == 2 {
@@ -104,7 +115,7 @@ pub fn read_ct_image<P: AsRef<Path>>(path: P) -> Result<CT, DcmIOError> {
             TIME_OF_LAST_CALIBRATION,
         )?,
         pixel_padding_value: to_int_opt(&obj, PIXEL_PADDING_VALUE)?,
-        convolution_kernel: to_string(&obj, CONVOLUTION_KERNEL)?,
+        convolution_kernel: to_strings(&obj, CONVOLUTION_KERNEL)?,
         patient_position: PatientPosition::from_str(&to_string(&obj, PATIENT_POSITION)?)?,
         revolution_time: to_f64(&obj, REVOLUTION_TIME)?,
         single_collimation_width: to_f64(&obj, SINGLE_COLLIMATION_WIDTH)?,
@@ -212,7 +223,8 @@ pub fn read_ct_image<P: AsRef<Path>>(path: P) -> Result<CT, DcmIOError> {
         rescale_type: RescaleType::from_str(&to_string(&obj, RESCALE_TYPE)?)?,
         window_center_width_explanation: to_string_opt(&obj, WINDOW_CENTER_WIDTH_EXPLANATION)?,
         lossy_image_compression: to_string_opt(&obj, LOSSY_IMAGE_COMPRESSION)?,
-        pixel_data: obj.element(PIXEL_DATA)?.to_bytes()?.to_vec(),
+        pixel_data_bytes: obj.element(PIXEL_DATA)?.to_bytes()?.to_vec(),
+        pixel_data,
     })
 }
 
@@ -241,8 +253,9 @@ pub fn read_ct_image<P: AsRef<Path>>(path: P) -> Result<CT, DcmIOError> {
 ///
 fn ctdi_phantom_type_code(item: &InMemDicomObject) -> Result<CodeItem, DcmIOError> {
     Ok(CodeItem {
-        code_value: to_string(item, CODE_VALUE)?,
-        coding_scheme_designator: to_string(item, CODING_SCHEME_DESIGNATOR)?,
+        code_value: to_string_opt(item, CODE_VALUE)?,
+        coding_scheme_designator: to_string_opt(item, CODING_SCHEME_DESIGNATOR)?,
+        coding_scheme_version: to_string_opt(item, CODING_SCHEME_VERSION)?,
         code_meaning: to_string(item, CODE_MEANING)?,
     })
 }

@@ -67,6 +67,35 @@ pub(crate) fn to_string_opt(
     }
 }
 
+/// Converts a DICOM element to a vector of string representations.
+///
+/// This function retrieves the element corresponding to the provided tag
+/// from the given DICOM object and converts it to a string. The string is
+/// then split on backslashes (`\`), with each segment stored in a vector.
+///
+/// # Arguments
+///
+/// * `obj` - A reference to a DICOM object from which to retrieve the element.
+/// * `tag` - The tag of the element to be retrieved.
+///
+/// # Returns
+///
+/// * `Ok(Vec<String>)` - A vector of string representations of the DICOM element.
+/// * `Err(DcmIOError)` - An error if the element could not be retrieved or
+///   converted to a string.
+///
+/// # Errors
+///
+/// This function returns a [`DcmIOError`] if the element retrieval or
+/// conversion to a string fails.
+pub(crate) fn to_strings(
+    obj: &dicom_object::InMemDicomObject,
+    tag: Tag,
+) -> Result<Vec<String>, DcmIOError> {
+    let s = to_string(obj, tag)?;
+    Ok(s.split('\\').map(|x| x.to_string()).collect())
+}
+
 /// Reads and parses a combined date and time from a DICOM object.
 ///
 /// This function retrieves the date and time elements from a DICOM object,

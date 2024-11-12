@@ -1,7 +1,11 @@
-use crate::{CodeItem, Modality, PatientPosition, PersonName, PhotometricInterpretation, PixelRepresentation, RescaleType, RotationDirection, Sop};
+use crate::{
+    CodeItem, Modality, PatientPosition, PersonName, PhotometricInterpretation,
+    PixelRepresentation, RescaleType, RotationDirection, Sop,
+};
 use chrono::{NaiveDate, NaiveDateTime};
+use dicom_pixeldata::ndarray::{Array, Ix4};
 
-#[derive(Clone, Debug, Default, )]
+#[derive(Clone, Debug, Default)]
 pub struct CT {
     pub specific_character_set: String,
     pub image_type: Vec<String>,
@@ -11,7 +15,7 @@ pub struct CT {
     pub content_dt: Option<NaiveDateTime>,
     pub accession_number: Option<String>,
     pub modality: Modality,
-    pub ref_physician_name: Option<PersonName>,
+    pub referring_physician_name: Option<PersonName>,
     pub station_name: Option<String>,
     pub study_description: Option<String>,
     pub series_description: Option<String>,
@@ -23,7 +27,8 @@ pub struct CT {
     pub patient_birth_date: NaiveDate,
     pub patient_sex: String,
     pub patient_identity_removed: bool,
-    pub body_part_examined: String,
+    pub deidentification_method: Option<String>,
+    pub body_part_examined: Option<String>,
     pub slice_thickness: Option<f64>,
     pub kvp: f64,
     pub data_collection_diameter: f64,
@@ -43,7 +48,7 @@ pub struct CT {
     pub focal_spots: [f64; 2],
     pub last_calibration_dt: Option<NaiveDateTime>,
     pub pixel_padding_value: Option<i32>,
-    pub convolution_kernel: String,
+    pub convolution_kernel: Vec<String>,
     pub patient_position: PatientPosition,
     pub revolution_time: f64,
     pub single_collimation_width: f64,
@@ -88,5 +93,6 @@ pub struct CT {
     pub rescale_type: RescaleType,
     pub window_center_width_explanation: Option<String>,
     pub lossy_image_compression: Option<String>,
-    pub pixel_data: Vec<u8>,
+    pub pixel_data_bytes: Vec<u8>,
+    pub pixel_data: Array<f64, Ix4>,
 }
