@@ -1,17 +1,45 @@
 use std::str::FromStr;
 
+/// Represents a Service-Object Pair (SOP) in the DICOM standard.
+///
+/// A Service-Object Pair (SOP) is a combination of a DICOM Service Elements (DIMSE)
+/// (such as Store, Get, Find, etc.) and a specific type of
+/// DICOM Information Object Definition (such as an CT image, MR image, etc.).
+///
+/// # Examples
+///
+/// ```
+/// use std::str::FromStr;
+/// use dcm_data::Sop;
+///
+/// let sop = Sop {
+///     class_uid: "1.2.840.10008.1.1".to_string(),
+///     instance_uid: "1.2.752.243.1.1.20220722130644359.1060.62784".to_string(),
+/// };
+/// ```
 #[derive(Clone, Debug, Default)]
 pub struct Sop {
+    /// The unique identifier (UID) for the DICOM service class.
+    /// This UID defines the type of service being requested or provided,
+    /// such as Verification, Storage, etc.
     pub class_uid: String,
+    /// The unique identifier (UID) for the DICOM instance.
+    /// This UID uniquely identifies a particular instance of the service object pair.
     pub instance_uid: String,
 }
 
-#[derive(Clone, Debug, Default)]
+/// Represents a person's name divided into several components such as family name, given name, middle name, prefix, and suffix.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PersonName {
+    /// The family name (also known as last name or surname) of the person.
     pub family_name: String,
+    /// The given name (also known as first name) of the person.
     pub given_name: String,
+    /// The middle name of the person.
     pub middle_name: String,
+    /// Any prefix associated with the person's name, such as "Dr." or "Mr."
     pub prefix: String,
+    /// Any suffix associated with the person's name, such as "Jr." or "III."
     pub suffix: String,
 }
 
@@ -40,12 +68,44 @@ impl FromStr for PersonName {
         Ok(name)
     }
 }
+
+impl PersonName {
+    pub fn is_empty(&self) -> bool {
+        self.family_name.is_empty()
+            && self.given_name.is_empty()
+            && self.middle_name.is_empty()
+            && self.prefix.is_empty()
+            && self.suffix.is_empty()
+    }
+}
+
 #[derive(thiserror::Error, Debug)]
 pub enum RotationDirectionError {
     #[error("Invalid rotation direction: {0}")]
     InvalidRotationDirection(String),
 }
 
+/// Represents the direction of rotation of the source with respect to the principal axis of the equipment.
+///
+/// This enum is used to specify the direction in which the source, such as an imaging device,
+/// is rotated relative to the principal axis of the equipment. The options include no rotation,
+/// clockwise rotation, and counter-clockwise rotation.
+///
+/// # Variants
+///
+/// - `NONE`: No rotation is applied.
+/// - `CW`: Clockwise rotation relative to the principal axis.
+/// - `CCW`: Counter-clockwise rotation relative to the principal axis.
+///
+/// # Examples
+///
+/// ```
+/// use std::str::FromStr;
+/// use dcm_data::RotationDirection;
+///
+/// let direction = RotationDirection::from_str("CW").unwrap();
+/// assert_eq!(direction, RotationDirection::CW);
+/// ```
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum RotationDirection {
     #[default]
@@ -76,18 +136,30 @@ pub enum PatientPositionError {
     InvalidPatientPosition(String),
 }
 
+/// Represents patient position in DICOM format.
+///
+/// This enum specifies the possible positions of a patient during an imaging study.
+/// The positions are described using acronyms where:
+/// - `HFP`: Head First-Prone
+/// - `HFS`: Head First-Supine
+/// - `HFDR`: Head First-Decubitus Right
+/// - `HFDL`: Head First-Decubitus Left
+/// - `FFDR`: Feet First-Decubitus Right
+/// - `FFDL`: Feet First-Decubitus Left
+/// - `FFP`: Feet First-Prone
+/// - `FFS`: Feet First-Supine
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum PatientPosition {
     #[default]
     NONE, // Undefined default
-    HFP,  // Head First-Prone
-    HFS,  // Head First-Supine
-    HFDR, // Head First-Decubitus Right
-    HFDL, // Head First-Decubitus Left
-    FFDR, // Feet First-Decubitus Right
-    FFDL, // Feet First-Decubitus Left
-    FFP,  // Feet First-Prone
-    FFS,  // Feet First-Supine
+    HFP,  // Patient is positioned head first-prone
+    HFS,  // Patient is positioned head first-supine
+    HFDR, // Patient is positioned head first-decubitus right
+    HFDL, // Patient is positioned head first-decubitus left
+    FFDR, // Patient is positioned feet first-decubitus right
+    FFDL, // Patient is positioned feet first-decubitus left
+    FFP,  // Patient is positioned feet first-prone
+    FFS,  // Patient is positioned feet first-supine
 }
 
 impl FromStr for PatientPosition {
@@ -108,10 +180,16 @@ impl FromStr for PatientPosition {
     }
 }
 
+/// Item in a Code Sequence
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CodeItem {
-    pub code_value: String,
-    pub coding_scheme_designator: String,
+    /// Identifier of a Coded Entry in a Coding Scheme.
+    pub code_value: Option<String>,
+    /// Identifier of the coding scheme in which the Coded Entry is defined.
+    pub coding_scheme_designator: Option<String>,
+    /// Identifier of the version of the coding scheme
+    pub coding_scheme_version: Option<String>,
+    /// Meaning of the Coded Entry
     pub code_meaning: String,
 }
 
@@ -121,6 +199,21 @@ pub enum PhotometricInterpretationError {
     InvalidPhotometricInterpretation(String),
 }
 
+/// Represents the photometric interpretation of pixel data in a DICOM image.
+///
+/// This enum specifies the possible photometric interpretations which describe how pixel values
+/// are intended to be interpreted. The variants are:
+///
+/// - `MONOCHROME1`: Monochrome 1 (pixel values range from white to black)
+/// - `MONOCHROME2`: Monochrome 2 (pixel values range from black to white)
+/// - `PALETTE_COLOR`: Palette Color (pixel values are indexes into a color lookup table)
+/// - `RGB`: RGB (Red, Green, Blue color model)
+/// - `YBR_FULL`: YBR (Luminance, Blue Difference, Red Difference without chroma subsampling)
+/// - `YBR_FULL_422`: YBR 422 (Luminance, Blue Difference, Red Difference with 4:2:2 chroma subsampling)
+/// - `YBR_PARTIAL_422`: YBR Partial 422 (4:2:2 chroma subsampling with different value ranges)
+/// - `YBR_PARTIAL_420`: YBR Partial 420 (4:2:0 chroma subsampling)
+/// - `YBR_ICT`: YBR ICT (Luminance, Chrominance Inter-component Transforms)
+/// - `YBR_RCT`: YBR RCT (Luminance, Chrominance Reversible Component Transform)
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 #[allow(non_camel_case_types)]
 pub enum PhotometricInterpretation {
@@ -165,6 +258,7 @@ pub enum PixelRepresentationError {
     InvalidPixelRepresentation(String),
 }
 
+/// Data representation of pixel samples.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub enum PixelRepresentation {
     #[default]
@@ -192,6 +286,7 @@ pub enum RescaleTypeError {
     InvalidRescaleType(String),
 }
 
+/// Output unit of the rescale slope (0028,1053) and rescale intercept (0028,1052).
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 #[allow(non_camel_case_types)]
 pub enum RescaleType {
@@ -602,27 +697,7 @@ impl Modality {
     }
 
     pub fn is_retired(&self) -> bool {
-        match self {
-            Modality::AS => true,
-            Modality::CD => true,
-            Modality::CF => true,
-            Modality::CP => true,
-            Modality::CS => true,
-            Modality::DD => true,
-            Modality::DF => true,
-            Modality::DM => true,
-            Modality::DS => true,
-            Modality::EC => true,
-            Modality::FA => true,
-            Modality::FS => true,
-            Modality::LP => true,
-            Modality::MA => true,
-            Modality::MS => true,
-            Modality::OPR => true,
-            Modality::ST => true,
-            Modality::VF => true,
-            _ => false,
-        }
+        matches!(self, Modality::AS | Modality::CD | Modality::CF | Modality::CP | Modality::CS | Modality::DD | Modality::DF | Modality::DM | Modality::DS | Modality::EC | Modality::FA | Modality::FS | Modality::LP | Modality::MA | Modality::MS | Modality::OPR | Modality::ST | Modality::VF)
     }
 }
 
