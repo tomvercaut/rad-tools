@@ -5,38 +5,40 @@ use std::str::FromStr;
 #[derive(Clone, Debug, Default)]
 pub struct RTPlan {
     pub specific_character_set: String,
-    pub instance_creation_dt: NaiveDateTime,
+    pub instance_creation_dt: Option<NaiveDateTime>,
     pub sop: Sop,
-    pub study_dt: NaiveDateTime,
-    pub accession_number: String,
-    pub modality: String,
-    pub manufacturer: String,
-    pub referring_physician_name: PersonName,
-    pub manufacturer_model_name: String,
+    pub study_dt: Option<NaiveDateTime>,
+    pub accession_number: Option<String>,
+    pub manufacturer: Option<String>,
+    pub referring_physician_name: Option<PersonName>,
+    pub manufacturer_model_name: Option<String>,
     pub patient_name: PersonName,
     pub patient_id: String,
-    pub patient_birth_date: NaiveDate,
+    pub patient_birth_date: Option<NaiveDate>,
     pub patient_sex: String,
     pub patient_identity_removed: bool,
-    pub deidentification_method: String,
-    pub software_versions: String,
+    pub deidentification_method: Option<String>,
+    pub software_versions: Option<String>,
     pub study_instance_uid: String,
     pub series_instance_uid: String,
-    pub study_id: String,
-    pub series_number: i32,
+    pub study_id: Option<String>,
+    pub series_number: Option<i32>,
     pub frame_of_reference_uid: String,
-    pub position_reference_indicator: String,
+    pub position_reference_indicator: Option<String>,
     pub rt_plan_label: String,
-    pub treatment_protocols: String,
-    pub plan_intent: String,
+    pub rt_plan_name: Option<String>,
+    pub rt_plan_description: Option<String>,
+    pub rt_plan_dt: Option<NaiveDateTime>,
+    pub treatment_protocols: Option<String>,
+    pub plan_intent: Option<String>,
     pub rt_plan_geometry: String,
     pub fraction_group_sequence: Vec<FractionGroup>,
     pub beam_sequence: Vec<Beam>,
     pub patient_setup_sequence: Vec<PatientSetup>,
     pub referenced_structure_set_sequence: Vec<Sop>,
     pub approval_status: ApprovalStatus,
-    pub review_dt: NaiveDateTime,
-    pub reviewer_name: String,
+    pub review_dt: Option<NaiveDateTime>,
+    pub reviewer_name: Option<String>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -287,7 +289,8 @@ mod tests {
 
     #[test]
     fn test_beam_limiting_device_type_from_str_invalid() {
-        let device_type_result: Result<RTBeamLimitingDeviceType, RTBeamLimitingDeviceTypeError> = "INVALID".parse();
+        let device_type_result: Result<RTBeamLimitingDeviceType, RTBeamLimitingDeviceTypeError> =
+            "INVALID".parse();
         assert!(device_type_result.is_err());
     }
 }
