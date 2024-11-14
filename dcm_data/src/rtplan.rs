@@ -72,9 +72,9 @@ pub struct ReferencedBeam {
 
 #[derive(Clone, Debug, Default)]
 pub struct ReferencedBrachyApplicationSetup {
-    pub referenced_dose_reference_uid: String,
-    pub brachy_application_setup_dose_specification_point: Vec<f64>,
-    pub brachy_application_setup_dose: f64,
+    pub referenced_dose_reference_uid: Option<String>,
+    pub brachy_application_setup_dose_specification_point: Option<Vec<f64>>,
+    pub brachy_application_setup_dose: Option<f64>,
     pub referenced_brachy_application_setup_number: i32,
 }
 
