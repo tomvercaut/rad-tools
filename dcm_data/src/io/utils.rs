@@ -96,6 +96,38 @@ pub(crate) fn to_strings(
     Ok(s.split('\\').map(|x| x.to_string()).collect())
 }
 
+/// Converts a DICOM element to an optional vector of string representations.
+///
+/// This function attempts to retrieve the element from the given DICOM object
+/// corresponding to the provided tag and then converts the element to a vector
+/// of strings. Each string within the vector represents a component of the
+/// DICOM element's multivalued string.
+///
+/// # Arguments
+///
+/// * `obj` - A reference to a DICOM object from which to retrieve the element.
+/// * `tag` - The tag of the element to be retrieved.
+///
+/// # Returns
+///
+/// * `Ok(Some(Vec<String>))` - A vector of string representations of the DICOM element, if found.
+/// * `Ok(None)` - If the element is not found.
+/// * `Err(DcmIOError)` - An error if the element could not be retrieved or converted to a string.
+///
+/// # Errors
+///
+/// This function returns a [`DcmIOError`] if the element retrieval or conversion to a string fails.
+pub(crate) fn to_strings_opt(
+    obj: &dicom_object::InMemDicomObject,
+    tag: Tag,
+) -> Result<Option<Vec<String>>, DcmIOError> {
+    let element = obj.element_opt(tag)?;
+    match element {
+        None => Ok(None),
+        Some(element) => Ok(Some(element.to_multi_str()?.to_vec())),
+    }
+}
+
 /// Reads and parses a combined date and time from a DICOM object.
 ///
 /// This function retrieves the date and time elements from a DICOM object,
@@ -233,6 +265,40 @@ pub(crate) fn to_date(
     }
 }
 
+/// Reads and parses a date from an optional DICOM element into an optional NaiveDate.
+///
+/// This function retrieves the date from an optional DICOM object specified by its tag,
+/// and parses it into an [`Option<NaiveDate>`].
+///
+/// # Arguments
+///
+/// * `obj` - A reference to the DICOM object from which to retrieve the date element.
+/// * `tag` - The tag of the date element to be retrieved.
+///
+/// # Returns
+///
+/// * `Ok(Some(NaiveDate))` - The parsed date, if the element exists and is properly parsed.
+/// * `Ok(None)` - If the DICOM element does not exist.
+/// * `Err(DcmIOError)` - An error if the element could not be retrieved or if the parsing fails.
+///
+/// # Errors
+///
+/// This function returns a [`DcmIOError`] if the element retrieval or parsing into `NaiveDate` fails.
+pub(crate) fn to_date_opt(
+    obj: &dicom_object::InMemDicomObject,
+    tag: Tag,
+) -> Result<Option<NaiveDate>, DcmIOError> {
+    let element = obj.element_opt(tag)?;
+    if element.is_none() {
+        return Ok(None);
+    }
+    let element = element.unwrap();
+    match element.to_date()?.to_naive_date() {
+        Ok(d) => Ok(Some(d)),
+        Err(e) => Err(DcmIOError::InvalidDateRange(e)),
+    }
+}
+
 /// Reads and parses an integer from a DICOM element.
 ///
 /// This function retrieves the integer value from a DICOM object specified by its tag,
@@ -292,6 +358,46 @@ where
         Ok(o) => match o {
             None => Ok(None),
             Some(elem) => match elem.to_int() {
+                Ok(i) => Ok(Some(i)),
+                Err(e) => Err(DcmIOError::from(e)),
+            },
+        },
+        Err(e) => Err(DcmIOError::from(e)),
+    }
+}
+
+/// Reads and parses multiple integers from an optional DICOM element into an optional vector.
+///
+/// This function attempts to retrieve multiple integer values from an optional DICOM element specified by its tag,
+/// and parses them into the specified integer type `T`. If the element does not exist, it returns `None`.
+///
+/// # Arguments
+///
+/// * `obj` - A reference to the DICOM object from which to retrieve the integer elements.
+/// * `tag` - The tag of the integer elements to be retrieved.
+///
+/// # Returns
+///
+/// * `Ok(Some(Vec<T>))` - A vector of parsed integers.
+/// * `Ok(None)` - If the element does not exist.
+/// * `Err(DcmIOError)` - An error if the element retrieval or the parsing fails.
+///
+/// # Errors
+///
+/// This function returns a [`DcmIOError`] if the element retrieval or parsing into the integer type `T` fails.
+pub(crate) fn to_ints_opt<T>(
+    obj: &dicom_object::InMemDicomObject,
+    tag: Tag,
+) -> Result<Option<Vec<T>>, DcmIOError>
+where
+    T: Clone,
+    T: NumCast,
+    T: std::str::FromStr<Err = std::num::ParseIntError>,
+{
+    match obj.element_opt(tag) {
+        Ok(o) => match o {
+            None => Ok(None),
+            Some(elem) => match elem.to_multi_int() {
                 Ok(i) => Ok(Some(i)),
                 Err(e) => Err(DcmIOError::from(e)),
             },
@@ -455,17 +561,61 @@ where
     Ok(v)
 }
 
+/// Parses an optional sequence of DICOM items using a provided function,
+/// returning an optional vector of parsed items.
+///
+/// This function attempts to retrieve the DICOM element specified by its tag and parses its value,
+/// which is expected to be a sequence, into an optional vector of type `T` by applying the given function `func`
+/// to each item in the sequence. If the element is not found, it returns `Ok(None)`.
+///
+/// # Arguments
+///
+/// * `obj` - A reference to the DICOM object from which to retrieve the sequence element.
+/// * `seq_tag` - The tag of the sequence element to be retrieved.
+/// * `func` - A function that takes a reference to a DICOM object and returns a result of type `T`.
+///
+/// # Returns
+///
+/// * `Ok(Some(Vec<T>))` - A vector containing the parsed items if the element is found and successfully parsed.
+/// * `Ok(None)` - If the tag is not found in the DICOM object.
+/// * `Err(DcmIOError)` - An error if the element retrieval fails, if it is not a sequence,
+///   or if the parsing of one of its items fails.
+///
+/// # Errors
+///
+/// This function returns a [`DcmIOError`] in the following cases:
+/// * The retrieval of the element fails.
+/// * The element is not a sequence.
+/// * One of the items in the sequence cannot be parsed.
+pub(crate) fn from_seq_opt<T, F>(
+    obj: &dicom_object::InMemDicomObject,
+    seq_tag: Tag,
+    func: F,
+) -> Result<Option<Vec<T>>, DcmIOError>
+where
+    F: Fn(&dicom_object::InMemDicomObject) -> Result<T, DcmIOError>,
+{
+    let seq = obj.element_opt(seq_tag)?;
+    if seq.is_none() {
+        return Ok(None);
+    }
+    let v = from_seq(obj, seq_tag, func)?;
+    Ok(Some(v))
+}
+
 #[cfg(test)]
 mod test {
-    use crate::io::{da_tm_to_ndt, da_tm_to_ndt_opt};
+    use crate::io::{da_tm_to_ndt, da_tm_to_ndt_opt, to_ints_opt, DcmIOError};
     use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-    use dicom_core::DataElement;
+    use dicom_core::smallvec::smallvec;
+    use dicom_core::{DataElement, PrimitiveValue, VR};
     use dicom_dictionary_std::tags::{
         ACQUISITION_DATE_TIME, COLUMNS, CONTENT_DATE, CONTENT_TIME, DEVICE_DIAMETER, KVP,
-        PATIENT_ID, PATIENT_NAME, ROWS, SERIES_NUMBER, SLICE_LOCATION, STUDY_DATE, STUDY_TIME,
+        PATIENT_ID, PATIENT_NAME, ROI_DISPLAY_COLOR, ROWS, SERIES_NUMBER, SLICE_LOCATION,
+        STUDY_DATE, STUDY_TIME,
     };
     use dicom_object::InMemDicomObject;
-    use log::LevelFilter;
+    use log::{debug, LevelFilter};
 
     fn init_logger() {
         let _ = env_logger::builder()
@@ -757,5 +907,47 @@ mod test {
 
         let result = super::to_int_opt::<i32>(&obj, tag);
         assert!(result.is_ok());
+    }
+    #[test]
+    fn test_to_ints_opt_some() {
+        let mut obj = InMemDicomObject::new_empty();
+        let tag = ROI_DISPLAY_COLOR;
+        let values = smallvec![255, 18, 125];
+
+        let elem = DataElement::new(tag, VR::IS, PrimitiveValue::U8(values));
+        obj.put(elem);
+
+        let result: Result<Option<Vec<u8>>, DcmIOError> = to_ints_opt(&obj, tag);
+        if let Err(e) = &result {
+            debug!("{:?}", e);
+            assert!(false);
+        }
+        assert!(result.is_ok());
+        let values = result.unwrap();
+        assert!(values.is_some());
+        let values = values.unwrap();
+        assert_eq!(values, vec![255, 18, 125]);
+    }
+
+    #[test]
+    fn test_to_ints_opt_none() {
+        let obj = InMemDicomObject::new_empty();
+        let tag = ROI_DISPLAY_COLOR;
+
+        let result: Result<Option<Vec<i8>>, DcmIOError> = to_ints_opt(&obj, tag);
+        assert!(result.is_ok());
+        let values = result.unwrap();
+        assert!(values.is_none());
+    }
+
+    #[test]
+    fn test_to_ints_opt_invalid_int() {
+        let mut obj = InMemDicomObject::new_empty();
+        let tag = ROI_DISPLAY_COLOR;
+        let elem = DataElement::new(tag, VR::PN, "X_Head^Rando");
+        obj.put(elem);
+
+        let result: Result<Option<Vec<u8>>, DcmIOError> = to_ints_opt(&obj, tag);
+        assert!(result.is_err());
     }
 }

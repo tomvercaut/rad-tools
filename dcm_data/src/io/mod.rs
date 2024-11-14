@@ -1,11 +1,13 @@
 mod common;
 mod ct;
+mod rtstruct;
 mod utils;
 
 use crate::PatientPositionError;
-pub use ct::*;
-use dicom_core::value::ConvertValueError;
+pub use ct::read_ct_image;
+use dicom_core::value::{CastValueError, ConvertValueError};
 use dicom_core::Tag;
+pub use rtstruct::read_rtstruct;
 pub(crate) use utils::*;
 
 #[derive(thiserror::Error, Debug)]
@@ -16,6 +18,8 @@ pub enum DcmIOError {
     DicomElementAccessError(#[from] dicom_object::AccessError),
     #[error("Unable to convert value from DICOM element")]
     ConvertValueError(#[from] ConvertValueError),
+    #[error("Unable to cast internal DICOM value to the requested data type.")]
+    CastValueError(#[from] CastValueError),
     #[error("Unable to parse date/time")]
     ChronoError(#[from] chrono::ParseError),
     #[error("Invalid date range: {0:#?}")]
@@ -56,4 +60,8 @@ pub enum DcmIOError {
     PixelSequenceNotSupported(Tag),
     #[error("Unable to create Pixel Spacing from DICOM element")]
     InvalidPixelSpacing(Vec<f64>),
+    #[error("Reader doesn't match with SOP class UID: [{0:#?}]")]
+    NoMatchingSopClassUID(String),
+    #[error("Invalid RGB string: \"{0:#?}\"")]
+    InvalidRGBString(String),
 }

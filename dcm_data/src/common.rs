@@ -17,7 +17,7 @@ use std::str::FromStr;
 ///     instance_uid: "1.2.752.243.1.1.20220722130644359.1060.62784".to_string(),
 /// };
 /// ```
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Sop {
     /// The unique identifier (UID) for the DICOM service class.
     /// This UID defines the type of service being requested or provided,
@@ -697,7 +697,27 @@ impl Modality {
     }
 
     pub fn is_retired(&self) -> bool {
-        matches!(self, Modality::AS | Modality::CD | Modality::CF | Modality::CP | Modality::CS | Modality::DD | Modality::DF | Modality::DM | Modality::DS | Modality::EC | Modality::FA | Modality::FS | Modality::LP | Modality::MA | Modality::MS | Modality::OPR | Modality::ST | Modality::VF)
+        matches!(
+            self,
+            Modality::AS
+                | Modality::CD
+                | Modality::CF
+                | Modality::CP
+                | Modality::CS
+                | Modality::DD
+                | Modality::DF
+                | Modality::DM
+                | Modality::DS
+                | Modality::EC
+                | Modality::FA
+                | Modality::FS
+                | Modality::LP
+                | Modality::MA
+                | Modality::MS
+                | Modality::OPR
+                | Modality::ST
+                | Modality::VF
+        )
     }
 }
 
