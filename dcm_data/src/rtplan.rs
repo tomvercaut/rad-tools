@@ -44,18 +44,18 @@ pub struct RTPlan {
 #[derive(Clone, Debug, Default)]
 pub struct FractionGroup {
     pub fraction_group_number: i32,
-    pub fraction_group_description: String,
-    pub number_of_fractions_planned: i32,
-    pub number_of_fraction_pattern_digits_per_day: i32,
-    pub repeat_fraction_cycle_length: i32,
-    pub fraction_pattern: String,
+    pub fraction_group_description: Option<String>,
+    pub number_of_fractions_planned: Option<i32>,
+    pub number_of_fraction_pattern_digits_per_day: Option<i32>,
+    pub repeat_fraction_cycle_length: Option<i32>,
+    pub fraction_pattern: Option<String>,
     pub number_of_beams: i32,
-    pub beam_dose_meaning: String,
+    pub beam_dose_meaning: Option<String>,
     pub number_of_brachy_application_sequences: i32,
     pub referenced_beam_sequence: Vec<ReferencedBeam>,
     pub referenced_brachy_application_setup_sequence: Vec<ReferencedBrachyApplicationSetup>,
-    pub referenced_dose_reference_sequence: Vec<ReferencedDoseReference>,
-    pub referenced_dose_sequence: Vec<Sop>,
+    pub referenced_dose_reference_sequence: Option<Vec<ReferencedDoseReference>>,
+    pub referenced_dose_sequence: Option<Vec<Sop>>,
 }
 
 #[derive(Clone, Debug, Default)]
