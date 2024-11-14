@@ -80,31 +80,31 @@ pub struct ReferencedBrachyApplicationSetup {
 
 #[derive(Clone, Debug, Default)]
 pub struct ReferencedDoseReference {
-    pub constraint_weight: f64,
-    pub delivery_warning_dose: f64,
-    pub delivery_maximum_dose: f64,
-    pub target_minimum_dose: f64,
-    pub target_prescription_dose: f64,
-    pub target_underdose_volume_fraction: f64,
-    pub organ_at_risk_full_volume_dose: f64,
-    pub organ_at_risk_full_limit_dose: f64,
-    pub organ_at_risk_full_maximum_dose: f64,
-    pub organ_at_risk_full_overdose_volume_fraction: f64,
-    pub referenced_dose_reference_number: i32,
+    pub constraint_weight: Option<f64>,
+    pub delivery_warning_dose: Option<f64>,
+    pub delivery_maximum_dose: Option<f64>,
+    pub target_minimum_dose: Option<f64>,
+    pub target_prescription_dose: Option<f64>,
+    pub target_underdose_volume_fraction: Option<f64>,
+    pub organ_at_risk_full_volume_dose: Option<f64>,
+    pub organ_at_risk_full_limit_dose: Option<f64>,
+    pub organ_at_risk_full_maximum_dose: Option<f64>,
+    pub organ_at_risk_full_overdose_volume_fraction: Option<f64>,
+    pub referenced_dose_reference_number: Option<i32>,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct Beam {
-    pub primary_fluence_mode_sequence: Vec<PrimaryFluenceMode>,
-    pub treatment_machine_name: String,
-    pub primary_dosimeter_unit: String,
-    pub source_axis_distance: f64,
+    pub primary_fluence_mode_sequence: Option<Vec<PrimaryFluenceMode>>,
+    pub treatment_machine_name: Option<String>,
+    pub primary_dosimeter_unit: Option<String>,
+    pub source_axis_distance: Option<f64>,
     pub beam_limiting_device_sequence: Vec<BeamLimitingDevice>,
     pub beam_number: i32,
-    pub beam_name: String,
-    pub beam_description: String,
-    pub radiation_type: String,
-    pub treatment_delivery_type: String,
+    pub beam_name: Option<String>,
+    pub beam_description: Option<String>,
+    pub radiation_type: Option<String>,
+    pub treatment_delivery_type: Option<String>,
     pub number_of_wedges: i32,
     pub number_of_compensators: i32,
     pub number_of_boli: i32,
@@ -112,10 +112,11 @@ pub struct Beam {
     pub final_cumulative_meterset_weight: f64,
     pub number_of_control_points: i32,
     pub control_point_sequence: Vec<ControlPoint>,
-    pub referenced_patient_setup_number: i32,
+    pub referenced_patient_setup_number: Option<i32>,
+    pub referenced_bolus_sequence: Option<Vec<ReferencedBolus>>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct PrimaryFluenceMode {
     pub fluence_mode: FluenceMode,
     pub fluence_mode_id: String,
@@ -151,8 +152,9 @@ pub enum FluenceModeError {
 #[derive(Clone, Debug, Default)]
 pub struct BeamLimitingDevice {
     pub rt_beam_limiting_device_type: RTBeamLimitingDeviceType,
+    pub source_to_beam_limiting_device_distance: Option<f64>,
     pub number_of_leaf_jaw_pairs: i32,
-    pub leaf_position_boundaries: Vec<f64>,
+    pub leaf_position_boundaries: Option<Vec<f64>>,
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -227,6 +229,14 @@ pub struct ControlPoint {
 pub struct PatientSetup {
     pub patient_position: PatientPosition,
     pub patient_setup_number: i32,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ReferencedBolus {
+    pub referenced_roi_number: i32,
+    pub referenced_bolus_id: Option<String>,
+    pub referenced_bolus_description: Option<String>,
+    pub accessory_code: Option<String>,
 }
 
 #[cfg(test)]
