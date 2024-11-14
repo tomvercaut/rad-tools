@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::Display;
 use std::str::FromStr;
 
 /// Represents a Service-Object Pair (SOP) in the DICOM standard.
@@ -529,8 +531,8 @@ impl FromStr for Modality {
     }
 }
 
-impl std::fmt::Display for Modality {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for Modality {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Modality::AR => write!(f, "AR"),
             Modality::AS => write!(f, "AS"),
@@ -727,11 +729,57 @@ impl Modality {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Default, Clone, Copy)]
+pub enum ContourGeometry {
+    #[default]
+    None,
+    Point,
+    OpenPlanar,
+    OpenNonplanar,
+    ClosedPlanar,
+    ClosedplanarXor,
+}
+
+impl FromStr for ContourGeometry {
+    type Err = ContourGeometryError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "POINT" => Ok(ContourGeometry::Point),
+            "OPEN_PLANAR" => Ok(ContourGeometry::OpenPlanar),
+            "OPEN_NONPLANAR" => Ok(ContourGeometry::OpenNonplanar),
+            "CLOSED_PLANAR" => Ok(ContourGeometry::ClosedPlanar),
+            "CLOSEDPLANAR_XOR" => Ok(ContourGeometry::ClosedplanarXor),
+            _ => Err(ContourGeometryError::InvalidContourGeometry(s.into())),
+        }
+    }
+}
+
+impl Display for ContourGeometry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let value = match self {
+            ContourGeometry::Point => "POINT",
+            ContourGeometry::OpenPlanar => "OPEN_PLANAR",
+            ContourGeometry::OpenNonplanar => "OPEN_NONPLANAR",
+            ContourGeometry::ClosedPlanar => "CLOSED_PLANAR",
+            ContourGeometry::ClosedplanarXor => "CLOSEDPLANAR_XOR",
+            ContourGeometry::None => "NONE",
+        };
+        write!(f, "{}", value)
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum ContourGeometryError {
+    #[error("Invalid contour geometry: {0}")]
+    InvalidContourGeometry(String),
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
-        ApprovalStatus, Modality, PatientPosition, PatientPositionError, PersonName,
-        PhotometricInterpretation, PhotometricInterpretationError, PixelRepresentation,
+        ApprovalStatus, ContourGeometry, Modality, PatientPosition, PatientPositionError,
+        PersonName, PhotometricInterpretation, PhotometricInterpretationError, PixelRepresentation,
         RescaleType, RotationDirection,
     };
     use std::str::FromStr;
@@ -1136,5 +1184,55 @@ mod tests {
             let result = Modality::from_str(modality);
             assert!(result.is_err());
         }
+    }
+    #[test]
+    fn test_from_str_point() {
+        let input = "POINT";
+        let result = ContourGeometry::from_str(input);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), ContourGeometry::Point);
+    }
+
+    #[test]
+    fn test_from_str_open_planar() {
+        let input = "OPEN_PLANAR";
+        let result = ContourGeometry::from_str(input);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), ContourGeometry::OpenPlanar);
+    }
+
+    #[test]
+    fn test_from_str_open_nonplanar() {
+        let input = "OPEN_NONPLANAR";
+        let result = ContourGeometry::from_str(input);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), ContourGeometry::OpenNonplanar);
+    }
+
+    #[test]
+    fn test_from_str_closed_planar() {
+        let input = "CLOSED_PLANAR";
+        let result = ContourGeometry::from_str(input);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), ContourGeometry::ClosedPlanar);
+    }
+
+    #[test]
+    fn test_from_str_closedplanar_xor() {
+        let input = "CLOSEDPLANAR_XOR";
+        let result = ContourGeometry::from_str(input);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), ContourGeometry::ClosedplanarXor);
+    }
+
+    #[test]
+    fn test_from_str_invalid() {
+        let input = "INVALID";
+        let result = ContourGeometry::from_str(input);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Invalid contour geometry: INVALID"
+        );
     }
 }

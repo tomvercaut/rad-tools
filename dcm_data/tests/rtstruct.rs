@@ -1,5 +1,5 @@
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-use dcm_data::{ApprovalStatus, PersonName, Sop};
+use dcm_data::{ApprovalStatus, ContourGeometry, PersonName, Sop};
 use dicom_dictionary_std::uids::{CT_IMAGE_STORAGE, RT_STRUCTURE_SET_STORAGE};
 use log::LevelFilter;
 use std::default::Default;
@@ -173,7 +173,7 @@ fn read_rtstruct_image_test() {
             instance_uid: "1.2.752.243.1.1.20220722130644565.1970.50255".to_string(),
         }
     );
-    assert_eq!(contour.contour_geometry_type, "CLOSED_PLANAR");
+    assert_eq!(contour.contour_geometry_type, ContourGeometry::ClosedPlanar);
     assert_eq!(contour.number_of_contour_points, 337);
     assert_eq!(contour.contour_number, Some(0));
     assert_eq!(contour.contour_data.len(), 1011);
@@ -301,7 +301,7 @@ fn read_rtstruct_image_test() {
         .unwrap()
         .first()
         .unwrap();
-    assert_eq!(contour.contour_geometry_type, "POINT");
+    assert_eq!(contour.contour_geometry_type, ContourGeometry::Point);
     assert_eq!(contour.number_of_contour_points, 1);
     assert_eq!(contour.contour_number, Some(0));
     assert_eq!(contour.contour_data.len(), 3);

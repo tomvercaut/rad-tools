@@ -4,8 +4,8 @@ use crate::io::{
     to_ints_opt, to_string, to_string_opt, DcmIOError,
 };
 use crate::{
-    ApprovalStatus, Contour, PersonName, RTReferencedSerie, RTReferencedStudy, RTRoiObservation,
-    RTStruct, ReferencedFrameOfReference, RoiContour, Sop, StructureSetROI,
+    ApprovalStatus, Contour, ContourGeometry, PersonName, RTReferencedSerie, RTReferencedStudy,
+    RTRoiObservation, RTStruct, ReferencedFrameOfReference, RoiContour, Sop, StructureSetROI,
 };
 use dicom_dictionary_std::tags::{
     ACCESSION_NUMBER, APPROVAL_STATUS, CONTOUR_DATA, CONTOUR_GEOMETRIC_TYPE,
@@ -147,7 +147,10 @@ fn contour(item: &InMemDicomObject) -> Result<Contour, DcmIOError> {
     Ok(Contour {
         contour_number: to_int_opt(item, CONTOUR_NUMBER)?,
         contour_image_sequence: from_seq_opt(item, CONTOUR_IMAGE_SEQUENCE, contour_image)?,
-        contour_geometry_type: to_string(item, CONTOUR_GEOMETRIC_TYPE)?,
+        contour_geometry_type: ContourGeometry::from_str(&to_string(
+            item,
+            CONTOUR_GEOMETRIC_TYPE,
+        )?)?,
         number_of_contour_points: to_int(item, NUMBER_OF_CONTOUR_POINTS)?,
         contour_data: to_f64s(item, CONTOUR_DATA)?,
     })

@@ -3,7 +3,7 @@ mod ct;
 mod rtstruct;
 mod utils;
 
-use crate::PatientPositionError;
+use crate::{ContourGeometryError, PatientPositionError};
 pub use ct::read_ct_image;
 use dicom_core::value::{CastValueError, ConvertValueError};
 use dicom_core::Tag;
@@ -44,6 +44,8 @@ pub enum DcmIOError {
     InvalidRescaleType(#[from] crate::RescaleTypeError),
     #[error("Unable to create PatientPosition from DICOM element")]
     PatientPositionError(#[from] PatientPositionError),
+    #[error("Unable to create ContourGeometry from DICOM element")]
+    ContourGeometryError(#[from] ContourGeometryError),
     #[error("Invalid input data for FocalSpots: {0:#?}")]
     InvalidFocalSpots(Vec<f64>),
     #[error("Invalid input data for Data Collection Center Patient: {0:#?}")]

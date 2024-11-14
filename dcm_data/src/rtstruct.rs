@@ -1,4 +1,4 @@
-use crate::{ApprovalStatus, PersonName, Sop};
+use crate::{ApprovalStatus, ContourGeometry, PersonName, Sop};
 use chrono::{NaiveDate, NaiveDateTime};
 
 #[derive(Clone, Debug, Default)]
@@ -73,7 +73,7 @@ pub struct RoiContour {
 pub struct Contour {
     pub contour_number: Option<i32>,
     pub contour_image_sequence: Option<Vec<Sop>>,
-    pub contour_geometry_type: String,
+    pub contour_geometry_type: ContourGeometry,
     pub number_of_contour_points: i32,
     pub contour_data: Vec<f64>,
 }
