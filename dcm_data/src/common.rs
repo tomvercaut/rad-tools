@@ -343,6 +343,12 @@ impl FromStr for ApprovalStatus {
 }
 
 #[derive(thiserror::Error, Debug)]
+pub enum ApprovalStatusError {
+    #[error("Invalid approval status: {0}")]
+    InvalidApprovalStatus(String),
+}
+
+#[derive(thiserror::Error, Debug)]
 pub enum ModalityError {
     #[error("Invalid DICOM modality: {0}")]
     InvalidDicomModality(String),
@@ -719,12 +725,6 @@ impl Modality {
                 | Modality::VF
         )
     }
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum ApprovalStatusError {
-    #[error("Invalid approval status: {0}")]
-    InvalidApprovalStatus(String),
 }
 
 #[cfg(test)]
