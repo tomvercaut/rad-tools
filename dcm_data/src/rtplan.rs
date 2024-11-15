@@ -97,7 +97,7 @@ pub struct ReferencedDoseReference {
 pub struct Beam {
     pub primary_fluence_mode_sequence: Option<Vec<PrimaryFluenceMode>>,
     pub treatment_machine_name: Option<String>,
-    pub primary_dosimeter_unit: Option<String>,
+    pub primary_dosimeter_unit: Option<PrimaryDosimeterUnit>,
     pub source_axis_distance: Option<f64>,
     pub beam_limiting_device_sequence: Vec<BeamLimitingDevice>,
     pub beam_number: i32,
@@ -146,6 +146,43 @@ impl FromStr for FluenceMode {
 #[derive(thiserror::Error, Debug)]
 pub enum FluenceModeError {
     #[error("Failed to parse fluence mode from: {0}")]
+    ParseError(String),
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+pub enum PrimaryDosimeterUnit {
+    #[default]
+    None,
+    Mu,
+    Minute,
+}
+
+impl FromStr for PrimaryDosimeterUnit {
+    type Err = PrimaryDosimeterUnitError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().as_str() {
+            "MU" => Ok(PrimaryDosimeterUnit::Mu),
+            "MINUTE" => Ok(PrimaryDosimeterUnit::Minute),
+            _ => Err(PrimaryDosimeterUnitError::ParseError(s.into())),
+        }
+    }
+}
+
+impl std::fmt::Display for PrimaryDosimeterUnit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            PrimaryDosimeterUnit::Mu => "MU",
+            PrimaryDosimeterUnit::Minute => "MINUTE",
+            PrimaryDosimeterUnit::None => "NONE",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum PrimaryDosimeterUnitError {
+    #[error("Failed to parse primary dosimeter unit from: {0}")]
     ParseError(String),
 }
 
@@ -389,6 +426,25 @@ mod tests {
         let device_type_result: Result<RTBeamLimitingDeviceType, RTBeamLimitingDeviceTypeError> =
             "INVALID".parse();
         assert!(device_type_result.is_err());
+    }
+
+    #[test]
+    fn test_from_str() {
+        assert_eq!(
+            PrimaryDosimeterUnit::from_str("MU").unwrap(),
+            PrimaryDosimeterUnit::Mu
+        );
+        assert_eq!(
+            PrimaryDosimeterUnit::from_str("minute").unwrap(),
+            PrimaryDosimeterUnit::Minute
+        );
+        assert!(PrimaryDosimeterUnit::from_str("unknown").is_err());
+    }
+
+    #[test]
+    fn test_display() {
+        assert_eq!(PrimaryDosimeterUnit::Mu.to_string(), "MU");
+        assert_eq!(PrimaryDosimeterUnit::Minute.to_string(), "MINUTE");
     }
 
     #[test]
