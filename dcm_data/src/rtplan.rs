@@ -248,13 +248,13 @@ pub struct BeamLimitingDevice {
 #[allow(non_camel_case_types)]
 pub enum RTBeamLimitingDeviceType {
     #[default]
-    NONE,
+    None,
     X,
     Y,
-    ASYMX,
-    ASYMY,
-    MLCX,
-    MLCY,
+    AsymX,
+    AsymY,
+    MlcX,
+    MlcY,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -270,10 +270,10 @@ impl FromStr for RTBeamLimitingDeviceType {
         match s.to_uppercase().as_str() {
             "X" => Ok(RTBeamLimitingDeviceType::X),
             "Y" => Ok(RTBeamLimitingDeviceType::Y),
-            "ASYMX" => Ok(RTBeamLimitingDeviceType::ASYMX),
-            "ASYMY" => Ok(RTBeamLimitingDeviceType::ASYMY),
-            "MLCX" => Ok(RTBeamLimitingDeviceType::MLCX),
-            "MLCY" => Ok(RTBeamLimitingDeviceType::MLCY),
+            "ASYMX" => Ok(RTBeamLimitingDeviceType::AsymX),
+            "ASYMY" => Ok(RTBeamLimitingDeviceType::AsymY),
+            "MLCX" => Ok(RTBeamLimitingDeviceType::MlcX),
+            "MLCY" => Ok(RTBeamLimitingDeviceType::MlcY),
             t => Err(RTBeamLimitingDeviceTypeError::ParseError(t.into())),
         }
     }
@@ -363,25 +363,25 @@ mod tests {
     #[test]
     fn test_beam_limiting_device_type_from_str_asymx() {
         let device_type: RTBeamLimitingDeviceType = "ASYMX".parse().unwrap();
-        assert_eq!(device_type, RTBeamLimitingDeviceType::ASYMX);
+        assert_eq!(device_type, RTBeamLimitingDeviceType::AsymX);
     }
 
     #[test]
     fn test_beam_limiting_device_type_from_str_asymy() {
         let device_type: RTBeamLimitingDeviceType = "ASYMY".parse().unwrap();
-        assert_eq!(device_type, RTBeamLimitingDeviceType::ASYMY);
+        assert_eq!(device_type, RTBeamLimitingDeviceType::AsymY);
     }
 
     #[test]
     fn test_beam_limiting_device_type_from_str_mlxcx() {
         let device_type: RTBeamLimitingDeviceType = "MLCX".parse().unwrap();
-        assert_eq!(device_type, RTBeamLimitingDeviceType::MLCX);
+        assert_eq!(device_type, RTBeamLimitingDeviceType::MlcX);
     }
 
     #[test]
     fn test_beam_limiting_device_type_from_str_mlcy() {
         let device_type: RTBeamLimitingDeviceType = "MLCY".parse().unwrap();
-        assert_eq!(device_type, RTBeamLimitingDeviceType::MLCY);
+        assert_eq!(device_type, RTBeamLimitingDeviceType::MlcY);
     }
 
     #[test]
