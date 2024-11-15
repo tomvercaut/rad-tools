@@ -126,9 +126,9 @@ pub struct PrimaryFluenceMode {
 #[allow(non_camel_case_types)]
 pub enum FluenceMode {
     #[default]
-    NONE,
-    STANDARD,
-    NON_STANDARD,
+    None,
+    Standard,
+    NonStandard,
 }
 
 impl FromStr for FluenceMode {
@@ -136,8 +136,8 @@ impl FromStr for FluenceMode {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_uppercase().as_str() {
-            "STANDARD" => Ok(FluenceMode::STANDARD),
-            "NON_STANDARD" => Ok(FluenceMode::NON_STANDARD),
+            "STANDARD" => Ok(FluenceMode::Standard),
+            "NON_STANDARD" => Ok(FluenceMode::NonStandard),
             t => Err(FluenceModeError::ParseError(t.into())),
         }
     }
@@ -187,8 +187,10 @@ pub enum PrimaryDosimeterUnitError {
 }
 
 // Define the RadiationType enum
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum RadiationType {
+    #[default]
+    None,
     Photon,
     Electron,
     Neutron,
@@ -218,6 +220,7 @@ impl std::fmt::Display for RadiationType {
             RadiationType::Electron => "ELECTRON",
             RadiationType::Neutron => "NEUTRON",
             RadiationType::Proton => "PROTON",
+            RadiationType::None => "NONE",
         };
         write!(f, "{}", s)
     }
@@ -230,8 +233,10 @@ pub enum RadiationTypeError {
     ParseError(String),
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub enum TreatmentDeliveryType {
+    #[default]
+    None,
     Treatment,
     OpenPortFilm,
     TrmtPortFilm,
@@ -262,6 +267,7 @@ impl std::fmt::Display for TreatmentDeliveryType {
             TreatmentDeliveryType::TrmtPortFilm => "TRMT_PORTFILM",
             TreatmentDeliveryType::Continuation => "CONTINUATION",
             TreatmentDeliveryType::Setup => "SETUP",
+            TreatmentDeliveryType::None => "NONE",
         };
         write!(f, "{}", s)
     }
@@ -370,13 +376,13 @@ mod tests {
     #[test]
     fn test_fluence_mode_from_str_standard() {
         let mode: FluenceMode = "STANDARD".parse().unwrap();
-        assert_eq!(mode, FluenceMode::STANDARD);
+        assert_eq!(mode, FluenceMode::Standard);
     }
 
     #[test]
     fn test_fluence_mode_from_str_non_standard() {
         let mode: FluenceMode = "NON_STANDARD".parse().unwrap();
-        assert_eq!(mode, FluenceMode::NON_STANDARD);
+        assert_eq!(mode, FluenceMode::NonStandard);
     }
 
     #[test]
