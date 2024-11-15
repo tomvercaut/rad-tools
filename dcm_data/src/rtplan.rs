@@ -103,7 +103,7 @@ pub struct Beam {
     pub beam_number: i32,
     pub beam_name: Option<String>,
     pub beam_description: Option<String>,
-    pub radiation_type: Option<String>,
+    pub radiation_type: Option<RadiationType>,
     pub treatment_delivery_type: Option<String>,
     pub number_of_wedges: i32,
     pub number_of_compensators: i32,
@@ -146,6 +146,50 @@ impl FromStr for FluenceMode {
 #[derive(thiserror::Error, Debug)]
 pub enum FluenceModeError {
     #[error("Failed to parse fluence mode from: {0}")]
+    ParseError(String),
+}
+
+// Define the RadiationType enum
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum RadiationType {
+    Photon,
+    Electron,
+    Neutron,
+    Proton,
+}
+
+// Implement the FromStr trait for RadiationType
+impl FromStr for RadiationType {
+    type Err = RadiationTypeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().as_str() {
+            "PHOTON" => Ok(RadiationType::Photon),
+            "ELECTRON" => Ok(RadiationType::Electron),
+            "NEUTRON" => Ok(RadiationType::Neutron),
+            "PROTON" => Ok(RadiationType::Proton),
+            _ => Err(RadiationTypeError::ParseError(s.into())),
+        }
+    }
+}
+
+// Implement the Display trait for RadiationType
+impl std::fmt::Display for RadiationType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            RadiationType::Photon => "PHOTON",
+            RadiationType::Electron => "ELECTRON",
+            RadiationType::Neutron => "NEUTRON",
+            RadiationType::Proton => "PROTON",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+// Define a custom error type for RadiationType parsing
+#[derive(thiserror::Error, Debug)]
+pub enum RadiationTypeError {
+    #[error("Failed to parse radiation type from: {0}")]
     ParseError(String),
 }
 
@@ -302,5 +346,34 @@ mod tests {
         let device_type_result: Result<RTBeamLimitingDeviceType, RTBeamLimitingDeviceTypeError> =
             "INVALID".parse();
         assert!(device_type_result.is_err());
+    }
+
+    #[test]
+    fn test_radiation_type_from_str() {
+        assert_eq!(
+            RadiationType::from_str("PHOTON").unwrap(),
+            RadiationType::Photon
+        );
+        assert_eq!(
+            RadiationType::from_str("ELECTRON").unwrap(),
+            RadiationType::Electron
+        );
+        assert_eq!(
+            RadiationType::from_str("NEUTRON").unwrap(),
+            RadiationType::Neutron
+        );
+        assert_eq!(
+            RadiationType::from_str("PROTON").unwrap(),
+            RadiationType::Proton
+        );
+        assert!(RadiationType::from_str("UNKNOWN").is_err());
+    }
+
+    #[test]
+    fn test_radiation_type_display() {
+        assert_eq!(RadiationType::Photon.to_string(), "PHOTON");
+        assert_eq!(RadiationType::Electron.to_string(), "ELECTRON");
+        assert_eq!(RadiationType::Neutron.to_string(), "NEUTRON");
+        assert_eq!(RadiationType::Proton.to_string(), "PROTON");
     }
 }
