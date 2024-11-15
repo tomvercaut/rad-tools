@@ -104,7 +104,7 @@ pub struct Beam {
     pub beam_name: Option<String>,
     pub beam_description: Option<String>,
     pub radiation_type: Option<RadiationType>,
-    pub treatment_delivery_type: Option<String>,
+    pub treatment_delivery_type: Option<TreatmentDeliveryType>,
     pub number_of_wedges: i32,
     pub number_of_compensators: i32,
     pub number_of_boli: i32,
@@ -190,6 +190,49 @@ impl std::fmt::Display for RadiationType {
 #[derive(thiserror::Error, Debug)]
 pub enum RadiationTypeError {
     #[error("Failed to parse radiation type from: {0}")]
+    ParseError(String),
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum TreatmentDeliveryType {
+    Treatment,
+    OpenPortFilm,
+    TrmtPortFilm,
+    Continuation,
+    Setup,
+}
+
+impl FromStr for TreatmentDeliveryType {
+    type Err = TreatmentDeliveryTypeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_uppercase().as_str() {
+            "TREATMENT" => Ok(TreatmentDeliveryType::Treatment),
+            "OPEN_PORTFILM" => Ok(TreatmentDeliveryType::OpenPortFilm),
+            "TRMT_PORTFILM" => Ok(TreatmentDeliveryType::TrmtPortFilm),
+            "CONTINUATION" => Ok(TreatmentDeliveryType::Continuation),
+            "SETUP" => Ok(TreatmentDeliveryType::Setup),
+            _ => Err(TreatmentDeliveryTypeError::ParseError(s.into())),
+        }
+    }
+}
+
+impl std::fmt::Display for TreatmentDeliveryType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            TreatmentDeliveryType::Treatment => "TREATMENT",
+            TreatmentDeliveryType::OpenPortFilm => "OPEN_PORTFILM",
+            TreatmentDeliveryType::TrmtPortFilm => "TRMT_PORTFILM",
+            TreatmentDeliveryType::Continuation => "CONTINUATION",
+            TreatmentDeliveryType::Setup => "SETUP",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum TreatmentDeliveryTypeError {
+    #[error("Failed to parse treatment delivery type from: {0}")]
     ParseError(String),
 }
 
@@ -375,5 +418,48 @@ mod tests {
         assert_eq!(RadiationType::Electron.to_string(), "ELECTRON");
         assert_eq!(RadiationType::Neutron.to_string(), "NEUTRON");
         assert_eq!(RadiationType::Proton.to_string(), "PROTON");
+    }
+
+    #[test]
+    fn test_treatment_delivery_type_from_str() {
+        assert_eq!(
+            TreatmentDeliveryType::from_str("TREATMENT").unwrap(),
+            TreatmentDeliveryType::Treatment
+        );
+        assert_eq!(
+            TreatmentDeliveryType::from_str("OPEN_PORTFILM").unwrap(),
+            TreatmentDeliveryType::OpenPortFilm
+        );
+        assert_eq!(
+            TreatmentDeliveryType::from_str("TRMT_PORTFILM").unwrap(),
+            TreatmentDeliveryType::TrmtPortFilm
+        );
+        assert_eq!(
+            TreatmentDeliveryType::from_str("CONTINUATION").unwrap(),
+            TreatmentDeliveryType::Continuation
+        );
+        assert_eq!(
+            TreatmentDeliveryType::from_str("SETUP").unwrap(),
+            TreatmentDeliveryType::Setup
+        );
+        assert!(TreatmentDeliveryType::from_str("INVALID").is_err());
+    }
+
+    #[test]
+    fn test_treatment_delivery_type_display() {
+        assert_eq!(format!("{}", TreatmentDeliveryType::Treatment), "TREATMENT");
+        assert_eq!(
+            format!("{}", TreatmentDeliveryType::OpenPortFilm),
+            "OPEN_PORTFILM"
+        );
+        assert_eq!(
+            format!("{}", TreatmentDeliveryType::TrmtPortFilm),
+            "TRMT_PORTFILM"
+        );
+        assert_eq!(
+            format!("{}", TreatmentDeliveryType::Continuation),
+            "CONTINUATION"
+        );
+        assert_eq!(format!("{}", TreatmentDeliveryType::Setup), "SETUP");
     }
 }
