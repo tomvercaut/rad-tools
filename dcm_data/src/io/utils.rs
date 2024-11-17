@@ -1,7 +1,10 @@
 use crate::io::DcmIOError;
+use crate::RotationDirection;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use dicom_core::header::HasLength;
 use dicom_core::value::Value;
 use dicom_core::Tag;
+use log::trace;
 use num_traits::NumCast;
 
 /// Converts a DICOM element to a string representation.
@@ -48,7 +51,7 @@ pub(crate) fn to_string(
 /// # Returns
 ///
 /// * `Ok(Some(String))` - The string representation of the DICOM element, if found.
-/// * `Ok(None)` - If the element is not found.
+/// * `Ok(None)` - If the element is not found or if the element is empty.
 /// * `Err(DcmIOError)` - An error if the element could not be retrieved or converted to a string.
 ///
 /// # Errors
@@ -61,7 +64,13 @@ pub(crate) fn to_string_opt(
     match obj.element_opt(tag) {
         Ok(o) => match o {
             None => Ok(None),
-            Some(elem) => Ok(Some(elem.to_str()?.to_string())),
+            Some(elem) => {
+                if elem.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(elem.to_str()?.to_string()))
+                }
+            }
         },
         Err(e) => Err(DcmIOError::from(e)),
     }
@@ -111,7 +120,7 @@ pub(crate) fn to_strings(
 /// # Returns
 ///
 /// * `Ok(Some(Vec<String>))` - A vector of string representations of the DICOM element, if found.
-/// * `Ok(None)` - If the element is not found.
+/// * `Ok(None)` - If the element is not found, or if the element is empty.
 /// * `Err(DcmIOError)` - An error if the element could not be retrieved or converted to a string.
 ///
 /// # Errors
@@ -124,7 +133,13 @@ pub(crate) fn to_strings_opt(
     let element = obj.element_opt(tag)?;
     match element {
         None => Ok(None),
-        Some(element) => Ok(Some(element.to_multi_str()?.to_vec())),
+        Some(element) => {
+            if element.is_empty() {
+                Ok(None)
+            } else {
+                Ok(Some(element.to_multi_str()?.to_vec()))
+            }
+        }
     }
 }
 
@@ -278,7 +293,7 @@ pub(crate) fn to_date(
 /// # Returns
 ///
 /// * `Ok(Some(NaiveDate))` - The parsed date, if the element exists and is properly parsed.
-/// * `Ok(None)` - If the DICOM element does not exist.
+/// * `Ok(None)` - If the DICOM element does not exist, if the element is empty.
 /// * `Err(DcmIOError)` - An error if the element could not be retrieved or if the parsing fails.
 ///
 /// # Errors
@@ -293,6 +308,9 @@ pub(crate) fn to_date_opt(
         return Ok(None);
     }
     let element = element.unwrap();
+    if element.is_empty() {
+        return Ok(None);
+    }
     match element.to_date()?.to_naive_date() {
         Ok(d) => Ok(Some(d)),
         Err(e) => Err(DcmIOError::InvalidDateRange(e)),
@@ -339,7 +357,7 @@ where
 /// # Returns
 ///
 /// * `Ok(Some(T))` - The parsed integer.
-/// * `Ok(None)` - If the element does not exist.
+/// * `Ok(None)` - If the element does not exist or if the element is empty.
 /// * `Err(DcmIOError)` - An error if the element retrieval or the parsing fails.
 ///
 /// # Errors
@@ -357,10 +375,16 @@ where
     match obj.element_opt(tag) {
         Ok(o) => match o {
             None => Ok(None),
-            Some(elem) => match elem.to_int() {
-                Ok(i) => Ok(Some(i)),
-                Err(e) => Err(DcmIOError::from(e)),
-            },
+            Some(elem) => {
+                if elem.is_empty() {
+                    Ok(None)
+                } else {
+                    match elem.to_int() {
+                        Ok(i) => Ok(Some(i)),
+                        Err(e) => Err(DcmIOError::from(e)),
+                    }
+                }
+            }
         },
         Err(e) => Err(DcmIOError::from(e)),
     }
@@ -379,7 +403,7 @@ where
 /// # Returns
 ///
 /// * `Ok(Some(Vec<T>))` - A vector of parsed integers.
-/// * `Ok(None)` - If the element does not exist.
+/// * `Ok(None)` - If the element does not exist of if the element is empty.
 /// * `Err(DcmIOError)` - An error if the element retrieval or the parsing fails.
 ///
 /// # Errors
@@ -397,10 +421,16 @@ where
     match obj.element_opt(tag) {
         Ok(o) => match o {
             None => Ok(None),
-            Some(elem) => match elem.to_multi_int() {
-                Ok(i) => Ok(Some(i)),
-                Err(e) => Err(DcmIOError::from(e)),
-            },
+            Some(elem) => {
+                if elem.is_empty() {
+                    Ok(None)
+                } else {
+                    match elem.to_multi_int() {
+                        Ok(i) => Ok(Some(i)),
+                        Err(e) => Err(DcmIOError::from(e)),
+                    }
+                }
+            }
         },
         Err(e) => Err(DcmIOError::from(e)),
     }
@@ -457,7 +487,7 @@ pub(crate) fn to_f64(obj: &dicom_object::InMemDicomObject, tag: Tag) -> Result<f
 /// # Returns
 ///
 /// * `Ok(Some(f64))` - The parsed floating point number.
-/// * `Ok(None)` - If the element does not exist.
+/// * `Ok(None)` - If the element does not exist or if the byte length is zero.
 /// * `Err(DcmIOError)` - An error if the element retrieval or the parsing fails.
 ///
 /// # Errors
@@ -470,10 +500,15 @@ pub(crate) fn to_f64_opt(
     match obj.element_opt(tag) {
         Ok(o) => match o {
             None => Ok(None),
-            Some(elem) => match elem.to_float64() {
-                Ok(f) => Ok(Some(f)),
-                Err(e) => Err(DcmIOError::from(e)),
-            },
+            Some(elem) => {
+                if elem.is_empty() {
+                    return Ok(None);
+                }
+                match elem.to_float64() {
+                    Ok(f) => Ok(Some(f)),
+                    Err(e) => Err(DcmIOError::from(e)),
+                }
+            }
         },
         Err(e) => Err(DcmIOError::from(e)),
     }
@@ -502,6 +537,63 @@ pub(crate) fn to_f64s(
     tag: Tag,
 ) -> Result<Vec<f64>, DcmIOError> {
     Ok(obj.element(tag)?.to_multi_float64()?)
+}
+
+pub(crate) fn to_rotation_direction(
+    obj: &dicom_object::InMemDicomObject,
+    tag: Tag,
+) -> Result<RotationDirection, DcmIOError> {
+    Ok(to_string(obj, tag)?.parse::<RotationDirection>()?)
+}
+pub(crate) fn to_rotation_direction_opt(
+    obj: &dicom_object::InMemDicomObject,
+    tag: Tag,
+) -> Result<Option<RotationDirection>, DcmIOError> {
+    match to_string_opt(obj, tag)? {
+        None => Ok(None),
+        Some(s) => {
+            trace!("Rotation from str: {:#?}", &s);
+            Ok(Some(s.parse::<RotationDirection>()?))
+        }
+    }
+}
+
+/// Retrieves and parses an optional vector of 64-bit floating point numbers from a DICOM element.
+///
+/// This function attempts to retrieve the float values from an optional DICOM element specified by its tag,
+/// and parses them into a vector of `f64` numbers. If the element does not exist, it returns `None`.
+///
+/// # Arguments
+///
+/// * `obj` - A reference to the DICOM object from which to retrieve the float elements.
+/// * `tag` - The tag of the float elements to be retrieved.
+///
+/// # Returns
+///
+/// * `Ok(Some(Vec<f64>))` - A vector containing the parsed floating point numbers if the element exists.
+/// * `Ok(None)` - If the element does not exist or if the element is empty.
+/// * `Err(DcmIOError)` - An error if the element retrieval or parsing fails.
+///
+/// # Errors
+///
+/// This function returns a [`DcmIOError`] if the element retrieval or parsing into a `f64` vector fails.
+pub(crate) fn to_f64s_opt(
+    obj: &dicom_object::InMemDicomObject,
+    tag: Tag,
+) -> Result<Option<Vec<f64>>, DcmIOError> {
+    match obj.element_opt(tag) {
+        Ok(o) => match o {
+            None => Ok(None),
+            Some(elem) => {
+                if elem.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(elem.to_multi_float64()?))
+                }
+            }
+        },
+        Err(e) => Err(DcmIOError::from(e)),
+    }
 }
 
 /// Parses a sequence of DICOM items using a provided function, returning a vector of parsed items.
@@ -605,17 +697,17 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::io::{da_tm_to_ndt, da_tm_to_ndt_opt, to_ints_opt, DcmIOError};
+    use crate::io::{da_tm_to_ndt, da_tm_to_ndt_opt, to_f64s_opt, to_ints_opt, DcmIOError};
     use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
     use dicom_core::smallvec::smallvec;
     use dicom_core::{DataElement, PrimitiveValue, VR};
     use dicom_dictionary_std::tags::{
-        ACQUISITION_DATE_TIME, COLUMNS, CONTENT_DATE, CONTENT_TIME, DEVICE_DIAMETER, KVP,
-        PATIENT_ID, PATIENT_NAME, ROI_DISPLAY_COLOR, ROWS, SERIES_NUMBER, SLICE_LOCATION,
-        STUDY_DATE, STUDY_TIME,
+        ACQUISITION_DATE_TIME, BRACHY_APPLICATION_SETUP_DOSE_SPECIFICATION_POINT, COLUMNS,
+        CONTENT_DATE, CONTENT_TIME, DEVICE_DIAMETER, KVP, PATIENT_ID, PATIENT_NAME,
+        ROI_DISPLAY_COLOR, ROWS, SERIES_NUMBER, SLICE_LOCATION, STUDY_DATE, STUDY_TIME,
     };
     use dicom_object::InMemDicomObject;
-    use log::{debug, LevelFilter};
+    use log::LevelFilter;
 
     fn init_logger() {
         let _ = env_logger::builder()
@@ -626,22 +718,18 @@ mod test {
 
     fn get_test_data() -> InMemDicomObject {
         let mut obj = InMemDicomObject::new_empty();
-        obj.put(DataElement::new(PATIENT_ID, dicom_core::VR::LO, "X01"));
-        obj.put(DataElement::new(STUDY_DATE, dicom_core::VR::DA, "20240717"));
-        obj.put(DataElement::new(
-            STUDY_TIME,
-            dicom_core::VR::TM,
-            "100601.004858",
-        ));
+        obj.put(DataElement::new(PATIENT_ID, VR::LO, "X01"));
+        obj.put(DataElement::new(STUDY_DATE, VR::DA, "20240717"));
+        obj.put(DataElement::new(STUDY_TIME, VR::TM, "100601.004858"));
         obj.put(DataElement::new(
             ACQUISITION_DATE_TIME,
-            dicom_core::VR::DT,
+            VR::DT,
             "20240717100457.868000",
         ));
-        obj.put(DataElement::new(KVP, dicom_core::VR::DS, "120.5"));
-        obj.put(DataElement::new(ROWS, dicom_core::VR::US, "512"));
-        obj.put(DataElement::new(COLUMNS, dicom_core::VR::US, "256"));
-        obj.put(DataElement::new(SLICE_LOCATION, dicom_core::VR::DS, ""));
+        obj.put(DataElement::new(KVP, VR::DS, "120.5"));
+        obj.put(DataElement::new(ROWS, VR::US, "512"));
+        obj.put(DataElement::new(COLUMNS, VR::US, "256"));
+        obj.put(DataElement::new(SLICE_LOCATION, VR::DS, ""));
         obj
     }
 
@@ -703,12 +791,8 @@ mod test {
     #[test]
     fn test_read_tm_to_ndt_invalid_input() {
         let mut obj = get_test_data();
-        obj.put(DataElement::new(
-            CONTENT_DATE,
-            dicom_core::VR::DA,
-            "20240717",
-        ));
-        obj.put(DataElement::new(STUDY_TIME, dicom_core::VR::TM, "100601"));
+        obj.put(DataElement::new(CONTENT_DATE, VR::DA, "20240717"));
+        obj.put(DataElement::new(STUDY_TIME, VR::TM, "100601"));
         let tag_date = CONTENT_DATE;
         let tag_time = CONTENT_TIME;
 
@@ -738,8 +822,8 @@ mod test {
     #[test]
     fn test_read_tm_to_ndt_opt_invalid_input() {
         let mut obj = get_test_data();
-        obj.put(DataElement::new(CONTENT_DATE, dicom_core::VR::DA, "202407"));
-        obj.put(DataElement::new(STUDY_TIME, dicom_core::VR::TM, "100601"));
+        obj.put(DataElement::new(CONTENT_DATE, VR::DA, "202407"));
+        obj.put(DataElement::new(STUDY_TIME, VR::TM, "100601"));
         let tag_date = CONTENT_DATE;
         let tag_time = CONTENT_TIME;
 
@@ -780,11 +864,7 @@ mod test {
         let tag = ACQUISITION_DATE_TIME;
 
         // Modify the test data with an invalid date-time string
-        obj.put(DataElement::new(
-            tag,
-            dicom_core::VR::DT,
-            "invalid_date_time",
-        ));
+        obj.put(DataElement::new(tag, VR::DT, "invalid_date_time"));
 
         let result = super::dt_to_ndt(&obj, tag);
         assert!(result.is_err());
@@ -919,8 +999,7 @@ mod test {
 
         let result: Result<Option<Vec<u8>>, DcmIOError> = to_ints_opt(&obj, tag);
         if let Err(e) = &result {
-            debug!("{:?}", e);
-            assert!(false);
+            panic!("{:?}", e);
         }
         assert!(result.is_ok());
         let values = result.unwrap();
@@ -949,5 +1028,47 @@ mod test {
 
         let result: Result<Option<Vec<u8>>, DcmIOError> = to_ints_opt(&obj, tag);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_to_f64s_opt_multiple_f64_values() {
+        let mut obj = InMemDicomObject::new_empty();
+        let tag = BRACHY_APPLICATION_SETUP_DOSE_SPECIFICATION_POINT;
+        let values = smallvec![1.5, 2.5, 5.5];
+
+        let elem = DataElement::new(tag, VR::DS, PrimitiveValue::F64(values));
+        obj.put(elem);
+
+        let result: Result<Option<Vec<f64>>, DcmIOError> = to_f64s_opt(&obj, tag);
+        if let Err(e) = &result {
+            panic!("{:?}", e);
+        }
+        assert!(result.is_ok());
+        let values = result.unwrap();
+        assert!(values.is_some());
+        let values = values.unwrap();
+        assert_eq!(values, vec![1.5, 2.5, 5.5]);
+    }
+
+    #[test]
+    fn test_to_f64s_opt_element_exists_no_data() {
+        let mut obj = InMemDicomObject::new_empty();
+        let tag = BRACHY_APPLICATION_SETUP_DOSE_SPECIFICATION_POINT;
+        let values = smallvec![];
+
+        let elem = DataElement::new(tag, VR::DS, PrimitiveValue::F64(values));
+        obj.put(elem);
+
+        let result: Result<Option<Vec<f64>>, DcmIOError> = to_f64s_opt(&obj, tag);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[test]
+    fn test_to_f64s_opt_element_does_not_exist() {
+        let obj = InMemDicomObject::new_empty();
+        let tag = BRACHY_APPLICATION_SETUP_DOSE_SPECIFICATION_POINT;
+        let result = to_f64s_opt(&obj, tag).unwrap();
+        assert_eq!(result, None);
     }
 }

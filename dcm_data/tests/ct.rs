@@ -37,8 +37,7 @@ fn read_ct_image_test() {
     assert_eq!(ct.modality, Modality::CT);
     assert!(ct.manufacturer.is_some());
     assert_eq!(ct.manufacturer.as_ref().unwrap(), "Siemens Healthineers");
-    assert!(ct.referring_physician_name.is_some());
-    assert!(ct.referring_physician_name.as_ref().unwrap().is_empty());
+    assert!(ct.referring_physician_name.is_none());
     assert!(ct.station_name.is_some());
     assert_eq!(ct.station_name.as_ref().unwrap(), "CT130037");
     assert!(ct.manufacturer_model_name.is_some());
@@ -155,7 +154,7 @@ fn read_ct_image_test() {
         ct.series_instance_uid,
         "1.2.752.243.1.1.20220722130644226.3200.74681"
     );
-    assert_eq!(ct.study_id, Some("".to_string()));
+    assert_eq!(ct.study_id, None);
     assert_eq!(ct.series_number, 2);
     assert_eq!(ct.acquisition_number, 201);
     assert_eq!(ct.instance_number, 74);
@@ -168,7 +167,7 @@ fn read_ct_image_test() {
         ct.frame_of_reference_uid,
         "1.2.752.243.1.1.20220722130644226.3300.71363"
     );
-    assert_eq!(ct.position_reference_indicator, Some("".to_string()));
+    assert_eq!(ct.position_reference_indicator, None);
     assert_eq!(ct.slice_location, Some(256.0));
     assert_eq!(ct.samples_per_pixel, 1);
     assert_eq!(
@@ -190,7 +189,7 @@ fn read_ct_image_test() {
     assert_eq!(ct.rescale_intercept, -8192.0);
     assert_eq!(ct.rescale_slope, 1.0);
     assert_eq!(ct.rescale_type, RescaleType::HU);
-    assert_eq!(ct.window_center_width_explanation, Some("".to_string()));
+    assert_eq!(ct.window_center_width_explanation, None);
     assert_eq!(ct.lossy_image_compression, Some("00".to_string()));
     let number_of_bytes =
         ct.rows as usize * ct.columns as usize * (ct.bits_allocated as f64 / 8f64) as usize;

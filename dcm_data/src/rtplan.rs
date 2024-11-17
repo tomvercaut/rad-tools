@@ -1,4 +1,6 @@
-use crate::{ApprovalStatus, PatientPosition, PersonName, RotationDirection, Sop};
+use crate::{
+    ApprovalStatus, BeamDoseType, BeamType, PatientPosition, PersonName, RotationDirection, Sop,
+};
 use chrono::{NaiveDate, NaiveDateTime};
 use std::str::FromStr;
 
@@ -36,9 +38,9 @@ pub struct RTPlan {
     pub beam_sequence: Vec<Beam>,
     pub patient_setup_sequence: Vec<PatientSetup>,
     pub referenced_structure_set_sequence: Vec<Sop>,
-    pub approval_status: ApprovalStatus,
+    pub approval_status: Option<ApprovalStatus>,
     pub review_dt: Option<NaiveDateTime>,
-    pub reviewer_name: Option<String>,
+    pub reviewer_name: Option<PersonName>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -51,22 +53,22 @@ pub struct FractionGroup {
     pub fraction_pattern: Option<String>,
     pub number_of_beams: i32,
     pub beam_dose_meaning: Option<String>,
-    pub number_of_brachy_application_sequences: i32,
+    pub number_of_brachy_application_setups: i32,
     pub referenced_beam_sequence: Vec<ReferencedBeam>,
-    pub referenced_brachy_application_setup_sequence: Vec<ReferencedBrachyApplicationSetup>,
+    pub referenced_brachy_application_setup_sequence: Option<Vec<ReferencedBrachyApplicationSetup>>,
     pub referenced_dose_reference_sequence: Option<Vec<ReferencedDoseReference>>,
     pub referenced_dose_sequence: Option<Vec<Sop>>,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct ReferencedBeam {
-    pub beam_dose_specification_point: Vec<f64>,
-    pub beam_dose: f64,
-    pub beam_meterset: f64,
-    pub beam_dose_point_depth: f64,
-    pub beam_dose_point_equivalent_depth: f64,
-    pub beam_dose_point_ssd: f64,
-    pub beam_dose_type: String,
+    pub referenced_dose_reference_uid: Option<String>,
+    pub beam_dose: Option<f64>,
+    pub beam_meterset: Option<f64>,
+    pub beam_dose_point_depth: Option<f64>,
+    pub beam_dose_point_equivalent_depth: Option<f64>,
+    pub beam_dose_point_ssd: Option<f64>,
+    pub beam_dose_type: Option<BeamDoseType>,
     pub referenced_beam_number: i32,
 }
 
@@ -87,9 +89,9 @@ pub struct ReferencedDoseReference {
     pub target_prescription_dose: Option<f64>,
     pub target_underdose_volume_fraction: Option<f64>,
     pub organ_at_risk_full_volume_dose: Option<f64>,
-    pub organ_at_risk_full_limit_dose: Option<f64>,
-    pub organ_at_risk_full_maximum_dose: Option<f64>,
-    pub organ_at_risk_full_overdose_volume_fraction: Option<f64>,
+    pub organ_at_risk_limit_dose: Option<f64>,
+    pub organ_at_risk_maximum_dose: Option<f64>,
+    pub organ_at_risk_overdose_volume_fraction: Option<f64>,
     pub referenced_dose_reference_number: Option<i32>,
 }
 
@@ -102,6 +104,7 @@ pub struct Beam {
     pub beam_limiting_device_sequence: Vec<BeamLimitingDevice>,
     pub beam_number: i32,
     pub beam_name: Option<String>,
+    pub beam_type: Option<BeamType>,
     pub beam_description: Option<String>,
     pub radiation_type: Option<RadiationType>,
     pub treatment_delivery_type: Option<TreatmentDeliveryType>,
@@ -119,7 +122,7 @@ pub struct Beam {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct PrimaryFluenceMode {
     pub fluence_mode: FluenceMode,
-    pub fluence_mode_id: String,
+    pub fluence_mode_id: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -331,28 +334,28 @@ pub struct BeamLimitingDevicePosition {
 #[derive(Clone, Debug, Default)]
 pub struct ControlPoint {
     pub control_point_index: i32,
-    pub nominal_beam_energy: f64,
-    pub beam_limiting_device_position_sequence: Vec<BeamLimitingDevicePosition>,
-    pub gantry_angle: f64,
-    pub gantry_rotation_direction: RotationDirection,
-    pub beam_limiting_device_angle: f64,
-    pub beam_limiting_device_rotation_direction: RotationDirection,
-    pub patient_support_angle: f64,
-    pub patient_support_rotation_direction: RotationDirection,
-    pub table_top_eccentric_angle: f64,
-    pub table_top_eccentric_rotation_direction: RotationDirection,
-    pub table_top_vertical_position: f64,
-    pub table_top_longitudinal_position: f64,
-    pub table_top_lateral_position: f64,
-    pub isocenter_position: Vec<f64>,
-    pub source_to_surface_distance: f64,
-    pub cumulative_meterset_weight: f64,
-    pub table_top_pitch_angle: f64,
-    pub table_top_pitch_rotation_direction: RotationDirection,
-    pub table_top_roll_angle: f64,
-    pub table_top_roll_rotation_direction: RotationDirection,
-    pub gantry_pitch_angle: f64,
-    pub gantry_pitch_rotation_direction: RotationDirection,
+    pub nominal_beam_energy: Option<f64>,
+    pub beam_limiting_device_position_sequence: Option<Vec<BeamLimitingDevicePosition>>,
+    pub gantry_angle: Option<f64>,
+    pub gantry_rotation_direction: Option<RotationDirection>,
+    pub beam_limiting_device_angle: Option<f64>,
+    pub beam_limiting_device_rotation_direction: Option<RotationDirection>,
+    pub patient_support_angle: Option<f64>,
+    pub patient_support_rotation_direction: Option<RotationDirection>,
+    pub table_top_eccentric_angle: Option<f64>,
+    pub table_top_eccentric_rotation_direction: Option<RotationDirection>,
+    pub table_top_vertical_position: Option<f64>,
+    pub table_top_longitudinal_position: Option<f64>,
+    pub table_top_lateral_position: Option<f64>,
+    pub isocenter_position: Option<Vec<f64>>,
+    pub source_to_surface_distance: Option<f64>,
+    pub cumulative_meterset_weight: Option<f64>,
+    pub table_top_pitch_angle: Option<f64>,
+    pub table_top_pitch_rotation_direction: Option<RotationDirection>,
+    pub table_top_roll_angle: Option<f64>,
+    pub table_top_roll_rotation_direction: Option<RotationDirection>,
+    pub gantry_pitch_angle: Option<f64>,
+    pub gantry_pitch_rotation_direction: Option<RotationDirection>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -364,8 +367,8 @@ pub struct PatientSetup {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ReferencedBolus {
     pub referenced_roi_number: i32,
-    pub referenced_bolus_id: Option<String>,
-    pub referenced_bolus_description: Option<String>,
+    pub bolus_id: Option<String>,
+    pub bolus_description: Option<String>,
     pub accessory_code: Option<String>,
 }
 

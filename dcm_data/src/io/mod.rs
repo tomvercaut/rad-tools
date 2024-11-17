@@ -1,14 +1,17 @@
 mod common;
 mod ct;
+mod rtplan;
 mod rtstruct;
 mod utils;
 
 use crate::{
-    ContourGeometryError, PatientPositionError, RadiationTypeError, TreatmentDeliveryTypeError,
+    ContourGeometryError, FluenceModeError, PatientPositionError, RTBeamLimitingDeviceTypeError,
+    RadiationTypeError, TreatmentDeliveryTypeError,
 };
 pub use ct::read_ct_image;
 use dicom_core::value::{CastValueError, ConvertValueError};
 use dicom_core::Tag;
+pub use rtplan::read_rtplan;
 pub use rtstruct::read_rtstruct;
 pub(crate) use utils::*;
 
@@ -52,6 +55,10 @@ pub enum DcmIOError {
     RadiationTypeError(#[from] RadiationTypeError),
     #[error("Unable to create TreatmentDeliveryType from DICOM element")]
     TreatmentDeliveryTypeError(#[from] TreatmentDeliveryTypeError),
+    #[error("Unable to create FluenceMode from DICOM element")]
+    FluenceModeError(#[from] FluenceModeError),
+    #[error("Unable to create BeamLimitingDeviceType from DICOM element")]
+    BeamLimitingDeviceTypeError(#[from] RTBeamLimitingDeviceTypeError),
     #[error("Invalid input data for FocalSpots: {0:#?}")]
     InvalidFocalSpots(Vec<f64>),
     #[error("Invalid input data for Data Collection Center Patient: {0:#?}")]
@@ -72,4 +79,6 @@ pub enum DcmIOError {
     NoMatchingSopClassUID(String),
     #[error("Invalid RGB string: \"{0:#?}\"")]
     InvalidRGBString(String),
+    #[error("Invalid isocenter: [{0:#?}]")]
+    InvalidIsocenter(Vec<f64>),
 }

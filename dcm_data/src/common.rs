@@ -325,10 +325,10 @@ impl FromStr for RescaleType {
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub enum ApprovalStatus {
-    APPROVED,
+    Approved,
     #[default]
-    UNAPPROVED,
-    REJECTED,
+    Unapproved,
+    Rejected,
 }
 
 impl FromStr for ApprovalStatus {
@@ -336,9 +336,9 @@ impl FromStr for ApprovalStatus {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_uppercase().as_str() {
-            "APPROVED" => Ok(ApprovalStatus::APPROVED),
-            "UNAPPROVED" => Ok(ApprovalStatus::UNAPPROVED),
-            "REJECTED" => Ok(ApprovalStatus::REJECTED),
+            "APPROVED" => Ok(ApprovalStatus::Approved),
+            "UNAPPROVED" => Ok(ApprovalStatus::Unapproved),
+            "REJECTED" => Ok(ApprovalStatus::Rejected),
             _ => Err(ApprovalStatusError::InvalidApprovalStatus(s.into())),
         }
     }
@@ -775,12 +775,86 @@ pub enum ContourGeometryError {
     InvalidContourGeometry(String),
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
+pub enum BeamDoseType {
+    #[default]
+    None,
+    Physical,
+    Effective,
+}
+
+impl FromStr for BeamDoseType {
+    type Err = BeamDoseTypeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "PHYSICAL" => Ok(BeamDoseType::Physical),
+            "EFFECTIVE" => Ok(BeamDoseType::Effective),
+            _ => Err(BeamDoseTypeError::InvalidBeamDoseType(s.into())),
+        }
+    }
+}
+
+impl Display for BeamDoseType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let value = match self {
+            BeamDoseType::Physical => "PHYSICAL",
+            BeamDoseType::Effective => "EFFECTIVE",
+            BeamDoseType::None => "NONE",
+        };
+        write!(f, "{}", value)
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum BeamDoseTypeError {
+    #[error("Invalid beam dose type: {0}")]
+    InvalidBeamDoseType(String),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
+pub enum BeamType {
+    #[default]
+    None,
+    Static,
+    Dynamic,
+}
+
+impl FromStr for BeamType {
+    type Err = BeamTypeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "STATIC" => Ok(BeamType::Static),
+            "DYNAMIC" => Ok(BeamType::Dynamic),
+            _ => Err(BeamTypeError::InvalidBeamType(s.into())),
+        }
+    }
+}
+
+impl Display for BeamType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let value = match self {
+            BeamType::Static => "STATIC",
+            BeamType::Dynamic => "DYNAMIC",
+            BeamType::None => "NONE",
+        };
+        write!(f, "{}", value)
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum BeamTypeError {
+    #[error("Invalid beam type: {0}")]
+    InvalidBeamType(String),
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
-        ApprovalStatus, ContourGeometry, Modality, PatientPosition, PatientPositionError,
-        PersonName, PhotometricInterpretation, PhotometricInterpretationError, PixelRepresentation,
-        RescaleType, RotationDirection,
+        ApprovalStatus, BeamDoseType, BeamType, ContourGeometry, Modality, PatientPosition,
+        PatientPositionError, PersonName, PhotometricInterpretation,
+        PhotometricInterpretationError, PixelRepresentation, RescaleType, RotationDirection,
     };
     use std::str::FromStr;
 
@@ -1126,21 +1200,21 @@ mod tests {
     fn test_approval_status_from_str_approved() {
         let input = "Approved";
         let status = ApprovalStatus::from_str(input).unwrap();
-        assert_eq!(status, ApprovalStatus::APPROVED);
+        assert_eq!(status, ApprovalStatus::Approved);
     }
 
     #[test]
     fn test_approval_status_from_str_pending() {
         let input = "UNAPPROVED";
         let status = ApprovalStatus::from_str(input).unwrap();
-        assert_eq!(status, ApprovalStatus::UNAPPROVED);
+        assert_eq!(status, ApprovalStatus::Unapproved);
     }
 
     #[test]
     fn test_approval_status_from_str_rejected() {
         let input = "Rejected";
         let status = ApprovalStatus::from_str(input).unwrap();
-        assert_eq!(status, ApprovalStatus::REJECTED);
+        assert_eq!(status, ApprovalStatus::Rejected);
     }
 
     #[test]
@@ -1234,5 +1308,39 @@ mod tests {
             result.unwrap_err().to_string(),
             "Invalid contour geometry: INVALID"
         );
+    }
+
+    #[test]
+    fn test_beam_dose_type_from_str() {
+        assert_eq!(
+            BeamDoseType::from_str("PHYSICAL").unwrap(),
+            BeamDoseType::Physical
+        );
+        assert_eq!(
+            BeamDoseType::from_str("EFFECTIVE").unwrap(),
+            BeamDoseType::Effective
+        );
+        assert!(BeamDoseType::from_str("INVALID").is_err());
+    }
+
+    #[test]
+    fn test_beam_dose_type_display() {
+        assert_eq!(BeamDoseType::Physical.to_string(), "PHYSICAL");
+        assert_eq!(BeamDoseType::Effective.to_string(), "EFFECTIVE");
+    }
+
+    #[test]
+    fn test_beam_type_from_str() {
+        assert_eq!(BeamType::from_str("STATIC").unwrap(), BeamType::Static);
+        assert_eq!(BeamType::from_str("DYNAMIC").unwrap(), BeamType::Dynamic);
+        assert!(BeamType::from_str("NONE").is_err());
+        assert!(BeamType::from_str("INVALID").is_err());
+    }
+
+    #[test]
+    fn test_beam_type_display() {
+        assert_eq!(format!("{}", BeamType::Static), "STATIC");
+        assert_eq!(format!("{}", BeamType::Dynamic), "DYNAMIC");
+        assert_eq!(format!("{}", BeamType::None), "NONE");
     }
 }

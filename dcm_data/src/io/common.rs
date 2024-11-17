@@ -1,6 +1,7 @@
 use crate::io::{to_string, DcmIOError};
 use crate::Sop;
 use dicom_core::Tag;
+use dicom_dictionary_std::tags::{REFERENCED_SOP_CLASS_UID, REFERENCED_SOP_INSTANCE_UID};
 use dicom_object::InMemDicomObject;
 
 /// Reads SOP (Service-Object Pair) from a DICOM object.
@@ -74,4 +75,7 @@ pub(crate) fn read_sop_opt(
             })),
         },
     }
+}
+pub(crate) fn referenced_sop(item: &InMemDicomObject) -> Result<Sop, DcmIOError> {
+    read_sop(item, REFERENCED_SOP_CLASS_UID, REFERENCED_SOP_INSTANCE_UID)
 }

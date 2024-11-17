@@ -28,9 +28,9 @@ fn read_rtstruct_image_test() {
         rs.sop.instance_uid,
         "1.2.752.243.1.1.20220722130644567.1980.53284"
     );
-    assert_eq!(rs.accession_number, Some("".to_string()));
+    assert_eq!(rs.accession_number, None);
     assert_eq!(rs.manufacturer, Some("RaySearch Laboratories".to_string()));
-    assert_eq!(rs.referring_physician_name, Some(PersonName::default()));
+    assert_eq!(rs.referring_physician_name, None);
     assert_eq!(rs.manufacturer_model_name, Some("RayStation".to_string()));
     assert_eq!(
         rs.patient_name,
@@ -63,14 +63,14 @@ fn read_rtstruct_image_test() {
         rs.series_instance_uid,
         "1.2.752.243.1.1.20220722130644567.1990.76407".to_string()
     );
-    assert_eq!(rs.study_id, Some("".to_string()));
+    assert_eq!(rs.study_id, None);
     assert_eq!(rs.series_number, 1);
     assert_eq!(rs.instance_number, 1);
     assert_eq!(
         rs.frame_of_reference_uid,
         "1.2.752.243.1.1.20220722130644226.3300.71363"
     );
-    assert_eq!(rs.position_reference_indicator, Some("".to_string()));
+    assert_eq!(rs.position_reference_indicator, None);
     assert_eq!(rs.structure_set_label, "RS: Unapproved");
     assert_eq!(
         rs.structure_set_dt,
@@ -319,7 +319,7 @@ fn read_rtstruct_image_test() {
         rt_roi_observation.rt_roi_interpreted_type,
         Some("EXTERNAL".to_string())
     );
-    assert_eq!(rt_roi_observation.roi_interpreter, Some("".to_string()));
+    assert_eq!(rt_roi_observation.roi_interpreter, None);
     let rt_roi_observation = rs.rt_roi_observations_sequence.last().unwrap();
     assert_eq!(rt_roi_observation.observation_number, 2);
     assert_eq!(rt_roi_observation.referenced_roi_number, 7);
@@ -327,6 +327,6 @@ fn read_rtstruct_image_test() {
         rt_roi_observation.rt_roi_interpreted_type,
         Some("ISOCENTER".to_string())
     );
-    assert_eq!(rt_roi_observation.roi_interpreter, Some("".to_string()));
-    assert_eq!(rs.approval_status, Some(ApprovalStatus::UNAPPROVED));
+    assert_eq!(rt_roi_observation.roi_interpreter, None);
+    assert_eq!(rs.approval_status, Some(ApprovalStatus::Unapproved));
 }
