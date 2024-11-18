@@ -9,9 +9,9 @@ edition = "2021"
 authors = ["Tom Vercauteren"]
 
 [workspace.dependencies]
-thiserror = "1"
+thiserror = "2"
 anyhow = "1"
-quick-xml = "0.36"
+quick-xml = "0.37"
 base64 = "0.22"
 clap = { version = "4", features = ["derive"] }
 dicom-core = "0.8.0"
@@ -23,7 +23,7 @@ dicom-transfer-syntax-registry = "0.8.0"
 walkdir = "2"
 tokio = { version = "1", features = ["full"] }
 crossterm = "0.28"
-ratatui = { version = "0.28", features = ["default"] }
+ratatui = { version = "0.29", features = ["default"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
 comfy-table = "7"
