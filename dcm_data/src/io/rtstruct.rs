@@ -24,13 +24,85 @@ use dicom_dictionary_std::tags::{
     STUDY_INSTANCE_UID, STUDY_TIME,
 };
 use dicom_dictionary_std::uids::RT_STRUCTURE_SET_STORAGE;
-use dicom_object::InMemDicomObject;
+use dicom_object::{DefaultDicomObject, InMemDicomObject};
 use std::path::Path;
 use std::str::FromStr;
 
+/// Reads an RT-Struct DICOM object from the specified file path and converts it into an `RTStruct` object.
+///
+/// # Arguments
+///
+/// * `path` - A path to the DICOM file containing the RT-Struct.
+///
+/// # Returns
+///
+/// This function returns a `Result` containing:
+///
+/// * `Ok(RTStruct)` if the file is successfully read and converted.
+/// * `Err(DcmIOError)` if there is an error in reading the file or in converting the DICOM object.
+///
+/// # Errors
+///
+/// This function will return an error in the following cases:
+///
+/// * The file at the specified path cannot be opened or read.
+/// * The DICOM object within the file cannot be converted to an `RTStruct`.
+///
+/// # Examples
+///
+/// ```
+/// use dcm_data::io::read_rtstruct;
+/// let rtstruct = read_rtstruct("tests/resources/RS1.2.752.243.1.1.20220722130644567.1980.53284.dcm");
+/// match rtstruct {
+///     Ok(rt) => println!("Successfully read RTStruct!"),
+///     Err(e) => eprintln!("Error reading RTStruct: {:?}", e),
+/// }
+/// ```
 pub fn read_rtstruct<P: AsRef<Path>>(path: P) -> Result<RTStruct, DcmIOError> {
     let file_obj = dicom_object::open_file(path.as_ref())?;
-    let obj = file_obj.into_inner();
+    obj_to_rtstruct(file_obj)
+}
+
+/// Converts a `DefaultDicomObject` into an `RTStruct` object.
+///
+/// This function takes a `DefaultDicomObject`, verifies its SOP Class UID to
+/// ensure it is an RT Structure Set, and extracts various attributes to form
+/// an `RTStruct` object.
+///
+/// # Arguments
+///
+/// * `obj` - A `DefaultDicomObject` representing the DICOM object to be converted.
+///
+/// # Returns
+///
+/// This function returns a `Result` containing:
+///
+/// * `Ok(RTStruct)` if the `DefaultDicomObject` is successfully converted.
+/// * `Err(DcmIOError)` if there is an error in the conversion process, such as
+///   an invalid SOP Class UID or missing required attributes.
+///
+/// # Errors
+///
+/// This function will return an error in the following cases:
+///
+/// * The SOP Class UID of the DICOM object does not match the expected RT Structure Set SOP Class UID.
+/// * Any required DICOM attribute is missing or cannot be converted.
+///
+/// # Examples
+///
+/// ```
+/// use dicom_object::DefaultDicomObject;
+/// use dcm_data::io::obj_to_rtstruct;
+///
+/// let dicom_obj = DefaultDicomObject::open_file( "tests/resources/RS1.2.752.243.1.1.20220722130644567.1980.53284.dcm" ).unwrap();
+/// let rtstruct_result = obj_to_rtstruct(dicom_obj);
+/// match rtstruct_result {
+///     Ok(rtstruct) => println!("Successfully converted to RTStruct!"),
+///     Err(e) => eprintln!("Error converting to RTStruct: {:?}", e),
+/// }
+/// ```
+pub fn obj_to_rtstruct(obj: DefaultDicomObject) -> Result<RTStruct, DcmIOError> {
+    let obj = obj.into_inner();
     let sop_class_uid = to_string(&obj, SOP_CLASS_UID)?;
     if sop_class_uid != RT_STRUCTURE_SET_STORAGE {
         return Err(DcmIOError::NoMatchingSopClassUID(sop_class_uid));

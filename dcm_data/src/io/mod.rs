@@ -14,7 +14,7 @@ use dicom_core::value::{CastValueError, ConvertValueError};
 use dicom_core::Tag;
 pub use rtdose::read_rtdose;
 pub use rtplan::read_rtplan;
-pub use rtstruct::read_rtstruct;
+pub use rtstruct::{obj_to_rtstruct, read_rtstruct};
 pub(crate) use utils::*;
 
 #[derive(thiserror::Error, Debug)]
