@@ -5,14 +5,16 @@ use dcm_data::{
     TreatmentDeliveryType,
 };
 use dicom_dictionary_std::uids::{RT_PLAN_STORAGE, RT_STRUCTURE_SET_STORAGE};
-use log::LevelFilter;
 use std::path::Path;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::{fmt, EnvFilter};
 
 fn init_logger() {
-    let _ = env_logger::builder()
-        .is_test(true)
-        .filter_level(LevelFilter::Trace)
-        .try_init();
+    tracing_subscriber::registry()
+        .with(fmt::layer())
+        .with(EnvFilter::from_default_env())
+        .init();
 }
 
 fn approx_equal(a: f64, b: f64, eps: f64) -> bool {

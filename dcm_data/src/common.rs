@@ -1,3 +1,4 @@
+use chrono::{NaiveDate, NaiveTime};
 use std::fmt;
 use std::fmt::Display;
 use std::str::FromStr;
@@ -193,6 +194,18 @@ pub struct CodeItem {
     pub coding_scheme_version: Option<String>,
     /// Meaning of the Coded Entry
     pub code_meaning: String,
+    pub context_group_version: Option<NaiveDate>,
+    pub context_group_local_version: Option<NaiveTime>,
+    pub context_group_extension_flag: Option<String>,
+    pub context_group_extension_creator_uid: Option<String>,
+    pub context_identifier: Option<String>,
+    pub context_uid: Option<String>,
+    pub mapping_resource_uid: Option<String>,
+    pub long_code_value: Option<String>,
+    pub urn_code_value: Option<String>,
+    pub equivalent_code_sequence: Option<Vec<CodeItem>>,
+    pub mapping_resource_name: Option<String>,
+    pub treatment_site_modifier_code_sequence: Option<Vec<CodeItem>>,
 }
 
 #[derive(thiserror::Error, Debug)]

@@ -1,35 +1,40 @@
-use crate::{PersonName, PhotometricInterpretation, PixelRepresentation, Sop};
+use crate::{CodeItem, PersonName, PhotometricInterpretation, PixelRepresentation, Sop};
 use chrono::{NaiveDate, NaiveDateTime};
+use dicom_pixeldata::ndarray::{Array, Ix4};
 use std::str::FromStr;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, PartialEq, Debug, Default)]
 pub struct RTDose {
     pub specific_character_set: String,
+    pub instance_creation_dt: Option<NaiveDateTime>,
     pub image_type: Vec<String>,
     pub sop: Sop,
-    pub study_dt: NaiveDateTime,
-    pub content_dt: NaiveDateTime,
-    pub accession_number: String,
-    pub modality: String,
-    pub ref_physician_name: PersonName,
-    pub station_name: String,
-    pub manufacturer_model_name: String,
+    pub study_dt: Option<NaiveDateTime>,
+    pub content_dt: Option<NaiveDateTime>,
+    pub accession_number: Option<String>,
+    pub ref_physician_name: Option<PersonName>,
+    pub station_name: Option<String>,
+    pub manufacturer: Option<String>,
+    pub referring_physician_name: Option<PersonName>,
+    pub manufacturer_model_name: Option<String>,
     pub irradiation_event_uid: String,
     pub patient_name: PersonName,
     pub patient_id: String,
-    pub patient_birth_date: NaiveDate,
+    pub patient_birth_date: Option<NaiveDate>,
     pub patient_sex: String,
-    pub patient_identity_removed: String,
-    pub software_versions: String,
+    pub patient_identity_removed: bool,
+    pub deidentification_method: Option<String>,
+    pub slice_thickness: Option<f64>,
+    pub software_versions: Option<String>,
     pub study_instance_uid: String,
     pub series_instance_uid: String,
-    pub study_id: String,
+    pub study_id: Option<String>,
     pub series_number: i32,
     pub instance_number: i32,
     pub image_position_patient: [f64; 3],
     pub image_orientation_patient: [f64; 6],
     pub frame_of_reference_uid: String,
-    pub position_reference_indicator: String,
+    pub position_reference_indicator: Option<String>,
     pub samples_per_pixel: i32,
     pub photometric_interpretation: PhotometricInterpretation,
     pub number_of_frames: i32,
@@ -41,19 +46,22 @@ pub struct RTDose {
     pub bits_stored: i32,
     pub high_bit: i32,
     pub pixel_representation: PixelRepresentation,
-    pub dose_units: DoseUnits,
+    pub dose_units: DoseUnit,
     pub dose_type: DoseType,
-    pub dose_comment: String,
+    pub dose_comment: Option<String>,
     pub dose_summation_type: DoseSummationType,
     pub grid_frame_offset_vector: Vec<f64>,
     pub dose_grid_scaling: f64,
-    pub tissue_heterogeneity_correction: TissueHeterogeneityCorrection,
-    pub referenced_rt_plan_sequence: Vec<Sop>,
-    pub pixel_data: Vec<u8>,
+    pub tissue_heterogeneity_correction: Option<TissueHeterogeneityCorrection>,
+    pub referenced_treatment_record_sequence: Option<Vec<ReferencedTreatmentRecord>>,
+    pub referenced_rt_plan_sequence: Option<Vec<ReferencedRTPlan>>,
+    pub plan_overview_sequence: Option<Vec<PlanOverview>>,
+    pub pixel_data_bytes: Vec<u8>,
+    pub pixel_data: Array<f64, Ix4>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub enum DoseUnits {
+pub enum DoseUnit {
     #[default]
     NONE,
     GY,
@@ -66,13 +74,13 @@ pub enum DoseUnitsError {
     InvalidValue(String),
 }
 
-impl FromStr for DoseUnits {
+impl FromStr for DoseUnit {
     type Err = DoseUnitsError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_uppercase().as_str() {
-            "GY" => Ok(DoseUnits::GY),
-            "RELATIVE" => Ok(DoseUnits::RELATIVE),
+            "GY" => Ok(DoseUnit::GY),
+            "RELATIVE" => Ok(DoseUnit::RELATIVE),
             _ => Err(DoseUnitsError::InvalidValue(s.to_string())),
         }
     }
@@ -182,26 +190,86 @@ impl FromStr for TissueHeterogeneityCorrection {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct ReferencedTreatmentRecord {
+    pub referenced_sop: Sop,
+    pub referenced_beam_sequence: Vec<ReferencedTreatmentRecordReferencedBeam>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct ReferencedTreatmentRecordReferencedBeam {
+    pub referenced_beam_number: usize,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct ReferencedRTPlan {
+    pub referenced_sop: Sop,
+    pub referenced_fraction_group: Option<Vec<ReferencedFractionGroup>>,
+    pub referenced_plan_overview_index: Option<u16>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct ReferencedFractionGroup {
+    pub referenced_beam_sequence: Vec<ReferencedFractionGroupReferencedBeam>,
+    pub referenced_brachy_application_setup_sequence:
+        Vec<ReferencedFractionGroupReferencedBrachyApplicationSetup>,
+    pub referenced_fraction_group_number: usize,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct ReferencedFractionGroupReferencedBeam {
+    pub referenced_beam_number: usize,
+    pub referenced_control_point_sequence: Vec<ReferencedControlPoint>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct ReferencedControlPoint {
+    pub start: usize,
+    pub end: usize,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct ReferencedFractionGroupReferencedBrachyApplicationSetup {
+    pub referenced_brachy_application_setup_number: usize,
+}
+
+#[derive(Debug, PartialEq, Clone, Default)]
+pub struct PlanOverview {
+    pub referenced_image_sequence: Option<Vec<Sop>>,
+    pub current_fraction_number: usize,
+    pub rt_plan_label: Option<String>,
+    pub referenced_structure_set_sequence: Option<Vec<Sop>>,
+    pub prescription_overview_sequence: Option<Vec<PrescriptionOverview>>,
+    pub plan_overview_index: u16,
+    pub number_of_fractions_included: u16,
+    pub treatment_site: Option<String>,
+    pub treatment_site_code_sequence: Option<Vec<CodeItem>>,
+}
+
+#[derive(Debug, PartialEq, Clone, Default)]
+pub struct PrescriptionOverview {
+    pub referenced_roi_number: usize,
+    pub total_prescription_dose: f64,
+    pub entity_long_label: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_dose_units_from_str() {
-        assert_eq!(DoseUnits::from_str("GY").unwrap(), DoseUnits::GY);
-        assert_eq!(
-            DoseUnits::from_str("RELATIVE").unwrap(),
-            DoseUnits::RELATIVE
-        );
+        assert_eq!(DoseUnit::from_str("GY").unwrap(), DoseUnit::GY);
+        assert_eq!(DoseUnit::from_str("RELATIVE").unwrap(), DoseUnit::RELATIVE);
         assert!(matches!(
-            DoseUnits::from_str("INVALID"),
+            DoseUnit::from_str("INVALID"),
             Err(DoseUnitsError::InvalidValue(_))
         ));
     }
 
     #[test]
     fn test_dose_units_error_message() {
-        if let Err(e) = DoseUnits::from_str("INVALID") {
+        if let Err(e) = DoseUnit::from_str("INVALID") {
             assert_eq!(e.to_string(), "'INVALID' is not a valid DoseUnits value");
         }
     }

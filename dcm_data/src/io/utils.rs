@@ -4,8 +4,8 @@ use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use dicom_core::header::HasLength;
 use dicom_core::value::Value;
 use dicom_core::Tag;
-use log::trace;
 use num_traits::NumCast;
+use tracing::trace;
 
 /// Converts a DICOM element to a string representation.
 ///
@@ -280,6 +280,34 @@ pub(crate) fn to_date(
     }
 }
 
+/// Reads and parses a time from a DICOM element into a [`NaiveTime`].
+///
+/// This function retrieves the time from a DICOM object specified by its tag,
+/// and parses it into a [`NaiveTime`].
+///
+/// # Arguments
+///
+/// * `obj` - A reference to the DICOM object from which to retrieve the time element.
+/// * `tag` - The tag of the time element to be retrieved.
+///
+/// # Returns
+///
+/// * `Ok(NaiveTime)` - The parsed time.
+/// * `Err(DcmIOError)` - An error if the time element could not be retrieved or if the parsing fails.
+///
+/// # Errors
+///
+/// This function returns a [`DcmIOError`] if the element retrieval or parsing into `NaiveTime` fails.
+pub(crate) fn to_time(
+    obj: &dicom_object::InMemDicomObject,
+    tag: Tag,
+) -> Result<NaiveTime, DcmIOError> {
+    match obj.element(tag)?.to_time()?.to_naive_time() {
+        Ok(d) => Ok(d),
+        Err(e) => Err(DcmIOError::InvalidDateRange(e)),
+    }
+}
+
 /// Reads and parses a date from an optional DICOM element into an optional NaiveDate.
 ///
 /// This function retrieves the date from an optional DICOM object specified by its tag,
@@ -312,6 +340,43 @@ pub(crate) fn to_date_opt(
         return Ok(None);
     }
     match element.to_date()?.to_naive_date() {
+        Ok(d) => Ok(Some(d)),
+        Err(e) => Err(DcmIOError::InvalidDateRange(e)),
+    }
+}
+
+/// Reads and parses a time from an optional DICOM element into an optional NaiveTime.
+///
+/// This function retrieves the time from an optional DICOM object specified by its tag,
+/// and parses it into an [`Option<NaiveTime>`].
+///
+/// # Arguments
+///
+/// * `obj` - A reference to the DICOM object from which to retrieve the time element.
+/// * `tag` - The tag of the time element to be retrieved.
+///
+/// # Returns
+///
+/// * `Ok(Some(NaiveTime))` - The parsed time, if the element exists and is properly parsed.
+/// * `Ok(None)` - If the DICOM element does not exist, if the element is empty.
+/// * `Err(DcmIOError)` - An error if the element could not be retrieved or if the parsing fails.
+///
+/// # Errors
+///
+/// This function returns a [`DcmIOError`] if the element retrieval or parsing into `NaiveTime` fails.
+pub(crate) fn to_time_opt(
+    obj: &dicom_object::InMemDicomObject,
+    tag: Tag,
+) -> Result<Option<NaiveTime>, DcmIOError> {
+    let element = obj.element_opt(tag)?;
+    if element.is_none() {
+        return Ok(None);
+    }
+    let element = element.unwrap();
+    if element.is_empty() {
+        return Ok(None);
+    }
+    match element.to_time()?.to_naive_time() {
         Ok(d) => Ok(Some(d)),
         Err(e) => Err(DcmIOError::InvalidDateRange(e)),
     }
@@ -707,13 +772,15 @@ mod test {
         ROI_DISPLAY_COLOR, ROWS, SERIES_NUMBER, SLICE_LOCATION, STUDY_DATE, STUDY_TIME,
     };
     use dicom_object::InMemDicomObject;
-    use log::LevelFilter;
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+    use tracing_subscriber::{fmt, EnvFilter};
 
     fn init_logger() {
-        let _ = env_logger::builder()
-            .is_test(true)
-            .filter_level(LevelFilter::Trace)
-            .try_init();
+        tracing_subscriber::registry()
+            .with(fmt::layer())
+            .with(EnvFilter::from_default_env())
+            .init();
     }
 
     fn get_test_data() -> InMemDicomObject {
@@ -879,6 +946,18 @@ mod test {
         assert!(result.is_ok());
 
         let expected = NaiveDate::parse_from_str("20240717", "%Y%m%d").unwrap();
+        assert_eq!(result.unwrap(), expected);
+    }
+
+    #[test]
+    fn test_to_time_valid() {
+        let obj = get_test_data();
+        let tag = STUDY_TIME;
+
+        let result = super::to_time(&obj, tag);
+        assert!(result.is_ok());
+        // 100601.004858
+        let expected = NaiveTime::parse_from_str("100601.004858", "%H%M%S%.f").unwrap();
         assert_eq!(result.unwrap(), expected);
     }
 

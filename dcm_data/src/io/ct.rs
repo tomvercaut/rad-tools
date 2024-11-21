@@ -1,16 +1,15 @@
-use crate::io::common::read_sop;
+use crate::io::common::{code_item, read_sop};
 use crate::io::{
     da_tm_to_ndt_opt, from_seq, to_date, to_f64, to_f64_opt, to_f64s, to_int, to_int_opt,
     to_string, to_string_opt, to_strings, DcmIOError,
 };
 use crate::{
-    CodeItem, Modality, PatientPosition, PersonName, PhotometricInterpretation,
-    PixelRepresentation, RescaleType, RotationDirection, CT,
+    Modality, PatientPosition, PersonName, PhotometricInterpretation, PixelRepresentation,
+    RescaleType, RotationDirection, CT,
 };
 use dicom_dictionary_std::tags::{
     ACCESSION_NUMBER, ACQUISITION_NUMBER, BITS_ALLOCATED, BITS_STORED, BODY_PART_EXAMINED,
-    BURNED_IN_ANNOTATION, CODE_MEANING, CODE_VALUE, CODING_SCHEME_DESIGNATOR,
-    CODING_SCHEME_VERSION, COLUMNS, CONTENT_DATE, CONTENT_TIME, CONVOLUTION_KERNEL,
+    BURNED_IN_ANNOTATION, COLUMNS, CONTENT_DATE, CONTENT_TIME, CONVOLUTION_KERNEL,
     CTDI_PHANTOM_TYPE_CODE_SEQUENCE, CTD_IVOL, DATA_COLLECTION_CENTER_PATIENT,
     DATA_COLLECTION_DIAMETER, DATE_OF_LAST_CALIBRATION, DEIDENTIFICATION_METHOD,
     DEVICE_SERIAL_NUMBER, DISTANCE_SOURCE_TO_DETECTOR, DISTANCE_SOURCE_TO_PATIENT, EXPOSURE,
@@ -32,7 +31,6 @@ use dicom_dictionary_std::tags::{
     WINDOW_CENTER_WIDTH_EXPLANATION, WINDOW_WIDTH, X_RAY_TUBE_CURRENT,
 };
 use dicom_dictionary_std::uids::CT_IMAGE_STORAGE;
-use dicom_object::InMemDicomObject;
 use dicom_pixeldata::PixelDecoder;
 use std::path::Path;
 use std::str::FromStr;
@@ -156,7 +154,7 @@ pub fn read_ct_image<P: AsRef<Path>>(path: P) -> Result<CT, DcmIOError> {
         ctdi_phantom_type_code_sequence: from_seq(
             &obj,
             CTDI_PHANTOM_TYPE_CODE_SEQUENCE,
-            ctdi_phantom_type_code,
+            code_item,
         )?,
         study_instance_uid: to_string(&obj, STUDY_INSTANCE_UID)?,
         patient_orientation: to_string_opt(&obj, PATIENT_ORIENTATION)?,
@@ -225,37 +223,5 @@ pub fn read_ct_image<P: AsRef<Path>>(path: P) -> Result<CT, DcmIOError> {
         lossy_image_compression: to_string_opt(&obj, LOSSY_IMAGE_COMPRESSION)?,
         pixel_data_bytes: obj.element(PIXEL_DATA)?.to_bytes()?.to_vec(),
         pixel_data,
-    })
-}
-
-/// Constructs a `CodeItem` from the provided `InMemDicomObject` reference.
-///
-/// This function extracts the `code_value`, `coding_scheme_designator`, and
-/// `code_meaning` from the given DICOM object and uses them to populate a `CodeItem`.
-/// It returns the resulting `CodeItem` or an error if any of the field extraction fails.
-///
-/// # Arguments
-///
-/// * `item` - A reference to an `InMemDicomObject` from which the code information
-///            is to be extracted.
-///
-/// # Returns
-///
-/// * `Ok(CodeItem)` - If the extraction of all required fields is successful.
-/// * `Err(DcmIOError)` - If any of the required fields cannot be extracted.
-///
-/// # Errors
-///
-/// This function returns a `DcmIOError` if any of the following field extractions fail:
-/// - `code_value`
-/// - `coding_scheme_designator`
-/// - `code_meaning`
-///
-fn ctdi_phantom_type_code(item: &InMemDicomObject) -> Result<CodeItem, DcmIOError> {
-    Ok(CodeItem {
-        code_value: to_string_opt(item, CODE_VALUE)?,
-        coding_scheme_designator: to_string_opt(item, CODING_SCHEME_DESIGNATOR)?,
-        coding_scheme_version: to_string_opt(item, CODING_SCHEME_VERSION)?,
-        code_meaning: to_string(item, CODE_MEANING)?,
     })
 }

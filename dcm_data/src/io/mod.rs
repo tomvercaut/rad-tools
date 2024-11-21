@@ -1,5 +1,6 @@
 mod common;
 mod ct;
+mod rtdose;
 mod rtplan;
 mod rtstruct;
 mod utils;
@@ -11,6 +12,7 @@ use crate::{
 pub use ct::read_ct_image;
 use dicom_core::value::{CastValueError, ConvertValueError};
 use dicom_core::Tag;
+pub use rtdose::read_rtdose;
 pub use rtplan::read_rtplan;
 pub use rtstruct::read_rtstruct;
 pub(crate) use utils::*;

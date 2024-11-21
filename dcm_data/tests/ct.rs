@@ -5,14 +5,17 @@ use dcm_data::{
 };
 use dicom_dictionary_std::uids::CT_IMAGE_STORAGE;
 use dicom_pixeldata::ndarray::s;
-use log::{debug, LevelFilter};
 use std::path::Path;
+use tracing::debug;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::{fmt, EnvFilter};
 
 fn init_logger() {
-    let _ = env_logger::builder()
-        .is_test(true)
-        .filter_level(LevelFilter::Trace)
-        .try_init();
+    tracing_subscriber::registry()
+        .with(fmt::layer())
+        .with(EnvFilter::from_default_env())
+        .init();
 }
 
 fn approx_equal(a: f64, b: f64, eps: f64) -> bool {
