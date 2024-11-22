@@ -32,16 +32,93 @@ use dicom_dictionary_std::tags::{
     TREATMENT_SITE, TREATMENT_SITE_CODE_SEQUENCE,
 };
 use dicom_dictionary_std::uids::RT_DOSE_STORAGE;
-use dicom_object::InMemDicomObject;
+use dicom_object::{DefaultDicomObject, InMemDicomObject};
 use dicom_pixeldata::PixelDecoder;
 use std::path::Path;
 use std::str::FromStr;
 
+/// Reads an RTDose DICOM file from the specified path and parses it into an `RTDose` structure.
+///
+/// This function opens a DICOM file, decodes its pixel data, and extracts relevant DICOM attributes
+/// to populate the `RTDose` structure. It performs validation on various fields to ensure they
+/// conform to expected formats.
+///
+/// # Arguments
+///
+/// * `path` - A reference to a path that points to the RTDose DICOM file.
+///
+/// # Returns
+///
+/// * `Result<RTDose, DcmIOError>` - Returns an `RTDose` structure if the file is successfully
+///   read and parsed, otherwise returns a `DcmIOError`.
+///
+/// # Errors
+///
+/// This function will return an error in the following cases:
+///
+/// * If the file cannot be opened or read.
+/// * If the pixel data cannot be decoded.
+/// * If the `SOPClassUID` does not match `RT_DOSE_STORAGE`.
+/// * If any of the expected DICOM attributes have invalid or unexpected values.
+///
+/// # Example
+///
+/// ```rust
+/// use std::path::Path;
+/// use dcm_data::io::read_rtdose;
+/// let result = read_rtdose("tests/resources/RD1.2.752.243.1.1.20220722130644614.2020.66722.dcm");
+/// match result {
+///     Ok(rtdose) => println!("Successfully read RTDose file."),
+///     Err(e) => eprintln!("Error reading RTDose file: {:?}", e),
+/// }
+/// ```
 pub fn read_rtdose<P: AsRef<Path>>(path: P) -> Result<RTDose, DcmIOError> {
     let file_obj = dicom_object::open_file(path.as_ref())?;
-    let decoded_pixels = file_obj.decode_pixel_data()?;
+    obj_to_rtdose(file_obj)
+}
+
+/// Converts a DICOM object to an `RTDose` structure.
+///
+/// This function takes a `DefaultDicomObject`, decodes its pixel data, and extracts
+/// necessary DICOM attributes to create and return an `RTDose` structure. It performs
+/// various checks and validations to ensure the attributes conform to expected formats.
+///
+/// # Arguments
+///
+/// * `obj` - The `DefaultDicomObject` that represents the DICOM object to be converted.
+///
+/// # Returns
+///
+/// * `Result<RTDose, DcmIOError>` - Returns an `RTDose` structure if successful, otherwise returns an error.
+///
+/// # Errors
+///
+/// This function will return an error in the following cases:
+///
+/// * If the pixel data cannot be decoded.
+/// * If the `SOPClassUID` does not match `RT_DOSE_STORAGE`.
+/// * If any of the expected DICOM attributes have invalid or unexpected values.
+///
+/// # Example
+///
+/// ```rust
+/// use dicom_object::DefaultDicomObject;
+/// use std::path::Path;
+/// use dicom_object::open_file;
+/// use dcm_data::io::obj_to_rtdose;
+///
+/// let path = Path::new("tests/resources/RD1.2.752.243.1.1.20220722130644614.2020.66722.dcm");
+/// let file_obj = open_file(path).unwrap();
+/// let rtdose = obj_to_rtdose(file_obj);
+/// match rtdose {
+///     Ok(rtdose) => println!("Successfully converted DICOM object to RTDose."),
+///     Err(e) => eprintln!("Error converting DICOM object to RTDose: {:?}", e),
+/// }
+/// ```
+pub fn obj_to_rtdose(obj: DefaultDicomObject) -> Result<RTDose, DcmIOError> {
+    let decoded_pixels = obj.decode_pixel_data()?;
     let pixel_data = decoded_pixels.to_ndarray::<f64>()?;
-    let obj = file_obj.into_inner();
+    let obj = obj.into_inner();
     let sop_class_uid = to_string(&obj, SOP_CLASS_UID)?;
     if sop_class_uid != RT_DOSE_STORAGE {
         return Err(DcmIOError::NoMatchingSopClassUID(sop_class_uid));

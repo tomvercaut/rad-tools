@@ -12,7 +12,7 @@ use crate::{
 pub use ct::read_ct_image;
 use dicom_core::value::{CastValueError, ConvertValueError};
 use dicom_core::Tag;
-pub use rtdose::read_rtdose;
+pub use rtdose::{obj_to_rtdose, read_rtdose};
 pub use rtplan::read_rtplan;
 pub use rtstruct::{obj_to_rtstruct, read_rtstruct};
 pub(crate) use utils::*;
