@@ -53,13 +53,97 @@ use dicom_dictionary_std::tags::{
     TREATMENT_DELIVERY_TYPE, TREATMENT_MACHINE_NAME, TREATMENT_PROTOCOLS,
 };
 use dicom_dictionary_std::uids::RT_PLAN_STORAGE;
-use dicom_object::InMemDicomObject;
+use dicom_object::{DefaultDicomObject, InMemDicomObject};
 use std::path::Path;
 use std::str::FromStr;
 
+/// Reads an RT Plan from a file at the given path and returns an `RTPlan` object.
+///
+/// # Arguments
+///
+/// * `path` - A reference to a type that implements the `AsRef<Path>` trait, representing the path to the RT Plan file.
+///
+/// # Returns
+///
+/// A `Result` which is:
+///
+/// * `Ok(RTPlan)` with the parsed RT Plan if the operation is successful.
+/// * `Err(DcmIOError)` if an error occurs during reading or parsing the file.
+///
+/// # Errors
+///
+/// This function will return an error if:
+///
+/// * The file cannot be opened or read.
+/// * The file content cannot be parsed as a valid RT Plan.
+/// * The SOP Class UID does not match the expected RT Plan storage UID.
+///
+/// # Examples
+///
+/// ```
+/// use std::path::Path;
+/// use dcm_data::io::read_rtplan;
+///
+/// let rtplan = read_rtplan("tests/resources/RP1.2.752.243.1.1.20220722130644612.2000.30831.dcm");
+/// match rtplan {
+///     Ok(plan) => println!("Successfully read RT Plan: {:?}", plan),
+///     Err(e) => eprintln!("Failed to read RT Plan: {}", e),
+/// }
+/// ```
+///
+/// # Dependencies
+///
+/// This function internally relies on the `dicom_object` crate to handle DICOM files.
+///
+/// # See Also
+///
+/// * `obj_to_rtplan` - Converts a DICOM object to an `RTPlan`.
 pub fn read_rtplan<P: AsRef<Path>>(path: P) -> Result<RTPlan, DcmIOError> {
     let file_obj = dicom_object::open_file(path.as_ref())?;
-    let obj = file_obj.into_inner();
+    obj_to_rtplan(file_obj)
+}
+
+///
+/// Converts a DICOM object to an `RTPlan`.
+///
+/// # Arguments
+///
+/// * `obj` - A `DefaultDicomObject` representing the DICOM object to be converted.
+///
+/// # Returns
+///
+/// * `Ok(RTPlan)` - If the conversion is successful, returns an `RTPlan` object containing
+///   the parsed information from the DICOM object.
+/// * `Err(DcmIOError)` - If an error occurs during the conversion process.
+///
+/// # Errors
+///
+/// This function will return an error if:
+///
+/// * The DICOM object does not contain a valid RT Plan SOP Class UID.
+/// * Required fields are missing or have invalid formats.
+/// * Unexpected errors occur during the parsing of specific DICOM elements.
+///
+/// # Examples
+///
+/// ```
+/// use dicom_object::DefaultDicomObject;
+/// use dcm_data::io::obj_to_rtplan;
+///
+/// let dicom_obj = DefaultDicomObject::open_file("tests/resources/RP1.2.752.243.1.1.20220722130644612.2000.30831.dcm").unwrap();
+/// let rt_plan = obj_to_rtplan(dicom_obj);
+/// match rt_plan {
+///     Ok(plan) => println!("Successfully converted DICOM object to RT Plan: {:?}", plan),
+///     Err(e) => eprintln!("Failed to convert DICOM object: {}", e),
+/// }
+/// ```
+///
+/// # Dependencies
+///
+/// This function internally relies on the `dicom-object` crate to handle DICOM objects.
+///
+pub fn obj_to_rtplan(obj: DefaultDicomObject) -> Result<RTPlan, DcmIOError> {
+    let obj = obj.into_inner();
     let sop_class_uid = to_string(&obj, SOP_CLASS_UID)?;
     if sop_class_uid != RT_PLAN_STORAGE {
         return Err(DcmIOError::NoMatchingSopClassUID(sop_class_uid));
