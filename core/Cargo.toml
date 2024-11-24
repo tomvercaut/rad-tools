@@ -1,0 +1,7 @@
+[package]
+name = "rad-tools-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
