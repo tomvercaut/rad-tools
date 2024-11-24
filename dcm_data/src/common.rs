@@ -13,7 +13,7 @@ use std::str::FromStr;
 ///
 /// ```
 /// use std::str::FromStr;
-/// use dcm_data::Sop;
+/// use rad_tools_dcm_data::Sop;
 ///
 /// let sop = Sop {
 ///     class_uid: "1.2.840.10008.1.1".to_string(),
@@ -104,7 +104,7 @@ pub enum RotationDirectionError {
 ///
 /// ```
 /// use std::str::FromStr;
-/// use dcm_data::RotationDirection;
+/// use rad_tools_dcm_data::RotationDirection;
 ///
 /// let direction = RotationDirection::from_str("CW").unwrap();
 /// assert_eq!(direction, RotationDirection::CW);

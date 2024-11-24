@@ -1,10 +1,10 @@
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-use dcm_data::{
+use dicom_dictionary_std::uids::{RT_PLAN_STORAGE, RT_STRUCTURE_SET_STORAGE};
+use rad_tools_dcm_data::{
     ApprovalStatus, BeamDoseType, BeamType, FluenceMode, PatientPosition, PersonName,
     PrimaryDosimeterUnit, RTBeamLimitingDeviceType, RadiationType, RotationDirection,
     TreatmentDeliveryType,
 };
-use dicom_dictionary_std::uids::{RT_PLAN_STORAGE, RT_STRUCTURE_SET_STORAGE};
 use std::path::Path;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -26,7 +26,7 @@ fn approx_equal(a: f64, b: f64, eps: f64) -> bool {
 fn read_rtplan_test() {
     init_logger();
     let path = Path::new("tests/resources/RP1.2.752.243.1.1.20220722130644612.2000.30831.dcm");
-    let plan = dcm_data::io::read_rtplan(path).unwrap();
+    let plan = rad_tools_dcm_data::io::read_rtplan(path).unwrap();
     assert_eq!(plan.specific_character_set, "ISO_IR 100");
     assert_eq!(
         plan.instance_creation_dt,

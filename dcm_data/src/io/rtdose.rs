@@ -65,7 +65,7 @@ use std::str::FromStr;
 ///
 /// ```rust
 /// use std::path::Path;
-/// use dcm_data::io::read_rtdose;
+/// use rad_tools_dcm_data::io::read_rtdose;
 /// let result = read_rtdose("tests/resources/RD1.2.752.243.1.1.20220722130644614.2020.66722.dcm");
 /// match result {
 ///     Ok(rtdose) => println!("Successfully read RTDose file."),
@@ -105,7 +105,7 @@ pub fn read_rtdose<P: AsRef<Path>>(path: P) -> Result<RTDose, DcmIOError> {
 /// use dicom_object::DefaultDicomObject;
 /// use std::path::Path;
 /// use dicom_object::open_file;
-/// use dcm_data::io::obj_to_rtdose;
+/// use rad_tools_dcm_data::io::obj_to_rtdose;
 ///
 /// let path = Path::new("tests/resources/RD1.2.752.243.1.1.20220722130644614.2020.66722.dcm");
 /// let file_obj = open_file(path).unwrap();

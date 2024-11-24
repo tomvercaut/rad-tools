@@ -1,10 +1,10 @@
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-use dcm_data::{
+use dicom_dictionary_std::uids::CT_IMAGE_STORAGE;
+use dicom_pixeldata::ndarray::s;
+use rad_tools_dcm_data::{
     Modality, PatientPosition, PersonName, PhotometricInterpretation, PixelRepresentation,
     RescaleType, RotationDirection,
 };
-use dicom_dictionary_std::uids::CT_IMAGE_STORAGE;
-use dicom_pixeldata::ndarray::s;
 use std::path::Path;
 use tracing::debug;
 use tracing_subscriber::layer::SubscriberExt;
@@ -27,7 +27,7 @@ fn approx_equal(a: f64, b: f64, eps: f64) -> bool {
 fn read_ct_image_test() {
     init_logger();
     let path = Path::new("tests/resources/CT1.2.752.243.1.1.20220722130644359.1060.62784.dcm");
-    let ct = dcm_data::io::read_ct_image(path).unwrap();
+    let ct = rad_tools_dcm_data::io::read_ct_image(path).unwrap();
     assert_eq!(
         ct.image_type,
         vec!["ORIGINAL", "PRIMARY", "AXIAL", "CT_SOM5 SPI"]

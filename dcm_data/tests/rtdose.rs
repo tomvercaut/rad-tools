@@ -1,5 +1,5 @@
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-use dcm_data::{
+use rad_tools_dcm_data::{
     DoseSummationType, DoseType, DoseUnit, PersonName, PhotometricInterpretation,
     PixelRepresentation, TissueHeterogeneityCorrection,
 };
@@ -24,7 +24,7 @@ fn approx_equal(a: f64, b: f64, eps: f64) -> bool {
 fn read_rtdose_test() {
     init_logger();
     let path = Path::new("tests/resources/RD1.2.752.243.1.1.20220722130644614.2020.66722.dcm");
-    let rtd = dcm_data::io::read_rtdose(path).unwrap();
+    let rtd = rad_tools_dcm_data::io::read_rtdose(path).unwrap();
     assert_eq!(rtd.specific_character_set, "ISO_IR 100");
     assert_eq!(
         rtd.instance_creation_dt,

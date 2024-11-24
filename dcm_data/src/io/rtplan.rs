@@ -82,7 +82,7 @@ use std::str::FromStr;
 ///
 /// ```
 /// use std::path::Path;
-/// use dcm_data::io::read_rtplan;
+/// use rad_tools_dcm_data::io::read_rtplan;
 ///
 /// let rtplan = read_rtplan("tests/resources/RP1.2.752.243.1.1.20220722130644612.2000.30831.dcm");
 /// match rtplan {
@@ -128,7 +128,7 @@ pub fn read_rtplan<P: AsRef<Path>>(path: P) -> Result<RTPlan, DcmIOError> {
 ///
 /// ```
 /// use dicom_object::DefaultDicomObject;
-/// use dcm_data::io::obj_to_rtplan;
+/// use rad_tools_dcm_data::io::obj_to_rtplan;
 ///
 /// let dicom_obj = DefaultDicomObject::open_file("tests/resources/RP1.2.752.243.1.1.20220722130644612.2000.30831.dcm").unwrap();
 /// let rt_plan = obj_to_rtplan(dicom_obj);

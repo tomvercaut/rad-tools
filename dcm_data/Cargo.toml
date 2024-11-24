@@ -1,5 +1,5 @@
 [package]
-name = "dcm_data"
+name = "rad-tools-dcm-data"
 description = "A library with data types that represent multiple DICOM objects."
 
 version.workspace = true

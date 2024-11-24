@@ -51,7 +51,7 @@ use std::str::FromStr;
 /// # Examples
 ///
 /// ```
-/// use dcm_data::io::read_rtstruct;
+/// use rad_tools_dcm_data::io::read_rtstruct;
 /// let rtstruct = read_rtstruct("tests/resources/RS1.2.752.243.1.1.20220722130644567.1980.53284.dcm");
 /// match rtstruct {
 ///     Ok(rt) => println!("Successfully read RTStruct!"),
@@ -92,7 +92,7 @@ pub fn read_rtstruct<P: AsRef<Path>>(path: P) -> Result<RTStruct, DcmIOError> {
 ///
 /// ```
 /// use dicom_object::DefaultDicomObject;
-/// use dcm_data::io::obj_to_rtstruct;
+/// use rad_tools_dcm_data::io::obj_to_rtstruct;
 ///
 /// let dicom_obj = DefaultDicomObject::open_file( "tests/resources/RS1.2.752.243.1.1.20220722130644567.1980.53284.dcm" ).unwrap();
 /// let rtstruct_result = obj_to_rtstruct(dicom_obj);

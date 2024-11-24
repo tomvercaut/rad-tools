@@ -1,6 +1,6 @@
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-use dcm_data::{ApprovalStatus, ContourGeometry, PersonName, Sop};
 use dicom_dictionary_std::uids::{CT_IMAGE_STORAGE, RT_STRUCTURE_SET_STORAGE};
+use rad_tools_dcm_data::{ApprovalStatus, ContourGeometry, PersonName, Sop};
 use std::default::Default;
 use std::path::Path;
 use tracing_subscriber::layer::SubscriberExt;
@@ -23,7 +23,7 @@ fn approx_equal(a: f64, b: f64, eps: f64) -> bool {
 fn read_rtstruct_image_test() {
     init_logger();
     let path = Path::new("tests/resources/RS1.2.752.243.1.1.20220722130644567.1980.53284.dcm");
-    let rs = dcm_data::io::read_rtstruct(path).unwrap();
+    let rs = rad_tools_dcm_data::io::read_rtstruct(path).unwrap();
     assert_eq!(rs.specific_character_set, "ISO_IR 100");
     assert_eq!(rs.sop.class_uid, RT_STRUCTURE_SET_STORAGE);
     assert_eq!(
