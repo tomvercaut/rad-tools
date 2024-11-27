@@ -1,0 +1,17 @@
+[package]
+name = "rad-tools-bio-dose"
+description = "A command line interface application and library to compute biological doses."
+
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[[bin]]
+name = "eqd2"
+path = "src/bin/eqd2.rs"

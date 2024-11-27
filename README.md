@@ -14,6 +14,8 @@ The project at this stage has one library.
 
 The project at this stage has these command line tools.
 
+- [`bio-dose`](bio_dose):
+  Compute EQD2 in function of the number of fractions, the dose per fraction and the alpha / beta ratio.
 - [`dcm_sort`](dcm_sort):
   Sort DICOM files by Patient ID, Study, Series, Modality.
 - [`dcm_cp`](dcm_cp):
