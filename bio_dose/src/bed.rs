@@ -43,8 +43,9 @@ use tracing::{error, instrument};
 ///
 /// # References
 ///
-/// For more information about the Biologically Effective Dose, see the article:
-/// "The Linear-Quadratic Formula and Fractionation in Radiotherapy" by Fowler (1989).
+/// For more information about the Biologically Effective Dose, see the articles:
+/// "The linear-quadratic formula and progress in fractionated radiotherapy." (1989) and
+/// "21 years of biologically effective dose." by J F Fowler (2010)
 ///
 #[instrument(level = "debug")]
 pub fn bed(d: f64, n: u32, ab: f64) -> Result<f64, Error> {
