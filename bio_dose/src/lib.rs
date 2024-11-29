@@ -1,3 +1,6 @@
+mod bed;
+pub use bed::bed;
+
 use tracing::{error, instrument};
 
 #[derive(thiserror::Error, Debug, Clone)]

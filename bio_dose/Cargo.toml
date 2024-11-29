@@ -15,3 +15,7 @@ tracing-subscriber.workspace = true
 [[bin]]
 name = "eqd2"
 path = "src/bin/eqd2.rs"
+
+[[bin]]
+name = "bed"
+path = "src/bin/bed.rs"
