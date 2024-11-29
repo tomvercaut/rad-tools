@@ -9,9 +9,9 @@ use tracing::{error, instrument};
 ///
 /// # Arguments
 ///
-/// * `dose_per_fraction` - dose delivered per fraction (in Gy).
-/// * `total_fractions` - total number of fractions.
-/// * `alpha_beta_ratio` - Dose (Gy) at which the linear and quadratic components of cell kill are equal.
+/// * `d` - dose delivered per fraction (in Gy).
+/// * `n` - total number of fractions.
+/// * `ab` - Dose (Gy) at which the linear and quadratic components of cell kill are equal.
 ///
 /// # Returns
 ///
@@ -37,36 +37,24 @@ use tracing::{error, instrument};
 /// More information can be found in [The linear-quadratic formula and progress in fractionated radiotherapy ](https://pubmed.ncbi.nlm.nih.gov/2670032/) and [21 years of Biologically Effective Dose](https://pmc.ncbi.nlm.nih.gov/articles/PMC3473681/)
 ///
 #[instrument(level = "debug")]
-pub fn eqd2(
-    dose_per_fraction: f64,
-    total_fractions: u32,
-    alpha_beta_ratio: f64,
-) -> Result<f64, Error> {
-    if dose_per_fraction <= 0.0 {
-        error!(
-            "Dose per fraction ({:#?}) must be greater than zero",
-            dose_per_fraction
-        );
+pub fn eqd2(d: f64, n: u32, ab: f64) -> Result<f64, Error> {
+    if d <= 0.0 {
+        error!("Dose per fraction ({:#?}) must be greater than zero", d);
         return Err(Error::InvalidDosePerFraction);
     }
-    if total_fractions == 0 {
+    if n == 0 {
         error!(
             "Total number of fractions ({:#?}) must be greater than zero",
-            total_fractions
+            n
         );
         return Err(Error::InvalidTotalFractions);
     }
-    if alpha_beta_ratio <= 0.0 {
-        error!(
-            "Alpha beta ratio ({:#?}) must be greater than zero",
-            alpha_beta_ratio
-        );
+    if ab <= 0.0 {
+        error!("Alpha beta ratio ({:#?}) must be greater than zero", ab);
         return Err(Error::InvalidAlphaBetaRatio);
     }
 
-    let n = total_fractions as f64;
-    let d = dose_per_fraction;
-    Ok(n * d * (d + alpha_beta_ratio) / (2.0 + alpha_beta_ratio))
+    Ok(n as f64 * d * (d + ab) / (2.0 + ab))
 }
 
 #[cfg(test)]
