@@ -7,9 +7,9 @@ use tracing::{error, trace, Level};
 #[command(
     author,
     version,
-    about = "Computes equivalent dose in 2 Gy fractions.",
+    about = "Computes equivalent dose in 2 Gy fractions in Gy.",
     long_about = r#"
-Computes equivalent dose in 2 Gy fractions:
+Computes equivalent dose in 2 Gy fractions in Gy:
 
 EQD2 = D * ([d + a/b] / [2 + a/b])
 
@@ -57,7 +57,7 @@ fn main() {
 
     match eqd2(cli.dose_per_fraction, cli.n_fractions, cli.alpha_beta_ratio) {
         Ok(f) => {
-            println!("EQD2: {:.4} Gy", f);
+            println!("{:.6}", f);
         }
         Err(e) => {
             error!("Error: {}", e);

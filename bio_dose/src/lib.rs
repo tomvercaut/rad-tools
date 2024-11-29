@@ -18,10 +18,9 @@ pub enum Error {
 ///
 /// # Arguments
 ///
-/// * `dose_per_fraction` - The dose delivered per fraction (in Gy).
-/// * `total_fractions` - The total number of fractions.
-/// * `alpha_beta_ratio` - The alpha/beta ratio specific to the tissue or tumor being treated.
-///   This parameter describes the sensitivity of the tissue or tumor to the fractionation of the dose (in Gy).
+/// * `dose_per_fraction` - dose delivered per fraction (in Gy).
+/// * `total_fractions` - total number of fractions.
+/// * `alpha_beta_ratio` - Dose (Gy) at which the linear and quadratic components of cell kill are equal.
 ///
 /// # Returns
 ///
