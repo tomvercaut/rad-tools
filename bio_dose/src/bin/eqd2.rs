@@ -21,14 +21,14 @@ where:
 )]
 struct Cli {
     /// Dose per fraction in Gy
-    #[arg(short, long, value_name = "DOSE")]
-    dose_per_fraction: f64,
+    #[arg(short, value_name = "DOSE")]
+    d: f64,
     /// Total number of fractions
-    #[arg(short = 'n', long, value_name = "TOTAL_NUMBER_FRACTIONS")]
-    n_fractions: u32,
+    #[arg(short = 'n', value_name = "TOTAL_NUMBER_FRACTIONS")]
+    n: u32,
     /// Dose (Gy) at which the linear and quadratic components of cell kill are equal.
     #[arg(short = 'a', long, value_name = "ALPHA_BETA_RATIO")]
-    alpha_beta_ratio: f64,
+    ab: f64,
     /// Enable logging at DEBUG level.
     #[arg(long, default_value_t = false)]
     debug: bool,
@@ -55,7 +55,7 @@ fn main() {
 
     trace!("Commandline arguments: {:#?}", &cli);
 
-    match eqd2(cli.dose_per_fraction, cli.n_fractions, cli.alpha_beta_ratio) {
+    match eqd2(cli.d, cli.n, cli.ab) {
         Ok(f) => {
             println!("{:.6}", f);
         }
