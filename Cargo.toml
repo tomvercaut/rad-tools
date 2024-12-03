@@ -18,7 +18,7 @@ dicom-core = "0.8.0"
 dicom-object = "0.8.0"
 dicom-dictionary-std = "0.8.0"
 dicom-encoding = "0.8.0"
-dicom-pixeldata = { version = "0.8.0", features = ["default", "ndarray"] }
+dicom-pixeldata = "0.8.0"
 dicom-transfer-syntax-registry = "0.8.0"
 walkdir = "2"
 tokio = { version = "1", features = ["full"] }

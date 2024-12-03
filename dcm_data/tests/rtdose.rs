@@ -19,6 +19,10 @@ fn approx_equal(a: f64, b: f64, eps: f64) -> bool {
     (a - b).abs() < eps
 }
 
+fn index(frame: usize, row: usize, col: usize, nrow: usize, ncols: usize) -> usize {
+    frame * nrow * ncols + row * ncols + col
+}
+
 #[test]
 #[allow(clippy::excessive_precision)]
 fn read_rtdose_test() {
@@ -116,14 +120,14 @@ fn read_rtdose_test() {
     assert_eq!(rtd.pixel_data_bytes.len(), number_of_bytes);
 
     let idxs = [
-        [42, 100, 67, 0usize],
-        [42, 89, 41, 0usize],
-        [143, 51, 32, 0usize],
+        index(42, 100, 67, rtd.rows as usize, rtd.columns as usize),
+        index(42, 89, 41, rtd.rows as usize, rtd.columns as usize),
+        index(143, 51, 32, rtd.rows as usize, rtd.columns as usize),
     ];
     let evals = [44908.0, 37416.0, 34684.0];
     assert_eq!(idxs.len(), evals.len());
     for (i, ev) in idxs.iter().zip(evals.iter()) {
-        let val = rtd.pixel_data[[i[0], i[1], i[2], i[3]]];
+        let val = rtd.pixel_data[*i];
         approx_equal(val, *ev, 1e-6);
     }
 }

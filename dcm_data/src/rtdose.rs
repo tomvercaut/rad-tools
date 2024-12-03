@@ -1,6 +1,5 @@
 use crate::{CodeItem, PersonName, PhotometricInterpretation, PixelRepresentation, Sop};
 use chrono::{NaiveDate, NaiveDateTime};
-use dicom_pixeldata::ndarray::{Array, Ix4};
 use std::str::FromStr;
 
 #[derive(Clone, PartialEq, Debug, Default)]
@@ -57,7 +56,7 @@ pub struct RTDose {
     pub referenced_rt_plan_sequence: Option<Vec<ReferencedRTPlan>>,
     pub plan_overview_sequence: Option<Vec<PlanOverview>>,
     pub pixel_data_bytes: Vec<u8>,
-    pub pixel_data: Array<f64, Ix4>,
+    pub pixel_data: Vec<f64>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

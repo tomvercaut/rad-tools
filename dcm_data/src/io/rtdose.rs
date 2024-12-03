@@ -117,7 +117,7 @@ pub fn read_rtdose<P: AsRef<Path>>(path: P) -> Result<RTDose, DcmIOError> {
 /// ```
 pub fn obj_to_rtdose(obj: DefaultDicomObject) -> Result<RTDose, DcmIOError> {
     let decoded_pixels = obj.decode_pixel_data()?;
-    let pixel_data = decoded_pixels.to_ndarray::<f64>()?;
+    let pixel_data = decoded_pixels.to_vec()?;
     let obj = obj.into_inner();
     let sop_class_uid = to_string(&obj, SOP_CLASS_UID)?;
     if sop_class_uid != RT_DOSE_STORAGE {

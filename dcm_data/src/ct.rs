@@ -3,7 +3,6 @@ use crate::{
     PixelRepresentation, RescaleType, RotationDirection, Sop,
 };
 use chrono::{NaiveDate, NaiveDateTime};
-use dicom_pixeldata::ndarray::{Array, Ix4};
 
 #[derive(Clone, Debug, Default)]
 pub struct CT {
@@ -94,5 +93,5 @@ pub struct CT {
     pub window_center_width_explanation: Option<String>,
     pub lossy_image_compression: Option<String>,
     pub pixel_data_bytes: Vec<u8>,
-    pub pixel_data: Array<f64, Ix4>,
+    pub pixel_data: Vec<f64>,
 }

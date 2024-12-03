@@ -50,7 +50,7 @@ use std::str::FromStr;
 pub fn read_ct_image<P: AsRef<Path>>(path: P) -> Result<CT, DcmIOError> {
     let file_obj = dicom_object::open_file(path.as_ref())?;
     let decoded_pixels = file_obj.decode_pixel_data()?;
-    let pixel_data = decoded_pixels.to_ndarray::<f64>()?;
+    let pixel_data = decoded_pixels.to_vec::<f64>()?;
     let obj = file_obj.into_inner();
     let sop_class_uid = to_string(&obj, SOP_CLASS_UID)?;
     if sop_class_uid != CT_IMAGE_STORAGE {

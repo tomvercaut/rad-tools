@@ -1,6 +1,5 @@
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use dicom_dictionary_std::uids::CT_IMAGE_STORAGE;
-use dicom_pixeldata::ndarray::s;
 use rad_tools_dcm_data::{
     Modality, PatientPosition, PersonName, PhotometricInterpretation, PixelRepresentation,
     RescaleType, RotationDirection,
@@ -20,6 +19,10 @@ fn init_logger() {
 
 fn approx_equal(a: f64, b: f64, eps: f64) -> bool {
     (a - b).abs() < eps
+}
+
+fn index(row: usize, col: usize, ncol: usize) -> usize {
+    row * ncol + col
 }
 
 #[test]
@@ -197,12 +200,9 @@ fn read_ct_image_test() {
     let number_of_bytes =
         ct.rows as usize * ct.columns as usize * (ct.bits_allocated as f64 / 8f64) as usize;
     debug!("number of bytes: {number_of_bytes}");
-    let sub_pixels = ct
-        .pixel_data
-        .slice(s![0, 198, 239..249, 0])
-        .as_slice()
-        .unwrap()
-        .to_vec();
+    let i = index(198, 239, ct.columns as usize);
+    let j = i + 10;
+    let sub_pixels = &ct.pixel_data[i..j];
     // Verified values using ImageJ
     let expected_sub_pixels = vec![
         -2.0, -38.0, -107.0, 197.0, 548.0, 314.0, -122.0, -165.0, -92.0, -54.0,
