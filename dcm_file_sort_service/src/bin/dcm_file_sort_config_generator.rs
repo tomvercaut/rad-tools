@@ -2,6 +2,8 @@ use clap::Parser;
 use rad_tools_dcm_file_sort_service::Config;
 use std::io::Write;
 use std::path::PathBuf;
+use std::str::FromStr;
+use tracing::Level;
 
 /// A command line interface (CLI) application to generate a configuration file used by dcm_file_sort.
 #[derive(Parser, Debug, Clone)]
@@ -32,7 +34,8 @@ fn main() {
         config.paths.unknown_dir = PathBuf::from(ask_question(
             "Directory for data that couldn't be processed",
         ));
-        config.log.level = ask_question_with_default("Log level", "info");
+        config.log.level = Level::from_str(ask_question_with_default("Log level", "info").as_str())
+            .expect("Failed to parse log level");
         config.other.wait_time_millisec =
             ask_question_with_default("Wait time in milliseconds", "500")
                 .parse::<u64>()
@@ -92,7 +95,7 @@ fn ask_question(question: &str) -> String {
 /// A `String` containing either the user's response or the provided default value if
 /// the user does not input anything.
 fn ask_question_with_default(question: &str, default: &str) -> String {
-    let new_question = format!("{} [default={}]", question, default);
+    let new_question = format!("{} [default={}]: ", question, default);
     print!("{}", new_question);
     std::io::stdout().flush().unwrap();
 
