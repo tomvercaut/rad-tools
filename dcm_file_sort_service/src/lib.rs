@@ -77,26 +77,18 @@ impl std::fmt::Display for MovedData {
     }
 }
 
-pub fn run_service<P: AsRef<Path>>(
-    input_dir: P,
-    output_dir: P,
+pub fn run_service(
+    config: &Config,
     state: Arc<RwLock<ServiceState>>,
     wait_millisecs: u64,
 ) -> Result<()> {
     'outer: loop {
-        let to_sort = get_sorting_data(&input_dir, state.clone())?;
-        // if to_sort.is_empty() {
-        //     std::thread::sleep(std::time::Duration::from_millis(wait_millisecs));
-        //     if should_stop(&state) {
-        //         break 'outer;
-        //     }
-        //     continue;
-        // }
+        let to_sort = get_sorting_data(config, state.clone())?;
         for sd in to_sort {
             if should_stop(&state) {
                 break 'outer;
             }
-            match copy_dicom_data(sd, &output_dir) {
+            match copy_dicom_data(sd, config) {
                 Ok(moved_data) => {
                     info!(
                         "Moved {} to {}",
@@ -110,7 +102,7 @@ pub fn run_service<P: AsRef<Path>>(
                 }
             }
         }
-        remove_empty_sub_dirs(&input_dir)?;
+        remove_empty_sub_dirs(&config.paths.input_dir)?;
         if should_stop(&state) {
             break 'outer;
         }
@@ -137,7 +129,7 @@ fn should_stop(state: &Arc<RwLock<ServiceState>>) -> bool {
 /// the service state is no longer `ServiceState::Running`.
 ///
 /// # Arguments
-/// * `input_dir` - The directory to scan for DICOM files.
+/// * `config` - A `Config` struct providing the input directory path.
 /// * `state` - A shared atomic state indicating whether the service should continue running.
 ///
 /// # Returns
@@ -151,13 +143,10 @@ fn should_stop(state: &Arc<RwLock<ServiceState>>) -> bool {
 /// # Errors
 /// * Returns an error if a directory traversal issue occurs or if it encounters a critical failure
 ///   while processing files.
-fn get_sorting_data<P: AsRef<Path>>(
-    input_dir: P,
-    state: Arc<RwLock<ServiceState>>,
-) -> Result<Vec<SortingData>> {
+fn get_sorting_data(config: &Config, state: Arc<RwLock<ServiceState>>) -> Result<Vec<SortingData>> {
     let mut v = vec![];
     // for entry in WalkDir::new(&input_dir).into_iter().filter_map(|r| r.ok()) {
-    for entry in WalkDir::new(&input_dir) {
+    for entry in WalkDir::new(&config.paths.input_dir) {
         match entry {
             Ok(entry) => {
                 trace!("Processing file: {}", entry.path().display());
@@ -309,12 +298,11 @@ fn extract_dicom_metadata<P: AsRef<Path>>(file_path: P) -> Result<Option<Sorting
     }
 }
 
-///
 /// Copies a DICOM file to a designated output directory based on its metadata.
 ///
 /// # Arguments
 /// * `data` - A `SortingData` struct containing metadata (e.g., Patient ID and Date of Birth) and the original file path.
-/// * `output_dir` - The path to the output directory where the file should be copied.
+/// * `config` - A `Config` struct providing the output directory path.
 ///
 /// # Returns
 /// * `Ok(MovedData)` - If the file is successfully copied to the output directory.
@@ -334,7 +322,7 @@ fn extract_dicom_metadata<P: AsRef<Path>>(file_path: P) -> Result<Option<Sorting
 /// # Assumptions
 /// * `date_of_birth` in `SortingData` is expected to be in the format `YYYYMMDD`. Non-matching formats will result in an error.
 ///
-fn copy_dicom_data<P: AsRef<Path>>(data: SortingData, output_dir: P) -> Result<MovedData> {
+fn copy_dicom_data(data: SortingData, config: &Config) -> Result<MovedData> {
     // Extract the date of birth and patient ID from SortingData
     let dob = &data.date_of_birth;
     let patient_id = &data.patient_id;
@@ -354,8 +342,9 @@ fn copy_dicom_data<P: AsRef<Path>>(data: SortingData, output_dir: P) -> Result<M
         return Err(InvalidDateOfBirth);
     }
     let output_path =
-        output_dir
-            .as_ref()
+        config
+            .paths
+            .output_dir
             .join(format!("{}/{}", month_day.trim(), patient_id.trim()));
 
     // Create the necessary directories if they do not already exist
@@ -407,11 +396,14 @@ fn is_dir_empty<P: AsRef<Path>>(dir: P) -> bool {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
+    use crate::config::Paths;
     use dicom_core::{DataElement, PrimitiveValue};
     use dicom_dictionary_std::tags;
     use dicom_dictionary_std::uids::CT_IMAGE_STORAGE;
     use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
+    use tempfile::TempDir;
 
     fn create_test_dicom_file(
         patient_id: &str,
@@ -458,22 +450,32 @@ mod tests {
         Ok(())
     }
 
+    fn get_test_config(temp_dir: &TempDir) -> Config {
+        let tp = temp_dir.path();
+        let config = Config {
+            paths: Paths {
+                input_dir: tp.join("input"),
+                output_dir: tp.join("output"),
+                unknown_dir: tp.join("unknown"),
+            },
+            log: Default::default(),
+            other: Default::default(),
+        };
+        config.create_dirs().unwrap();
+        config
+    }
+
     #[test]
     fn test_copy_dicom_data_success() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let input_dir = temp_dir.path().join("input");
-        let output_dir = temp_dir.path().join("output");
-        std::fs::create_dir_all(&input_dir).unwrap();
-        std::fs::create_dir_all(&output_dir).unwrap();
+        let config = get_test_config(&temp_dir);
+
         let patient_id = "12345";
         let date_of_birth = "19850615";
-        let input_file = input_dir.join("test.dcm");
+        let input_file = config.paths.input_dir.join("test.dcm");
 
-        let r = create_test_dicom_file(patient_id, date_of_birth, &input_file);
-        if r.as_ref().is_err() {
-            panic!("Failed to create test file: {:?}", r);
-        }
-        assert!(r.is_ok());
+        create_test_dicom_file(patient_id, date_of_birth, &input_file)
+            .expect("Unable to create test DICOM file.");
 
         let sorting_data = SortingData {
             sop_instance_uid: "9.3.12.2.1107.5.1.7.130037.30000025021708505036500000024"
@@ -490,10 +492,12 @@ mod tests {
         );
 
         // Call the function
-        let moved_data = copy_dicom_data(sorting_data, &output_dir).unwrap();
+        let moved_data = copy_dicom_data(sorting_data, &config).unwrap();
 
         // Validate that the file was copied to the correct output directory
-        let expected_output_path = output_dir
+        let expected_output_path = config
+            .paths
+            .output_dir
             .join(&date_of_birth[4..])
             .join(patient_id)
             .join(output_file_name);
@@ -505,19 +509,19 @@ mod tests {
         // Validate the channel message
         assert_eq!(moved_data.input, input_file);
         assert_eq!(moved_data.output, expected_output_path);
-        std::fs::remove_dir_all(temp_dir).unwrap()
+        std::fs::remove_dir_all(config.paths.input_dir.parent().unwrap()).unwrap()
     }
 
     #[test]
     fn test_copy_dicom_data_invalid_date_of_birth_format() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let input_dir = temp_dir.path().join("input");
-        let output_dir = temp_dir.path().join("output");
-        std::fs::create_dir_all(&input_dir).unwrap();
-        std::fs::create_dir_all(&output_dir).unwrap();
+        let config = get_test_config(&temp_dir);
         let patient_id = "12345";
         let invalid_date_of_birth = "1985";
-        let input_file = input_dir.join("test.dcm");
+        let input_file = config.paths.input_dir.join("test.dcm");
+
+        create_test_dicom_file(patient_id, invalid_date_of_birth, &input_file)
+            .expect("Unable to create test DICOM file.");
 
         let sorting_data = SortingData {
             sop_instance_uid: "9.3.12.2.1107.5.1.7.130037.30000025021708505036500000024"
@@ -529,26 +533,23 @@ mod tests {
         };
 
         // Call the function
-        let result = copy_dicom_data(sorting_data, &output_dir);
+        let result = copy_dicom_data(sorting_data, &config);
 
         // Validate that the function returns an error
         assert!(result.is_err());
 
         // Validate that the file was not copied
-        assert!(is_dir_empty(&output_dir));
-        std::fs::remove_dir_all(temp_dir).unwrap()
+        assert!(is_dir_empty(&config.paths.output_dir));
+        std::fs::remove_dir_all(config.paths.input_dir.parent().unwrap()).unwrap()
     }
 
     #[test]
     fn test_copy_dicom_data_missing_source_file() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let input_dir = temp_dir.path().join("input");
-        let output_dir = temp_dir.path().join("output");
-        std::fs::create_dir_all(&input_dir).unwrap();
-        std::fs::create_dir_all(&output_dir).unwrap();
+        let config = get_test_config(&temp_dir);
         let patient_id = "12345";
         let date_of_birth = "19850615";
-        let input_file = input_dir.join("test.dcm");
+        let input_file = config.paths.input_dir.join("test.dcm");
 
         let sorting_data = SortingData {
             sop_instance_uid: "9.3.12.2.1107.5.1.7.130037.30000025021708505036500000024"
@@ -560,7 +561,7 @@ mod tests {
         };
 
         // Call the function
-        let result = copy_dicom_data(sorting_data, &output_dir);
+        let result = copy_dicom_data(sorting_data, &config);
 
         // Validate that the function returns an error
         assert!(result.is_err());

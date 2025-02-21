@@ -82,6 +82,30 @@ pub struct Config {
     pub other: Other,
 }
 
+impl Config {
+    /// Ensures that the directories specified in the `paths` field of the `Config` struct exist.
+    ///
+    /// This function checks for the existence of the input, output, and unknown directories
+    /// specified in the `Paths` struct. If any of these directories do not exist, it will create them.
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If all directories exist or are successfully created.
+    /// * `Err(std::io::Error)` - If an error occurs while creating any of the directories.
+    pub fn create_dirs(&self) -> Result<(), std::io::Error> {
+        if !self.paths.input_dir.exists() {
+            std::fs::create_dir_all(&self.paths.input_dir)?;
+        }
+        if !self.paths.output_dir.exists() {
+            std::fs::create_dir_all(&self.paths.output_dir)?;
+        }
+        if !self.paths.unknown_dir.exists() {
+            std::fs::create_dir_all(&self.paths.unknown_dir)?;
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -56,12 +56,7 @@ fn main() {
         .expect("Error setting Ctrl-C handler");
     }
     info!("Waiting for Ctrl-C ...");
-    if let Err(e) = run_service(
-        config.paths.input_dir,
-        config.paths.output_dir,
-        state.clone(),
-        10,
-    ) {
+    if let Err(e) = run_service(&config, state.clone(), 10) {
         error!("Failed to run service: {:?}", e);
     }
 }
