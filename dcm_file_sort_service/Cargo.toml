@@ -24,7 +24,7 @@ toml.workspace = true
 tempfile.workspace = true
 
 [target.'cfg(windows)'.dependencies]
-windows-service = "0.7"
+windows-service = "0.8.0"
 
 
 [[bin]]
@@ -34,3 +34,7 @@ path = "./src/bin/dcm_file_sort.rs"
 [[bin]]
 name = "dcm_file_sort_config_generation"
 path = "./src/bin/dcm_file_sort_config_generator.rs"
+
+[[bin]]
+name = "dcm_file_sort_service"
+path = "./src/bin/dcm_file_sort_service.rs"
