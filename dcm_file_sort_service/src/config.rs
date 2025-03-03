@@ -1,3 +1,4 @@
+use crate::{Cli, Error};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use serde_with::DisplayFromStr;
@@ -103,6 +104,37 @@ impl Config {
             std::fs::create_dir_all(&self.paths.unknown_dir)?;
         }
         Ok(())
+    }
+}
+
+impl TryFrom<Cli> for Config {
+    type Error = Error;
+
+    fn try_from(cli: Cli) -> Result<Self, Self::Error> {
+        if let Some(args) = cli.manual_args {
+            let mut config = Config::default();
+            config.paths.input_dir = PathBuf::from(args.input_dir);
+            config.paths.output_dir = PathBuf::from(args.output_dir);
+            config.paths.unknown_dir = PathBuf::from(args.unknown_dir);
+            config.log.level = if args.trace {
+                Level::TRACE
+            } else if args.debug {
+                Level::DEBUG
+            } else if args.verbose {
+                Level::INFO
+            } else {
+                Level::WARN
+            };
+            Ok(config)
+        } else if let Some(config_path) = cli.config {
+            let config_content =
+                std::fs::read_to_string(config_path).expect("Failed to read the config file");
+            let config: Config =
+                toml::from_str(&config_content).expect("Failed to parse the config file");
+            Ok(config)
+        } else {
+            Err(Error::ConfigFromCli)
+        }
     }
 }
 

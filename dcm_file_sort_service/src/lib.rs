@@ -33,6 +33,8 @@ pub enum Error {
     ParseIntError(#[from] std::num::ParseIntError),
     #[error("Unable to determine filename")]
     UnknownFilename,
+    #[error("Unable to create config from Cli")]
+    ConfigFromCli,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
