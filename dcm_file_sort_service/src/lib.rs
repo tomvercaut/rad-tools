@@ -3,12 +3,13 @@ mod config;
 
 pub use cli::Cli;
 pub use config::Config;
+use std::io::ErrorKind;
 
 use crate::Error::InvalidDateOfBirth;
 use dicom_object::{open_file, ReadError};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::mpsc::Receiver;
 use tracing::{debug, error, info, trace, warn};
 use walkdir::WalkDir;
 
@@ -95,41 +96,66 @@ impl std::fmt::Display for CopiedData {
     }
 }
 
+/// Runs the DICOM file sorting service in a continuous loop until a stop signal is received.
+///
+/// This function implements the main service loop that:
+/// * Monitors a specified input directory for DICOM and unknown files
+/// * Sorts and copies files to appropriate output locations based on their metadata
+/// * Removes successfully processed files from the input directory
+/// * Cleans up empty subdirectories in the input path
+/// * Waits for a specified interval before starting the next processing cycle
+///
+/// The service continues running until it receives a non-Running state through the receiver channel.
+///
+/// # Arguments
+/// * `config` - Configuration containing input/output paths and other settings
+/// * `rx` - Channel receiver [`Receiver<ServiceState>`] for monitoring service state changes
+/// * `wait_millisecs` - Milliseconds to wait between processing cycles
+///
+/// # Returns
+/// * `Ok(())` - If the service completes successfully after receiving a stop signal
+/// * `Err` - If an error occurs during file processing or directory operations
+///
+/// # Errors
+/// This function may return errors from:
+/// * File operations (copying, deleting)
+/// * Directory operations (creating, removing)
+/// * DICOM metadata extraction
+/// * Invalid date formats
 pub fn run_service(
     config: &Config,
-    state: Arc<RwLock<ServiceState>>,
+    rx: &Receiver<ServiceState>,
     wait_millisecs: u64,
 ) -> Result<()> {
     'outer: loop {
-        let (vdd, unknowns) = get_sorting_data(config, state.clone())?;
+        let (vdd, unknowns, stopped) = get_sorting_data(config, rx)?;
+        if stopped {
+            break 'outer;
+        }
         let handle_copied_data = |r: Result<CopiedData>| -> Result<()> {
             match r {
-                Ok(copied_data) => match std::fs::remove_file(&copied_data.input) {
-                    Ok(_) => {
-                        debug!("Removed file: {}", copied_data.input.display());
-                        Ok(())
-                    }
-                    Err(e) => Err(Error::IO(e)),
-                },
+                Ok(copied_data) => {
+                    remove_file_retry_on_busy(copied_data.input, wait_millisecs, 10000)
+                }
                 Err(e) => Err(e),
             }
         };
         // Process the DICOM data
         for dd in vdd {
-            if should_stop(&state) {
+            if should_stop(rx) {
                 break 'outer;
             }
             handle_copied_data(copy_dicom_data(dd, config))?;
         }
         // Process the unkown data
         for ud in unknowns {
-            if should_stop(&state) {
+            if should_stop(rx) {
                 break 'outer;
             }
             handle_copied_data(copy_unkown_data(ud, config))?;
         }
         remove_empty_sub_dirs(&config.paths.input_dir)?;
-        if should_stop(&state) {
+        if should_stop(rx) {
             break 'outer;
         }
         std::thread::sleep(std::time::Duration::from_millis(wait_millisecs));
@@ -137,9 +163,78 @@ pub fn run_service(
     Ok(())
 }
 
-fn should_stop(state: &Arc<RwLock<ServiceState>>) -> bool {
-    if let Ok(inner) = state.try_read() {
-        if *inner != ServiceState::Running {
+/// Attempts to remove a file with retries if the file is temporarily busy.
+///
+/// This function makes multiple attempts to remove a file, with a configurable delay between
+/// attempts if the file is locked or in use by another process. This is particularly useful
+/// when dealing with files that might be temporarily locked by system processes or other
+/// applications.
+///
+/// # Arguments
+/// * `path` - A path reference to the file that should be removed
+/// * `wait_millisecs` - The number of milliseconds to wait between retry attempts
+/// * `max_attempts` - The maximum number of removal attempts before giving up
+///
+/// # Returns
+/// * `Ok(())` - If the file was successfully removed
+/// * `Err(Error)` - If the file could not be removed after all attempts
+///
+/// # Errors
+/// * Returns `Error::IO` with the underlying IO error if the file cannot be removed
+/// * Returns `Error::IO` with a custom error message if all attempts are exhausted
+///
+/// # Behavior
+/// * If the file removal fails with `ResourceBusy`, the function will wait for the specified
+///   duration and retry
+/// * For any other type of error, the function will return immediately with that error
+/// * After the maximum number of attempts, returns an error indicating the operation failed
+fn remove_file_retry_on_busy<P: AsRef<Path>>(
+    path: P,
+    wait_millisecs: u64,
+    max_attempts: usize,
+) -> Result<()> {
+    for _ in 0..max_attempts {
+        match std::fs::remove_file(path.as_ref()) {
+            Ok(_) => {
+                debug!("Removed file: {}", path.as_ref().display());
+                return Ok(());
+            }
+            Err(e) => {
+                error!(
+                    "Unable to remove file: {}. Error: {}",
+                    path.as_ref().display(),
+                    e
+                );
+                if e.kind() == ErrorKind::ResourceBusy {
+                    std::thread::sleep(std::time::Duration::from_millis(wait_millisecs));
+                    continue;
+                } else {
+                    return Err(Error::IO(e));
+                }
+            }
+        }
+    }
+    Err(Error::IO(std::io::Error::new(
+        ErrorKind::Other,
+        "Unable to remove file after {} attempts",
+    )))
+}
+
+/// Checks if the service should stop processing based on its state.
+///
+/// This function attempts to receive a state update from the provided channel
+/// without blocking. If a state other than `ServiceState::Running` is received,
+/// it indicates that the service should stop.
+///
+/// # Arguments
+/// * `rx` - A receiver that monitors the service state changes
+///
+/// # Returns
+/// * `true` if the service should stop (received state is not `Running`)
+/// * `false` if no state was received or if the received state is `Running`
+fn should_stop(rx: &Receiver<ServiceState>) -> bool {
+    if let Ok(state) = rx.try_recv() {
+        if state != ServiceState::Running {
             return true;
         }
     }
@@ -154,15 +249,18 @@ fn should_stop(state: &Arc<RwLock<ServiceState>>) -> bool {
 /// it as `DicomData`.
 /// Files missing the essential DICOM fields will be logged with a warning and categorized as
 /// unkown data (`SortingData::Unknown`).
-/// The function monitors the shared `state` to ensure it halts processing if the service
+/// The function monitors a Channel receiver to ensure it halts processing if the service
 /// state is no longer `ServiceState::Running`.
 ///
 /// # Arguments
 /// * `config` - A `Config` struct providing the input directory path.
-/// * `state` - A shared atomic state indicating whether the service should continue running.
+/// * `rx` - A receiver [`Receiver<ServiceState>`] to monitor changes in the state of the service.
 ///
 /// # Returns
-/// * `Ok(Vec<SortingData>)` - A vector containing `SortingData` for identified DICOM files.
+/// * `Ok((Vec<DicomData>, Vec<UnknownData>, bool)` - A tuple containing:
+///     - a vector containing `DicomData` for identified DICOM files
+///     - a vector containing `UnknownData` for files from which no DICOM data could be extracted
+///     - a boolean indicating if the function was stopped while transversing the filedata.
 /// * `Err` - If an error occurs during the directory traversal or file processing.
 ///
 /// # Errors
@@ -182,17 +280,19 @@ fn should_stop(state: &Arc<RwLock<ServiceState>>) -> bool {
 ///
 fn get_sorting_data(
     config: &Config,
-    state: Arc<RwLock<ServiceState>>,
-) -> Result<(Vec<DicomData>, Vec<UnknownData>)> {
+    rx: &Receiver<ServiceState>,
+) -> Result<(Vec<DicomData>, Vec<UnknownData>, bool)> {
     let mut dicom_dataset = vec![];
     let mut unknown_dataset = vec![];
+    let mut stopped = false;
     // for entry in WalkDir::new(&input_dir).into_iter().filter_map(|r| r.ok()) {
     for entry in WalkDir::new(&config.paths.input_dir) {
         match entry {
             Ok(entry) => {
                 trace!("Processing file: {}", entry.path().display());
-                if should_stop(&state) {
+                if should_stop(rx) {
                     info!("Stopping processing cycle");
+                    stopped = true;
                     break;
                 }
                 let path = entry.path();
@@ -221,7 +321,7 @@ fn get_sorting_data(
             }
         }
     }
-    Ok((dicom_dataset, unknown_dataset))
+    Ok((dicom_dataset, unknown_dataset, stopped))
 }
 
 ///
@@ -406,7 +506,7 @@ fn copy_dicom_data(data: DicomData, config: &Config) -> Result<CopiedData> {
     // Create the necessary directories if they do not already exist
     debug!("Creating output directory: {}", output_path.display());
     if let Err(e) = std::fs::create_dir_all(&output_path) {
-        if e.kind() != std::io::ErrorKind::AlreadyExists {
+        if e.kind() != ErrorKind::AlreadyExists {
             return Err(e.into());
         }
     }

@@ -1,6 +1,5 @@
 use clap::Parser;
 use rad_tools_dcm_file_sort_service::{run_service, Cli, Config};
-use std::sync::Arc;
 use tracing::{error, info};
 
 fn main() {
@@ -16,26 +15,22 @@ fn main() {
     tracing_subscriber::fmt()
         .with_thread_ids(true)
         .with_target(true)
+        .with_file(true)
+        .with_line_number(true)
         .with_max_level(config.log.level)
         .init();
 
-    let state = Arc::new(std::sync::RwLock::new(
-        rad_tools_dcm_file_sort_service::ServiceState::Running,
-    ));
+    let (tx, rx) = std::sync::mpsc::channel();
     {
-        let moved_state = state.clone();
-        ctrlc::set_handler(move || match moved_state.try_write() {
-            Ok(mut inner) => {
-                *inner = rad_tools_dcm_file_sort_service::ServiceState::RequestToStop;
-            }
-            Err(_) => {
-                error!("Failed to get write lock on service state.");
-            }
+        let tx = tx.clone();
+        ctrlc::set_handler(move || {
+            tx.send(rad_tools_dcm_file_sort_service::ServiceState::RequestToStop)
+                .expect("Failed to send request to stop signal");
         })
         .expect("Error setting Ctrl-C handler");
     }
     info!("Waiting for Ctrl-C ...");
-    if let Err(e) = run_service(&config, state.clone(), 10) {
+    if let Err(e) = run_service(&config, &rx, 10) {
         error!("Failed to run service: {:?}", e);
     }
 }
