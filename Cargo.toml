@@ -11,7 +11,7 @@ authors = ["Tom Vercauteren"]
 [workspace.dependencies]
 thiserror = "1"
 anyhow = "1"
-quick-xml = "0.36"
+quick-xml = "0.37"
 base64 = "0.22"
 ndarray = "0.16"
 clap = { version = "4", features = ["derive"] }
