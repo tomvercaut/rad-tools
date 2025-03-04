@@ -5,7 +5,7 @@ resolver = "2"
 [workspace.package]
 #name = "rad-tools"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 authors = ["Tom Vercauteren"]
 
 [workspace.dependencies]
