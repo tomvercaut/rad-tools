@@ -19,24 +19,6 @@ The data is sorted based on the date of birth and the patient ID (format: <outpu
 The name of the DICOM file is based on the modality and the (unique) SOP instance UID."
 )]
 pub struct Cli {
-    // /// Directory where the DICOM data are read from.
-    // #[arg(short, long, group = "manual")]
-    // pub input_dir: Option<String>,
-    // /// Directory where the DICOM data is written to.
-    // #[arg(short, long, group = "manual")]
-    // pub output_dir: Option<String>,
-    // /// Directory where files that couldn't be processed are moved.
-    // #[arg(short, long, group = "manual")]
-    // pub unknown_dir: Option<String>,
-    // /// Enable logging at INFO level.
-    // #[arg(long, default_value_t = false, group = "manual")]
-    // pub verbose: bool,
-    // /// Enable logging at DEBUG level.
-    // #[arg(long, default_value_t = false, group = "manual")]
-    // pub debug: bool,
-    // /// Enable logging at TRACE level.
-    // #[arg(long, default_value_t = false, group = "manual")]
-    // pub trace: bool,
     #[command(flatten)]
     pub manual_args: Option<ManualArgs>,
 
