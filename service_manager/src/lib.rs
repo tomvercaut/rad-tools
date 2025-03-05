@@ -1,4 +1,17 @@
 use serde::Deserialize;
+use windows_service::service::{ServiceErrorControl, ServiceStartType, ServiceType};
+
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("Failed to parse service start type")]
+    ParseErrorServiceStartType,
+    #[error("Failed to parse service error control")]
+    ParseErrorServiceErrorControl,
+    #[error("Failed to parse service type")]
+    ParseErrorServiceType,
+}
+
+type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct ServiceConfig {
@@ -24,10 +37,21 @@ pub struct Startup {
     /// Launch arguments of the service
     pub arguments: Vec<String>,
     /// How the service is started: automatically, on demand, disabled ...
+    /// Valid values are:
+    /// * auto_start
+    //  * on_demand
+    //  * disabled
+    //  * system_start
+    //  * boot_start
     pub start_type: String,
     /// Dependencies of the service
     pub dependencies: Vec<String>,
     /// How service errors are handled
+    /// Valid values are:
+    /// * ignore
+    /// * normal
+    /// * severe
+    /// * critical
     pub error_control: String,
 }
 
@@ -37,6 +61,104 @@ pub struct Credentials {
     pub username: String,
     /// Account password
     pub password: String,
+}
+
+/// Converts a string representation of a service type to `ServiceType`.
+///
+/// # Arguments
+///
+/// * `service_type` - A string slice that holds the service type name
+///
+/// # Returns
+///
+/// * `Ok(ServiceType)` - The corresponding `ServiceType` enum variant
+/// * `Err(Error::ParseErrorServiceType)` - If the input string doesn't match any known service type
+///
+/// The function accepts the following values (case-insensitive):
+/// * "file_system_driver" -> ServiceType::FILE_SYSTEM_DRIVER
+/// * "kernel_driver" -> ServiceType::KERNEL_DRIVER
+/// * "own_process" -> ServiceType::OWN_PROCESS
+/// * "share_process" -> ServiceType::SHARE_PROCESS
+/// * "user_own_process" -> ServiceType::USER_OWN_PROCESS
+/// * "user_share_process" -> ServiceType::USER_SHARE_PROCESS
+/// * "interactive_process" -> ServiceType::INTERACTIVE_PROCESS
+fn try_into_service_type<S: AsRef<str>>(service_type: S) -> Result<ServiceType> {
+    let s = service_type.as_ref().to_lowercase();
+    match s.as_str() {
+        "file_system_driver" => Ok(ServiceType::FILE_SYSTEM_DRIVER),
+        "kernel_driver" => Ok(ServiceType::KERNEL_DRIVER),
+        "own_process" => Ok(ServiceType::OWN_PROCESS),
+        "share_process" => Ok(ServiceType::SHARE_PROCESS),
+        "user_own_process" => Ok(ServiceType::USER_OWN_PROCESS),
+        "user_share_process" => Ok(ServiceType::USER_SHARE_PROCESS),
+        "interactive_process" => Ok(ServiceType::INTERACTIVE_PROCESS),
+        _ => {
+            tracing::error!("Unknown service type: {}", service_type.as_ref());
+            Err(Error::ParseErrorServiceType)
+        }
+    }
+}
+
+/// Converts a string representation of a service start type to `ServiceStartType`.
+///
+/// # Arguments
+///
+/// * `start_type` - A string slice that holds the service start type name
+///
+/// # Returns
+///
+/// * `Ok(ServiceStartType)` - The corresponding `ServiceStartType` enum variant
+/// * `Err(Error::ParseErrorServiceStartType)` - If the input string doesn't match any known start type
+///
+/// The function accepts the following values (case-insensitive):
+/// * "auto_start" -> ServiceStartType::AutoStart
+/// * "on_demand" -> ServiceStartType::OnDemand
+/// * "disabled" -> ServiceStartType::Disabled
+/// * "system_start" -> ServiceStartType::SystemStart
+/// * "boot_start" -> ServiceStartType::BootStart
+fn try_into_service_start_type<S: AsRef<str>>(start_type: S) -> Result<ServiceStartType> {
+    let s = start_type.as_ref().to_lowercase();
+    match s.as_str() {
+        "auto_start" => Ok(ServiceStartType::AutoStart),
+        "on_demand" => Ok(ServiceStartType::OnDemand),
+        "disabled" => Ok(ServiceStartType::Disabled),
+        "system_start" => Ok(ServiceStartType::SystemStart),
+        "boot_start" => Ok(ServiceStartType::BootStart),
+        _ => {
+            tracing::error!("Unknown service start type: {}", start_type.as_ref());
+            Err(Error::ParseErrorServiceStartType)
+        }
+    }
+}
+
+/// Converts a string representation of a service error control to `ServiceErrorControl`.
+///
+/// # Arguments
+///
+/// * `error_control` - A string slice that holds the service error control name
+///
+/// # Returns
+///
+/// * `Ok(ServiceErrorControl)` - The corresponding `ServiceErrorControl` enum variant
+/// * `Err(Error::ParseErrorServiceErrorControl)` - If the input string doesn't match any known error control
+///
+/// The function accepts the following values (case-insensitive):
+/// * "critical" -> ServiceErrorControl::Critical
+/// * "normal" -> ServiceErrorControl::Normal
+/// * "severe" -> ServiceErrorControl::Severe
+/// * "ignore" -> ServiceErrorControl::Ignore
+fn try_into_service_error_control<S: AsRef<str>>(error_control: S) -> Result<ServiceErrorControl> {
+    let s = error_control.as_ref().to_lowercase();
+    match s.as_str() {
+        "critical" => Ok(ServiceErrorControl::Critical),
+        "normal" => Ok(ServiceErrorControl::Normal),
+        "severe" => Ok(ServiceErrorControl::Severe),
+        "ignore" => Ok(ServiceErrorControl::Ignore),
+        _ => {
+            tracing::error!("Unknown service error control: {}", error_control.as_ref());
+            Err(Error::ParseErrorServiceErrorControl)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -80,5 +202,148 @@ mod tests {
         assert_eq!(config.startup.error_control, "Normal");
         assert_eq!(config.credentials.as_ref().unwrap().username, "TestUser");
         assert_eq!(config.credentials.as_ref().unwrap().password, "TestPass");
+    }
+
+    #[test]
+    fn test_service_type_file_system_driver() {
+        assert_eq!(
+            try_into_service_type("file_system_driver").unwrap(),
+            ServiceType::FILE_SYSTEM_DRIVER
+        );
+    }
+
+    #[test]
+    fn test_service_type_kernel_driver() {
+        assert_eq!(
+            try_into_service_type("kernel_driver").unwrap(),
+            ServiceType::KERNEL_DRIVER
+        );
+    }
+
+    #[test]
+    fn test_service_type_own_process() {
+        assert_eq!(
+            try_into_service_type("own_process").unwrap(),
+            ServiceType::OWN_PROCESS
+        );
+    }
+
+    #[test]
+    fn test_service_type_share_process() {
+        assert_eq!(
+            try_into_service_type("share_process").unwrap(),
+            ServiceType::SHARE_PROCESS
+        );
+    }
+
+    #[test]
+    fn test_service_type_user_own_process() {
+        assert_eq!(
+            try_into_service_type("user_own_process").unwrap(),
+            ServiceType::USER_OWN_PROCESS
+        );
+    }
+
+    #[test]
+    fn test_service_type_user_share_process() {
+        assert_eq!(
+            try_into_service_type("user_share_process").unwrap(),
+            ServiceType::USER_SHARE_PROCESS
+        );
+    }
+
+    #[test]
+    fn test_service_type_interactive_process() {
+        assert_eq!(
+            try_into_service_type("interactive_process").unwrap(),
+            ServiceType::INTERACTIVE_PROCESS
+        );
+    }
+
+    #[test]
+    fn test_service_type_invalid() {
+        assert!(try_into_service_type("invalid").is_err());
+    }
+
+    #[test]
+    fn test_service_start_type_auto_start() {
+        assert_eq!(
+            try_into_service_start_type("auto_start").unwrap(),
+            ServiceStartType::AutoStart
+        );
+    }
+
+    #[test]
+    fn test_service_start_type_on_demand() {
+        assert_eq!(
+            try_into_service_start_type("on_demand").unwrap(),
+            ServiceStartType::OnDemand
+        );
+    }
+
+    #[test]
+    fn test_service_start_type_disabled() {
+        assert_eq!(
+            try_into_service_start_type("disabled").unwrap(),
+            ServiceStartType::Disabled
+        );
+    }
+
+    #[test]
+    fn test_service_start_type_system_start() {
+        assert_eq!(
+            try_into_service_start_type("system_start").unwrap(),
+            ServiceStartType::SystemStart
+        );
+    }
+
+    #[test]
+    fn test_service_start_type_boot_start() {
+        assert_eq!(
+            try_into_service_start_type("boot_start").unwrap(),
+            ServiceStartType::BootStart
+        );
+    }
+
+    #[test]
+    fn test_service_start_type_invalid_start_type() {
+        assert!(try_into_service_start_type("invalid").is_err());
+    }
+
+    #[test]
+    fn test_service_error_control_critical_error_control() {
+        assert_eq!(
+            try_into_service_error_control("critical").unwrap(),
+            ServiceErrorControl::Critical
+        );
+    }
+
+    #[test]
+    fn test_service_error_control_normal_error_control() {
+        assert_eq!(
+            try_into_service_error_control("normal").unwrap(),
+            ServiceErrorControl::Normal
+        );
+    }
+
+    #[test]
+    fn test_service_error_control_severe_error_control() {
+        assert_eq!(
+            try_into_service_error_control("severe").unwrap(),
+            ServiceErrorControl::Severe
+        );
+    }
+
+    #[test]
+    fn test_service_error_control_ignore_error_control() {
+        assert_eq!(
+            try_into_service_error_control("ignore").unwrap(),
+            ServiceErrorControl::Ignore
+        );
+    }
+
+    #[test]
+    fn test_service_error_control_invalid_error_control() {
+        assert!(try_into_service_error_control("invalid").is_err());
     }
 }
