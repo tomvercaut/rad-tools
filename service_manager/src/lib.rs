@@ -38,3 +38,47 @@ pub struct Credentials {
     /// Account password
     pub password: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_toml_config() {
+        let toml_str = r#"
+            [service]
+            name = "TestService"
+            display_name = "Test Service"
+            description = "A test service"
+
+            [startup]
+            executable_path = "C:\\test\\service.exe"
+            arguments = ["--config", "conf.toml"]
+            start_type = "Automatic"
+            dependencies = ["Dependency1", "Dependency2"]
+            error_control = "Normal"
+
+            [credentials]
+            username = "TestUser"
+            password = "TestPass"
+        "#;
+
+        let config: ServiceConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.service.name, "TestService");
+        assert_eq!(config.service.display_name, "Test Service");
+        assert_eq!(
+            config.service.description,
+            Some("A test service".to_string())
+        );
+        assert_eq!(config.startup.executable_path, "C:\\test\\service.exe");
+        assert_eq!(config.startup.arguments, vec!["--config", "conf.toml"]);
+        assert_eq!(config.startup.start_type, "Automatic");
+        assert_eq!(
+            config.startup.dependencies,
+            vec!["Dependency1", "Dependency2"]
+        );
+        assert_eq!(config.startup.error_control, "Normal");
+        assert_eq!(config.credentials.as_ref().unwrap().username, "TestUser");
+        assert_eq!(config.credentials.as_ref().unwrap().password, "TestPass");
+    }
+}
