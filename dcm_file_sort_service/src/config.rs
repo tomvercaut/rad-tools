@@ -62,7 +62,7 @@ impl FromStr for Log {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Other {
-    /// The number of milliseconds a thread will sleep after moving data in a directory. After this delay, the thread will process new files in the input directory.
+    /// The number of milliseconds a thread will sleep after moving data from the input directory to the output directory. After this delay, the thread will process new files in the input directory.
     pub wait_time_millisec: u64,
     /// The number of milliseconds a thread will sleep if a file can't be copied or removed because the file resource is being used by another process.
     pub io_timeout_millisec: u64,
