@@ -1,5 +1,5 @@
 use clap::Parser;
-use rad_tools_dcm_file_sort_service::{run_service, Cli, Config};
+use rad_tools_dcm_file_sort_service::{Cli, Config, run_service};
 use tracing::{error, info};
 
 fn main() {
@@ -30,7 +30,7 @@ fn main() {
         .expect("Error setting Ctrl-C handler");
     }
     info!("Waiting for Ctrl-C ...");
-    if let Err(e) = run_service(&config, &rx, 10) {
+    if let Err(e) = run_service(&config, &rx) {
         error!("Failed to run service: {:?}", e);
     }
 }

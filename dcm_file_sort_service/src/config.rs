@@ -1,12 +1,12 @@
 use crate::{Cli, Error};
 use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
 use serde_with::DisplayFromStr;
+use serde_with::serde_as;
 use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 use std::str::FromStr;
-use tracing::metadata::ParseLevelError;
 use tracing::Level;
+use tracing::metadata::ParseLevelError;
 
 /// Directories where the data is read from and written to.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
@@ -62,13 +62,26 @@ impl FromStr for Log {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Other {
+    /// The number of milliseconds a thread will sleep after moving data in a directory. After this delay, the thread will process new files in the input directory.
     pub wait_time_millisec: u64,
+    /// The number of milliseconds a thread will sleep if a file can't be copied or removed because the file resource is being used by another process.
+    pub io_timeout_millisec: u64,
+    /// Number of times the service will try to copy a file if the input file resource is being used by another process.
+    pub copy_attempts: u64,
+    /// Number of times the service will try to remove a file
+    pub remove_attempts: usize,
+    /// Number of seconds between the last modified time and the current time before a file is consided deletable.
+    pub mtime_delay_secs: i64,
 }
 
 impl Default for Other {
     fn default() -> Self {
         Self {
             wait_time_millisec: 500,
+            io_timeout_millisec: 500,
+            copy_attempts: 100,
+            remove_attempts: 10,
+            mtime_delay_secs: 10,
         }
     }
 }

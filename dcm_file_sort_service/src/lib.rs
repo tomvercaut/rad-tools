@@ -6,7 +6,8 @@ pub use config::Config;
 use std::io::ErrorKind;
 
 use crate::Error::InvalidDateOfBirth;
-use dicom_object::{open_file, ReadError};
+use dicom_object::{ReadError, open_file};
+use filetime::FileTime;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
@@ -122,24 +123,30 @@ impl std::fmt::Display for CopiedData {
 /// * Directory operations (creating, removing)
 /// * DICOM metadata extraction
 /// * Invalid date formats
-pub fn run_service(
-    config: &Config,
-    rx: &Receiver<ServiceState>,
-    wait_millisecs: u64,
-) -> Result<()> {
+pub fn run_service(config: &Config, rx: &Receiver<ServiceState>) -> Result<()> {
+    let handle_copied_data = |r: Result<CopiedData>| -> Result<()> {
+        match r {
+            Ok(copied_data) => remove_file_retry_on_busy(
+                copied_data.input,
+                config.other.io_timeout_millisec,
+                config.other.remove_attempts,
+            ),
+            Err(e) => {
+                error!("Error copying data: {}", e);
+                Err(e)
+            }
+        }
+    };
     'outer: loop {
-        let (vdd, unknowns, stopped) = get_sorting_data(config, rx)?;
+        let r = get_sorting_data(config, rx);
+        if let Err(e) = r {
+            error!("Error sorting all the data: {}", e);
+            return Err(e);
+        }
+        let (vdd, unknowns, stopped) = r?;
         if stopped {
             break 'outer;
         }
-        let handle_copied_data = |r: Result<CopiedData>| -> Result<()> {
-            match r {
-                Ok(copied_data) => {
-                    remove_file_retry_on_busy(copied_data.input, wait_millisecs, 10000)
-                }
-                Err(e) => Err(e),
-            }
-        };
         // Process the DICOM data
         for dd in vdd {
             if should_stop(rx) {
@@ -154,11 +161,19 @@ pub fn run_service(
             }
             handle_copied_data(copy_unkown_data(ud, config))?;
         }
-        remove_empty_sub_dirs(&config.paths.input_dir)?;
+        if let Err(e) = remove_empty_sub_dirs(&config.paths.input_dir) {
+            error!(
+                "Error trying to remove empty subdirectory [{}]: {}",
+                &config.paths.input_dir.display(),
+                e
+            );
+        }
         if should_stop(rx) {
             break 'outer;
         }
-        std::thread::sleep(std::time::Duration::from_millis(wait_millisecs));
+        std::thread::sleep(std::time::Duration::from_millis(
+            config.other.wait_time_millisec,
+        ));
     }
     Ok(())
 }
@@ -300,6 +315,21 @@ fn get_sorting_data(
                 if !path.is_file() {
                     continue;
                 }
+                let meta = std::fs::metadata(path);
+                if meta.is_err() {
+                    trace!("Failed to get metadata for file: {}", path.display());
+                    continue;
+                }
+                let meta = meta?;
+                let mtime = FileTime::from_last_modification_time(&meta);
+                let current_time = FileTime::now();
+                if current_time.seconds() - mtime.seconds() < config.other.mtime_delay_secs {
+                    trace!(
+                        "Skipping file: {} (last modified less than 10 seconds ago)",
+                        path.display()
+                    );
+                    continue;
+                }
                 match extract_dicom_metadata(path) {
                     Ok(sorting_data) => match sorting_data {
                         SortingData::Dicom(data) => {
@@ -383,7 +413,10 @@ fn remove_null_chars(s: &str) -> String {
 fn extract_dicom_metadata<P: AsRef<Path>>(file_path: P) -> Result<SortingData> {
     let dicom_file = open_file(file_path.as_ref());
     if dicom_file.is_err() {
-        warn!("Failed to extract metadata from file: {}\nThis file will not be treated as a DICOM file in future processing.", file_path.as_ref().display());
+        warn!(
+            "Failed to extract metadata from file: {}\nThis file will not be treated as a DICOM file in future processing.",
+            file_path.as_ref().display()
+        );
         return Ok(SortingData::Unknown(UnknownData {
             path: file_path.as_ref().to_path_buf(),
         }));
@@ -430,13 +463,13 @@ fn extract_dicom_metadata<P: AsRef<Path>>(file_path: P) -> Result<SortingData> {
             Some(date_of_birth),
         ) => {
             debug!(
-                    "Extracted metadata from file: {}.\nSOP Instance UID: {}\nPatient ID: {}\nModality: {}\nDate of Birth: {}",
-                    file_path.as_ref().display(),
-                    sop_instance_uid,
-                    patient_id,
-                    modality,
-                    date_of_birth
-                );
+                "Extracted metadata from file: {}.\nSOP Instance UID: {}\nPatient ID: {}\nModality: {}\nDate of Birth: {}",
+                file_path.as_ref().display(),
+                sop_instance_uid,
+                patient_id,
+                modality,
+                date_of_birth
+            );
             Ok(SortingData::Dicom(DicomData {
                 sop_instance_uid: sop_instance_uid.to_string(),
                 modality: modality.to_string(),
@@ -446,12 +479,67 @@ fn extract_dicom_metadata<P: AsRef<Path>>(file_path: P) -> Result<SortingData> {
             }))
         }
         _ => {
-            warn!("Failed to extract metadata from file: {}\nThis file will not be treated as a DICOM file in future processing.", file_path.as_ref().display());
+            warn!(
+                "Failed to extract metadata from file: {}\nThis file will not be treated as a DICOM file in future processing.",
+                file_path.as_ref().display()
+            );
             Ok(SortingData::Unknown(UnknownData {
                 path: file_path.as_ref().to_path_buf(),
             }))
         }
     }
+}
+
+/// Copy a file from a source path to a destination path.
+///
+/// A retry mechanism is implemented to handle cases where the file cannot be copied due to temporary issues such as the target file or source being locked or busy. It ensures reliable file copying in such scenarios by retrying the operation for a configurable number of attempts.
+///
+/// # Arguments
+/// * `input` - source file path to be copied
+/// * `output` - destination file path where the file will be copied
+/// * `config` - configuration settings
+///
+/// # Returns
+/// * `Ok(CopiedData)` - If the file is successfully copied to the destination.
+///     - `CopiedData` includes the `input` (source path) and `output` (destination path) to help log and track the operation.
+/// * `Err(Error)` - If the file cannot be copied after all retry attempts or if any non-temporary issue is encountered during the copy operation.
+fn copy_with_retry_on_busy<P: AsRef<Path>>(
+    input: P,
+    output: P,
+    config: &Config,
+) -> Result<CopiedData> {
+    let mut last_error = std::io::Error::other("");
+    for _ in 0..config.other.copy_attempts {
+        // Copy the file to the destination path
+        match std::fs::copy(input.as_ref(), output.as_ref()) {
+            Ok(_) => {
+                return Ok(CopiedData {
+                    input: input.as_ref().to_path_buf(),
+                    output: output.as_ref().to_path_buf(),
+                });
+            }
+            Err(e) => {
+                if e.kind() != ErrorKind::ResourceBusy {
+                    error!(
+                        "Failed to copy file: {} -> {}: {}",
+                        input.as_ref().display(),
+                        output.as_ref().display(),
+                        e
+                    );
+                    return Err(e.into());
+                }
+                last_error = e;
+                trace!(
+                    "Resource busy error, retrying in {} milliseconds ...",
+                    config.other.io_timeout_millisec
+                );
+                std::thread::sleep(std::time::Duration::from_millis(
+                    config.other.io_timeout_millisec,
+                ));
+            }
+        }
+    }
+    Err(Error::IO(last_error))
 }
 
 /// Copies a DICOM file to a designated output directory based on its metadata.
@@ -521,12 +609,7 @@ fn copy_dicom_data(data: DicomData, config: &Config) -> Result<CopiedData> {
         dest_file_path.display()
     );
     // Copy the file to the destination path
-    std::fs::copy(source_path, &dest_file_path)?;
-
-    Ok(CopiedData {
-        input: data.path,
-        output: dest_file_path,
-    })
+    copy_with_retry_on_busy(source_path, &dest_file_path, config)
 }
 
 /// Copies an unknown data file to a designated output directory.
@@ -564,12 +647,7 @@ fn copy_unkown_data(data: UnknownData, config: &Config) -> Result<CopiedData> {
         dest_file_path.display()
     );
     // Copy the file to the destination path
-    std::fs::copy(&data.path, &dest_file_path)?;
-
-    Ok(CopiedData {
-        input: data.path,
-        output: dest_file_path,
-    })
+    copy_with_retry_on_busy(data.path, dest_file_path, config)
 }
 
 /// Checks whether a given directory is empty.
