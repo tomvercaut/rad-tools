@@ -30,7 +30,7 @@ fn main() {
         .expect("Error setting Ctrl-C handler");
     }
     info!("Waiting for Ctrl-C ...");
-    if let Err(e) = run_service(&config, &rx) {
+    if let Err(e) = run_service(&config, rx) {
         error!("Failed to run service: {:?}", e);
     }
 }

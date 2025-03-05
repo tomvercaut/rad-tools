@@ -123,7 +123,7 @@ impl std::fmt::Display for CopiedData {
 /// * Directory operations (creating, removing)
 /// * DICOM metadata extraction
 /// * Invalid date formats
-pub fn run_service(config: &Config, rx: &Receiver<ServiceState>) -> Result<()> {
+pub fn run_service(config: &Config, rx: Receiver<ServiceState>) -> Result<()> {
     let handle_copied_data = |r: Result<CopiedData>| -> Result<()> {
         match r {
             Ok(copied_data) => remove_file_retry_on_busy(
@@ -138,7 +138,7 @@ pub fn run_service(config: &Config, rx: &Receiver<ServiceState>) -> Result<()> {
         }
     };
     'outer: loop {
-        let r = get_sorting_data(config, rx);
+        let r = get_sorting_data(config, &rx);
         if let Err(e) = r {
             error!("Error sorting all the data: {}", e);
             return Err(e);
@@ -149,14 +149,14 @@ pub fn run_service(config: &Config, rx: &Receiver<ServiceState>) -> Result<()> {
         }
         // Process the DICOM data
         for dd in vdd {
-            if should_stop(rx) {
+            if should_stop(&rx) {
                 break 'outer;
             }
             handle_copied_data(copy_dicom_data(dd, config))?;
         }
         // Process the unkown data
         for ud in unknowns {
-            if should_stop(rx) {
+            if should_stop(&rx) {
                 break 'outer;
             }
             handle_copied_data(copy_unkown_data(ud, config))?;
@@ -168,7 +168,7 @@ pub fn run_service(config: &Config, rx: &Receiver<ServiceState>) -> Result<()> {
                 e
             );
         }
-        if should_stop(rx) {
+        if should_stop(&rx) {
             break 'outer;
         }
         std::thread::sleep(std::time::Duration::from_millis(
