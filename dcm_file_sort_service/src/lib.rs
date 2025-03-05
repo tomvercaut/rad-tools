@@ -1,5 +1,6 @@
 mod cli;
 mod config;
+pub mod service;
 
 pub use cli::Cli;
 pub use config::Config;
