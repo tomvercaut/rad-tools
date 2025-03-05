@@ -1,0 +1,19 @@
+[package]
+name = "rad-tools-service-manager"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+clap.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-service = "0.8.0"
+
+[[bin]]
+name = "install_service"
+path = "./src/bin/install_service.rs"
+
+[[bin]]
+name = "uninstall_service"
+path = "./src/bin/uninstall_service.rs"
