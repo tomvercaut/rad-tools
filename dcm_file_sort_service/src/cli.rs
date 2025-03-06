@@ -1,6 +1,7 @@
 use clap::Args;
 use clap::Parser;
 
+#[allow(rustdoc::invalid_html_tags)]
 /// An application to sort DICOM data from an input directory into an output directory.
 ///
 /// An application to sort DICOM data from an input directory into an output directory.
