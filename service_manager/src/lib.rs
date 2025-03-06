@@ -1,6 +1,14 @@
 use serde::Deserialize;
-use windows_service::service::{ServiceErrorControl, ServiceStartType, ServiceType};
+use std::ffi::{OsStr, OsString};
+use std::path::PathBuf;
+#[cfg(windows)]
+use windows_service::service::{
+    ServiceAccess, ServiceErrorControl, ServiceInfo, ServiceStartType, ServiceType,
+};
+#[cfg(windows)]
+use windows_service::service_manager::{ServiceManager, ServiceManagerAccess};
 
+#[cfg(windows)]
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("Failed to parse service start type")]
@@ -9,8 +17,11 @@ pub enum Error {
     ParseErrorServiceErrorControl,
     #[error("Failed to parse service type")]
     ParseErrorServiceType,
+    #[error("Internal windows-service crate error")]
+    WindowsServiceError(#[from] windows_service::Error),
 }
 
+#[cfg(windows)]
 type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Deserialize, Debug, Clone)]
@@ -82,6 +93,7 @@ pub struct Credentials {
 /// * "user_own_process" -> ServiceType::USER_OWN_PROCESS
 /// * "user_share_process" -> ServiceType::USER_SHARE_PROCESS
 /// * "interactive_process" -> ServiceType::INTERACTIVE_PROCESS
+#[cfg(windows)]
 fn try_into_service_type<S: AsRef<str>>(service_type: S) -> Result<ServiceType> {
     let s = service_type.as_ref().to_lowercase();
     match s.as_str() {
@@ -147,6 +159,7 @@ fn try_into_service_start_type<S: AsRef<str>>(start_type: S) -> Result<ServiceSt
 /// * "normal" -> ServiceErrorControl::Normal
 /// * "severe" -> ServiceErrorControl::Severe
 /// * "ignore" -> ServiceErrorControl::Ignore
+#[cfg(windows)]
 fn try_into_service_error_control<S: AsRef<str>>(error_control: S) -> Result<ServiceErrorControl> {
     let s = error_control.as_ref().to_lowercase();
     match s.as_str() {
@@ -161,7 +174,65 @@ fn try_into_service_error_control<S: AsRef<str>>(error_control: S) -> Result<Ser
     }
 }
 
+/// Creates a new Windows service on the local machine using the provided configuration.
+///
+/// # Arguments
+///
+/// * `config` - A reference to `ServiceConfig` containing all the necessary service configuration parameters
+///   including service name, display name, description, startup parameters, and optional credentials.
+///
+/// # Returns
+///
+/// * `Ok(())` - If the service was successfully created
+/// * `Err(Error)` - If the service creation failed, with specific error details:
+///   - `ParseErrorServiceStartType` if the start type string is invalid
+///   - `ParseErrorServiceErrorControl` if the error control string is invalid
+///   - `ParseErrorServiceType` if the service type string is invalid
+///   - `WindowsServiceError` for other Windows service-related errors
+///
+/// # Platform Specific
+///
+/// This function is only available on Windows platforms.
+#[cfg(windows)]
+pub fn create_local_service(config: &ServiceConfig) -> Result<()> {
+    let service_type = try_into_service_type(&config.startup.start_type)?;
+    let start_type = try_into_service_start_type(&config.startup.start_type)?;
+    let error_control = try_into_service_error_control(&config.startup.error_control)?;
+
+    let service_info = ServiceInfo {
+        name: OsString::from(&config.service.name),
+        display_name: OsString::from(&config.service.display_name),
+        service_type,
+        start_type,
+        error_control,
+        executable_path: PathBuf::from(&config.startup.executable_path.as_str()),
+        launch_arguments: config
+            .startup
+            .arguments
+            .iter()
+            .map(OsString::from)
+            .collect(),
+        dependencies: vec![],
+        account_name: config
+            .credentials
+            .as_ref()
+            .map(|credentials| OsString::from(&credentials.username)),
+        account_password: config
+            .credentials
+            .as_ref()
+            .map(|credentials| OsString::from(&credentials.password)),
+    };
+    let request_access = ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE;
+    let service_manager = ServiceManager::local_computer(None::<&str>, request_access)?;
+    let service = service_manager.create_service(&service_info, ServiceAccess::CHANGE_CONFIG)?;
+    if let Some(dependencies) = config.service.description.as_ref() {
+        service.set_description(OsStr::new(dependencies.as_str()))?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
+#[cfg(windows)]
 mod tests {
     use super::*;
 
