@@ -32,6 +32,46 @@ pub fn ask_question<S: AsRef<str>>(question: S) -> String {
     }
 }
 
+/// Prompts the user with a question and returns an optional response.
+///
+/// Similar to `ask_question`, but returns `None` if the input is empty or invalid
+/// instead of repeatedly prompting the user. This is useful when you want to handle
+/// empty responses differently in your application logic.
+///
+/// # Parameters
+/// - `question`: A string slice that holds the question to be presented to the user.
+///
+/// # Returns
+/// - `Some(String)` containing the user's response if input was non-empty
+/// - `None` if the input was empty or there was an error reading the input
+///
+/// # Example
+///
+/// ```
+/// use rad_tools_core::cli::ask_question_opt;
+///
+/// let name = ask_question_opt("What is your name");
+/// match name {
+///     Some(name) => println!("Hello, {}!", name),
+///     None => println!("No name provided"),
+/// }
+/// ```
+pub fn ask_question_opt<S: AsRef<str>>(question: S) -> Option<String> {
+    use std::io::Write;
+
+    print!("{}: ", question.as_ref());
+    std::io::stdout().flush().unwrap();
+
+    let mut response = String::new();
+    if std::io::stdin().read_line(&mut response).is_ok() {
+        let response = response.trim();
+        if !response.is_empty() {
+            return Some(response.to_string());
+        }
+    }
+    None
+}
+
 /// Prompts the user with a question and a default value, and waits for a response.
 ///
 /// The function displays the provided question along with a default value in square brackets.
