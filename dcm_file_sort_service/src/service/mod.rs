@@ -4,12 +4,10 @@ use std::ffi::OsString;
 use tracing::error;
 
 #[cfg(windows)]
-use windows_service::service::ServiceType;
-
-#[cfg(windows)]
 pub const NAME: &str = "DicomFileSortService";
 #[cfg(windows)]
-pub const TYPE: ServiceType = ServiceType::OWN_PROCESS;
+pub const TYPE: windows_service::service::ServiceType =
+    windows_service::service::ServiceType::OWN_PROCESS;
 #[cfg(windows)]
 pub const DISPLAY_NAME: &str = "Dicom File Sort Service";
 #[cfg(windows)]
