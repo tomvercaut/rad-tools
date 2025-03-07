@@ -1,6 +1,8 @@
 use serde::Deserialize;
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
+use std::time::Instant;
+use tracing::info;
 #[cfg(windows)]
 use windows_service::service::{
     ServiceAccess, ServiceErrorControl, ServiceInfo, ServiceStartType, ServiceType,
@@ -228,6 +230,46 @@ pub fn create_local_service(config: &ServiceConfig) -> Result<()> {
     if let Some(dependencies) = config.service.description.as_ref() {
         service.set_description(OsStr::new(dependencies.as_str()))?;
     }
+    Ok(())
+}
+
+#[cfg(windows)]
+pub fn uninstall_local_service(config: &ServiceConfig) -> Result<()> {
+    let service_manager =
+        ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)?;
+
+    let service_access = ServiceAccess::QUERY_STATUS | ServiceAccess::STOP | ServiceAccess::DELETE;
+    let service = service_manager.open_service(&config.service.name, service_access)?;
+    // The service will be marked for deletion as long as this function call succeeds.
+    // However, it will not be deleted from the database until it is stopped and all open handles to it are closed.
+    service.delete()?;
+
+    // Check if the service is still running:
+    // * yes -> stop it.
+    //   ** If it can't be stopped, the service will be deleted when the computer system is restarted.
+    if service.query_status()?.current_state != windows_service::service::ServiceState::Stopped {
+        service.stop()?;
+    }
+    // Drop the handle to the service
+    drop(service);
+
+    // Query if the service was deleted from the database
+    let start = Instant::now();
+    let timeout = std::time::Duration::from_secs(10);
+    while start.elapsed() < timeout {
+        if let Err(windows_service::Error::Winapi(e)) =
+            service_manager.open_service(&config.service.name, ServiceAccess::QUERY_STATUS)
+        {
+            if e.raw_os_error()
+                == Some(windows_sys::Win32::Foundation::ERROR_SERVICE_DOES_NOT_EXIST as i32)
+            {
+                info!("Service {} was deleted.", config.service.name);
+                return Ok(());
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+    info!("Service {} was marked for deletion.", config.service.name);
     Ok(())
 }
 
