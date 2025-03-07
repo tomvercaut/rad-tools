@@ -20,6 +20,7 @@ serde_json.workspace = true
 ctrlc.workspace = true
 toml.workspace = true
 filetime.workspace = true
+rad-tools-core = { path = "../core" }
 
 [dev-dependencies]
 tempfile.workspace = true
