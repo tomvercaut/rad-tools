@@ -43,36 +43,30 @@ pub fn ask_question<R: BufRead, W: Write, S: AsRef<str>>(
 
 /// Prompts the user with a question and returns an optional response.
 ///
-/// Similar to `ask_question`, but returns `None` if the input is empty or invalid
-/// instead of repeatedly prompting the user. This is useful when you want to handle
-/// empty responses differently in your application logic.
+/// This function writes the provided question to the specified writer, followed by a colon and space,
+/// then reads input from the provided reader. Unlike `ask_question`, this function returns `None` if
+/// the input is empty or if there was an error reading the input.
 ///
 /// # Parameters
-/// - `question`: A string slice that holds the question to be presented to the user.
+/// - `reader`: Any type that implements `BufRead` for reading user input
+/// - `writer`: Any type that implements `Write` for displaying the question
+/// - `question`: The question to present to the user
 ///
 /// # Returns
-/// - `Some(String)` containing the user's response if input was non-empty
+/// - `Some(String)` containing the user's non-empty response
 /// - `None` if the input was empty or there was an error reading the input
-///
-/// # Example
-///
-/// ```
-/// use rad_tools_core::cli::ask_question_opt;
-///
-/// let name = ask_question_opt("What is your name");
-/// match name {
-///     Some(name) => println!("Hello, {}!", name),
-///     None => println!("No name provided"),
-/// }
-/// ```
-pub fn ask_question_opt<S: AsRef<str>>(question: S) -> Option<String> {
-    use std::io::Write;
-
-    print!("{}: ", question.as_ref());
-    std::io::stdout().flush().unwrap();
+pub fn ask_question_opt<R: BufRead, W: Write, S: AsRef<str>>(
+    mut reader: R,
+    mut writer: W,
+    question: S,
+) -> Option<String> {
+    writer
+        .write_fmt(format_args!("{}: ", question.as_ref()))
+        .expect("Failed to write to Writer");
+    writer.flush().expect("Failed to flush Writer");
 
     let mut response = String::new();
-    if std::io::stdin().read_line(&mut response).is_ok() {
+    if reader.read_line(&mut response).is_ok() {
         let response = response.trim();
         if !response.is_empty() {
             return Some(response.to_string());
@@ -187,6 +181,9 @@ pub mod in_out {
     pub fn ask_question<S: AsRef<str>>(question: S) -> String {
         super::ask_question(stdin().lock(), stdout(), question)
     }
+    pub fn ask_question_opt<S: AsRef<str>>(question: S) -> Option<String> {
+        super::ask_question_opt(stdin().lock(), stdout(), question)
+    }
 }
 
 #[cfg(test)]
@@ -197,5 +194,29 @@ mod tests {
         let writer = std::io::BufWriter::new(std::io::Cursor::new(Vec::new()));
         let response = super::ask_question(reader, writer, "Question");
         assert_eq!(response, "this is a test");
+    }
+
+    #[test]
+    fn test_ask_question_opt() {
+        let reader = std::io::BufReader::new(std::io::Cursor::new("test response\n"));
+        let writer = std::io::BufWriter::new(std::io::Cursor::new(Vec::new()));
+        let response = super::ask_question_opt(reader, writer, "Question");
+        assert_eq!(response, Some("test response".to_string()));
+    }
+
+    #[test]
+    fn test_ask_question_opt_empty() {
+        let reader = std::io::BufReader::new(std::io::Cursor::new("\n"));
+        let writer = std::io::BufWriter::new(std::io::Cursor::new(Vec::new()));
+        let response = super::ask_question_opt(reader, writer, "Question");
+        assert_eq!(response, None);
+    }
+
+    #[test]
+    fn test_ask_question_opt_error() {
+        let reader = std::io::BufReader::new(std::io::Cursor::new(Vec::new()));
+        let writer = std::io::BufWriter::new(std::io::Cursor::new(Vec::new()));
+        let response = super::ask_question_opt(reader, writer, "Question");
+        assert_eq!(response, None);
     }
 }
