@@ -1,34 +1,43 @@
-use std::io::Write;
+use std::io::{BufRead, Write};
 
 /// Prompts the user with a question and waits for a non-empty response.
 ///
-/// The function prints the provided question, followed by a colon and a space, to
-/// the standard output. It then waits for the user's input. If the input is valid
-/// and non-empty, it returns the response as a `String`. If the input is empty,
-/// an error message is displayed, and the user is prompted again until a valid
-/// non-empty response is provided.
+/// This function writes the provided question to the specified writer, followed by a colon and space,
+/// then reads input from the provided reader. If the input is empty, it prompts the user again until
+/// a non-empty response is provided.
 ///
 /// # Parameters
-/// - `question`: A string slice that holds the question to be presented to the user.
+/// - `reader`: Any type that implements `BufRead` for reading user input
+/// - `writer`: Any type that implements `Write` for displaying the question
+/// - `question`: The question to present to the user
 ///
 /// # Returns
-/// A `String` containing the user's response.
-pub fn ask_question<S: AsRef<str>>(question: S) -> String {
-    use std::io::Write;
-
+/// A `String` containing the user's non-empty response.
+pub fn ask_question<R: BufRead, W: Write, S: AsRef<str>>(
+    mut reader: R,
+    mut writer: W,
+    question: S,
+) -> String {
     loop {
-        print!("{}: ", question.as_ref());
-        std::io::stdout().flush().unwrap();
+        writer
+            .write_fmt(format_args!("{}: ", question.as_ref()))
+            .expect("Failed to write to Writer");
+        writer.flush().expect("Failed to flush Writer");
 
         let mut response = String::new();
-        if std::io::stdin().read_line(&mut response).is_ok() {
+        reader
+            .read_line(&mut response)
+            .expect("Failed to read from Reader");
+        if reader.read_line(&mut response).is_ok() {
             let response = response.trim();
             if !response.is_empty() {
                 return response.to_string();
             }
         }
 
-        println!("Response cannot be empty. Please try again.");
+        let _ = writer
+            .write("Response cannot be empty. Please try again.".as_ref())
+            .expect("Failed to write to Writer");
     }
 }
 
@@ -97,5 +106,96 @@ pub fn ask_question_with_default<S: AsRef<str>>(question: S, default: S) -> Stri
         default.as_ref().to_string()
     } else {
         response.to_string()
+    }
+}
+
+/// Prompts the user with a question and numbered options, returns the selected option.
+///
+/// The function displays the question followed by a numbered list of options.
+/// The user must select an option by entering its number.
+/// If an invalid number is entered, the question and options are displayed again.
+///
+/// # Parameters
+/// - `question`: A string slice representing the question to present to the user.
+/// - `options`: A slice of strings representing the available options.
+///
+/// # Returns
+/// A `String` containing the selected option's value.
+pub fn ask_question_with_options<S: AsRef<str>>(question: S, options: &[String]) -> String {
+    loop {
+        match ask_question_with_options_opt(question.as_ref(), options) {
+            Some(selection) => return selection,
+            None => {
+                println!("Invalid selection. Please try again.");
+                continue;
+            }
+        }
+    }
+}
+
+/// Prompts the user with a question and numbered options, returns an optional selected option.
+///
+/// The function displays the question followed by a numbered list of options.
+/// The user must select an option by entering its number.
+/// Unlike `ask_question_with_options`, this function returns `None` for invalid input
+/// instead of repeatedly prompting the user.
+///
+/// # Parameters
+/// - `question`: A string slice representing the question to present to the user.
+/// - `options`: A slice of strings representing the available options.
+///
+/// # Returns
+/// - `Some(String)` containing the selected option's value if a valid selection was made
+/// - `None` if the input was invalid or there was an error reading the input
+///
+/// # Example
+///
+/// ```
+/// use rad_tools_core::cli::ask_question_with_options_opt;
+///
+/// let options = vec!["Red".to_string(), "Blue".to_string(), "Green".to_string()];
+/// match ask_question_with_options_opt("Choose a color", &options) {
+///     Some(color) => println!("You chose: {}", color),
+///     None => println!("Invalid selection"),
+/// }
+/// ```
+pub fn ask_question_with_options_opt<S: AsRef<str>>(
+    question: S,
+    options: &[String],
+) -> Option<String> {
+    println!("\n{}", question.as_ref());
+    for (i, option) in options.iter().enumerate() {
+        println!("{}. {}", i + 1, option);
+    }
+    print!("Select: ");
+    std::io::stdout().flush().unwrap();
+
+    let mut response = String::new();
+    if std::io::stdin().read_line(&mut response).is_ok() {
+        if let Ok(selection) = response.trim().parse::<usize>() {
+            if selection > 0 && selection <= options.len() {
+                return Some(options[selection - 1].clone());
+            }
+        }
+    }
+    None
+}
+
+pub mod in_out {
+    use std::io::{stdin, stdout};
+
+    pub fn ask_question<S: AsRef<str>>(question: S) -> String {
+        super::ask_question(stdin().lock(), stdout(), question)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_ask_question() {
+        let reader = std::io::BufReader::new(std::io::Cursor::new("this is a test\n"));
+        let writer = std::io::BufWriter::new(std::io::Cursor::new(Vec::new()));
+        let response = super::ask_question(reader, writer, "Question");
+        assert_eq!(response, "this is a test");
     }
 }
