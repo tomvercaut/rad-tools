@@ -116,69 +116,42 @@ pub fn ask_question_with_default<R: BufRead, W: Write, S: AsRef<str>>(
     }
 }
 
-/// Prompts the user with a question and numbered options, returns the selected option.
+/// Prompts the user with a question and numbered options, returning the selected option if valid.
 ///
-/// The function displays the question followed by a numbered list of options.
-/// The user must select an option by entering its number.
-/// If an invalid number is entered, the question and options are displayed again.
-///
-/// # Parameters
-/// - `question`: A string slice representing the question to present to the user.
-/// - `options`: A slice of strings representing the available options.
-///
-/// # Returns
-/// A `String` containing the selected option's value.
-pub fn ask_question_with_options<S: AsRef<str>>(question: S, options: &[String]) -> String {
-    loop {
-        match ask_question_with_options_opt(question.as_ref(), options) {
-            Some(selection) => return selection,
-            None => {
-                println!("Invalid selection. Please try again.");
-                continue;
-            }
-        }
-    }
-}
-
-/// Prompts the user with a question and numbered options, returns an optional selected option.
-///
-/// The function displays the question followed by a numbered list of options.
-/// The user must select an option by entering its number.
-/// Unlike `ask_question_with_options`, this function returns `None` for invalid input
-/// instead of repeatedly prompting the user.
+/// This function displays the question followed by a numbered list of options.
+/// The user must select an option by entering its corresponding number.
+/// If an invalid number is entered or there's an error reading the input, None is returned.
 ///
 /// # Parameters
-/// - `question`: A string slice representing the question to present to the user.
-/// - `options`: A slice of strings representing the available options.
+/// - `reader`: Any type that implements `BufRead` for reading user input
+/// - `writer`: Any type that implements `Write` for displaying the question
+/// - `question`: The question to present to the user
+/// - `options`: A slice of strings representing the available options
 ///
 /// # Returns
 /// - `Some(String)` containing the selected option's value if a valid selection was made
 /// - `None` if the input was invalid or there was an error reading the input
-///
-/// # Example
-///
-/// ```
-/// use rad_tools_core::cli::ask_question_with_options_opt;
-///
-/// let options = vec!["Red".to_string(), "Blue".to_string(), "Green".to_string()];
-/// match ask_question_with_options_opt("Choose a color", &options) {
-///     Some(color) => println!("You chose: {}", color),
-///     None => println!("Invalid selection"),
-/// }
-/// ```
-pub fn ask_question_with_options_opt<S: AsRef<str>>(
+pub fn ask_question_with_options_opt<R: BufRead, W: Write, S: AsRef<str>>(
+    mut reader: R,
+    mut writer: W,
     question: S,
     options: &[String],
 ) -> Option<String> {
-    println!("\n{}", question.as_ref());
+    writer
+        .write_fmt(format_args!("{}: ", question.as_ref()))
+        .expect("Failed to write to Writer");
     for (i, option) in options.iter().enumerate() {
-        println!("{}. {}", i + 1, option);
+        writer
+            .write_fmt(format_args!("{}. {}", i + 1, option))
+            .expect("Failed to write to Writer");
     }
-    print!("Select: ");
-    std::io::stdout().flush().unwrap();
+    let _ = writer
+        .write("Select: \n".as_ref())
+        .expect("Failed to write to Writer");
+    writer.flush().expect("Failed to flush Writer");
 
     let mut response = String::new();
-    if std::io::stdin().read_line(&mut response).is_ok() {
+    if reader.read_line(&mut response).is_ok() {
         if let Ok(selection) = response.trim().parse::<usize>() {
             if selection > 0 && selection <= options.len() {
                 return Some(options[selection - 1].clone());
@@ -200,6 +173,13 @@ pub mod in_out {
 
     pub fn ask_question_with_default<S: AsRef<str>>(question: S, default: S) -> String {
         super::ask_question_with_default(stdin().lock(), stdout(), question, default)
+    }
+
+    pub fn ask_question_with_options_opt<S: AsRef<str>>(
+        question: S,
+        options: &[String],
+    ) -> Option<String> {
+        super::ask_question_with_options_opt(stdin().lock(), stdout(), question, options)
     }
 }
 
@@ -259,5 +239,45 @@ mod tests {
         let writer = std::io::BufWriter::new(std::io::Cursor::new(Vec::new()));
         let response = super::ask_question_with_default(reader, writer, "Question", "default");
         assert_eq!(response, "default");
+    }
+
+    #[test]
+    fn test_ask_question_with_options_opt_valid() {
+        let reader = std::io::BufReader::new(std::io::Cursor::new("2\n"));
+        let writer = std::io::BufWriter::new(std::io::Cursor::new(Vec::new()));
+        let options = vec![
+            "Option 1".to_string(),
+            "Option 2".to_string(),
+            "Option 3".to_string(),
+        ];
+        let response = super::ask_question_with_options_opt(reader, writer, "Question", &options);
+        assert_eq!(response, Some("Option 2".to_string()));
+    }
+
+    #[test]
+    fn test_ask_question_with_options_opt_invalid_input() {
+        let reader = std::io::BufReader::new(std::io::Cursor::new("invalid\n"));
+        let writer = std::io::BufWriter::new(std::io::Cursor::new(Vec::new()));
+        let options = vec!["Option 1".to_string(), "Option 2".to_string()];
+        let response = super::ask_question_with_options_opt(reader, writer, "Question", &options);
+        assert_eq!(response, None);
+    }
+
+    #[test]
+    fn test_ask_question_with_options_opt_out_of_range() {
+        let reader = std::io::BufReader::new(std::io::Cursor::new("5\n"));
+        let writer = std::io::BufWriter::new(std::io::Cursor::new(Vec::new()));
+        let options = vec!["Option 1".to_string(), "Option 2".to_string()];
+        let response = super::ask_question_with_options_opt(reader, writer, "Question", &options);
+        assert_eq!(response, None);
+    }
+
+    #[test]
+    fn test_ask_question_with_options_opt_empty() {
+        let reader = std::io::BufReader::new(std::io::Cursor::new("\n"));
+        let writer = std::io::BufWriter::new(std::io::Cursor::new(Vec::new()));
+        let options = vec!["Option 1".to_string(), "Option 2".to_string()];
+        let response = super::ask_question_with_options_opt(reader, writer, "Question", &options);
+        assert_eq!(response, None);
     }
 }
