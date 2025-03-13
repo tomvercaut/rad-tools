@@ -1,6 +1,6 @@
 [workspace]
 members = ["dcm_ls", "dcm_cp", "mpc_checks_cleaner", "one_way_sync", "dcm_file_sort_service"]
-resolver = "2"
+resolver = "3"
 
 [workspace.package]
 #name = "rad-tools"
