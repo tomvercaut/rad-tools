@@ -72,6 +72,7 @@ where
 /// let result = bilinear(1.5f64, 1.5, 1.0, 2.0, 1.0, 2.0, 10.0, 20.0, 20.0, 40.0);
 /// assert_eq!(result, 22.5); // Interpolated value at (1.5, 1.5)
 /// ```
+#[allow(clippy::too_many_arguments)]
 pub fn bilinear<T>(x: T, y: T, x0: T, x1: T, y0: T, y1: T, q00: T, q10: T, q01: T, q11: T) -> T
 where
     T: Float,
