@@ -135,6 +135,20 @@ where
 ///
 /// Returns the interpolated value at point (x,y,z).
 /// If any axis is degenerate, it falls back to bilinear or linear interpolation as appropriate.
+///
+/// # Example
+///
+/// ```
+/// use rad_tools_world::interp::trilinear;
+/// let value: f64 = trilinear(1.5, 1.5, 1.5, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 10.0, 20.0, 20.0, 40.0, 20.0, 40.0, 40.0, 80.0);
+/// assert!((value - 33.75).abs() < 0.001);
+///
+/// let value: f64 = trilinear(1.2, 1.2, 1.2, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 10.0, 20.0, 20.0, 40.0, 20.0, 40.0, 40.0, 80.0);
+/// assert!((value - 17.28).abs() < 0.001);
+///
+/// let value: f64 = trilinear(1.8, 1.8, 1.8, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, 10.0, 20.0, 20.0, 40.0, 20.0, 40.0, 40.0, 80.0);
+/// assert!((value - 58.32).abs() < 0.001);
+/// ```
 #[allow(clippy::too_many_arguments)]
 pub fn trilinear<T>(
     x: T,
