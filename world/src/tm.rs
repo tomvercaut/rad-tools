@@ -1,5 +1,11 @@
-use crate::GridError;
 use nalgebra::{Matrix4, Point3};
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum TransformError {
+    #[error("Transform is not invertible")]
+    NonInvertibleTransform,
+}
 
 /// A transform for converting between grid indices and world coordinates.
 #[derive(Debug, Clone)]
@@ -14,10 +20,10 @@ impl Transform {
     /// Create a new transform with the given 4x4 matrix.
     ///
     /// Returns an error if the matrix is not invertible.
-    pub fn new(matrix: Matrix4<f64>) -> Result<Self, GridError> {
+    pub fn new(matrix: Matrix4<f64>) -> Result<Self, TransformError> {
         let inverse = matrix
             .try_inverse()
-            .ok_or(GridError::NonInvertibleTransform)?;
+            .ok_or(TransformError::NonInvertibleTransform)?;
 
         Ok(Self { matrix, inverse })
     }
@@ -48,9 +54,9 @@ impl Transform {
     }
 
     /// Create a new transform with a scale.
-    pub fn with_scale(x: f64, y: f64, z: f64) -> Result<Self, GridError> {
+    pub fn with_scale(x: f64, y: f64, z: f64) -> Result<Self, TransformError> {
         if x.abs() < f64::EPSILON || y.abs() < f64::EPSILON || z.abs() < f64::EPSILON {
-            return Err(GridError::NonInvertibleTransform);
+            return Err(TransformError::NonInvertibleTransform);
         }
 
         let mut matrix = Matrix4::identity();
@@ -66,36 +72,15 @@ impl Transform {
         Ok(Self { matrix, inverse })
     }
 
-    /// Convert grid indices to world coordinates.
-    pub fn indices_to_coordinates(&self, indices: (usize, usize, usize)) -> Point3<f64> {
-        let point = Point3::new(indices.0 as f64, indices.1 as f64, indices.2 as f64);
-
-        self.matrix.transform_point(&point)
+    /// Apply transform
+    pub fn apply(&self, point: &Point3<f64>) -> Point3<f64> {
+        self.matrix.transform_point(point)
     }
 
-    /// Convert world coordinates to grid indices.
-    ///
-    /// Returns an error if the resulting indices are out of bounds.
-    pub fn coordinates_to_indices(
-        &self,
-        coords: Point3<f64>,
-    ) -> Result<(usize, usize, usize), GridError> {
-        let point = self.inverse.transform_point(&coords);
-
-        // Round to the nearest integer and convert to usize
-        let x = point.x.round();
-        let y = point.y.round();
-        let z = point.z.round();
-
-        // Check if the values are negative
-        if x < 0.0 || y < 0.0 || z < 0.0 {
-            return Err(GridError::InvalidCoordinateConversion(format!(
-                "Negative indices: ({}, {}, {})",
-                x, y, z
-            )));
-        }
-
-        Ok((x as usize, y as usize, z as usize))
+    /// Apply inverse transform
+    pub fn apply_inverse(&self, x: f64, y: f64, z: f64) -> Point3<f64> {
+        let coords = Point3::new(x, y, z);
+        self.inverse.transform_point(&coords)
     }
 }
 
@@ -109,13 +94,40 @@ mod tests {
         let transform = Transform::with_translation(10.0, 20.0, 30.0);
 
         // Test indices to coordinates
-        let coords = transform.indices_to_coordinates((5, 6, 7));
+        let coords = transform.apply(&Point3::new(5f64, 6f64, 7f64));
         assert_eq!(coords.x, 15.0); // 5 + 10
         assert_eq!(coords.y, 26.0); // 6 + 20
         assert_eq!(coords.z, 37.0); // 7 + 30
 
         // Test coordinates to indices
-        let indices = transform.coordinates_to_indices(coords).unwrap();
-        assert_eq!(indices, (5, 6, 7));
+        let indices = transform.apply_inverse(coords.x, coords.y, coords.z);
+        assert_eq!(indices, Point3::new(5f64, 6f64, 7f64));
+    }
+
+    #[test]
+    fn test_i2c_identity() {
+        let transform = Transform::identity();
+        let coords = transform.apply(&Point3::new(1.0, 2.0, 3.0));
+        assert_eq!(coords.x, 1.0);
+        assert_eq!(coords.y, 2.0);
+        assert_eq!(coords.z, 3.0);
+    }
+
+    #[test]
+    fn test_i2c_with_scale() {
+        let transform = Transform::with_scale(2.0, 3.0, 4.0).unwrap();
+        let coords = transform.apply(&Point3::new(1.0, 2.0, 3.0));
+        assert_eq!(coords.x, 2.0); // 1 * 2
+        assert_eq!(coords.y, 6.0); // 2 * 3
+        assert_eq!(coords.z, 12.0); // 3 * 4
+    }
+
+    #[test]
+    fn test_i2c_with_translation() {
+        let transform = Transform::with_translation(10.0, 20.0, 30.0);
+        let coords = transform.apply(&Point3::new(1.0, 2.0, 3.0));
+        assert_eq!(coords.x, 11.0); // 1 + 10
+        assert_eq!(coords.y, 22.0); // 2 + 20
+        assert_eq!(coords.z, 33.0); // 3 + 30
     }
 }

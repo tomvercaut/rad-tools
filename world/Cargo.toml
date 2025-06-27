@@ -1,0 +1,10 @@
+[package]
+name = "rad-tools-world"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+nalgebra = "0.33"
+thiserror.workspace = true
+num-traits = "0.2"
