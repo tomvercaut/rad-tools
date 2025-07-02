@@ -12,6 +12,7 @@ pub type GridResult<T> = Result<T, GridError>;
 
 fn calc_size<const N: usize>(dims: &[isize; N]) -> usize {
     let mut n: usize = 1;
+    #[allow(clippy::needless_range_loop)]
     for i in 0..N {
         if dims[i] < 0 {
             panic!("Dimensions must be positive");
@@ -72,6 +73,7 @@ impl<T: Copy + Debug, const N: usize> Grid<T, N> {
     }
 
     fn valid_indices(&self, index: &[isize; N]) -> GridResult<()> {
+        #[allow(clippy::needless_range_loop)]
         for i in 0..N {
             if index[i] >= self.dims[i] {
                 return Err(GridError::IndexOutOfBounds(
@@ -86,6 +88,7 @@ impl<T: Copy + Debug, const N: usize> Grid<T, N> {
 
     fn linear_index(&self, index: &[isize; N]) -> GridResult<usize> {
         let mut x: usize = 0;
+        #[allow(clippy::needless_range_loop)]
         for i in 0..N {
             let mut m: usize = 1;
             for j in i + 1..N {
