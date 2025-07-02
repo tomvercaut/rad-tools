@@ -10,7 +10,7 @@ pub enum GridError {
 
 pub type GridResult<T> = Result<T, GridError>;
 
-fn calc_size<const N: usize>(dims: &[isize; N]) -> usize {
+fn calc_size<const N: usize>(dims: &[isize; N]) -> GridResult<usize> {
     let mut n: usize = 1;
     #[allow(clippy::needless_range_loop)]
     for i in 0..N {
@@ -19,7 +19,7 @@ fn calc_size<const N: usize>(dims: &[isize; N]) -> usize {
         }
         n *= dims[i] as usize;
     }
-    n
+    Ok(n)
 }
 
 #[derive(Debug, Clone)]
@@ -29,10 +29,10 @@ pub struct Grid<T: Copy + Debug, const N: usize> {
 }
 
 impl<T: Copy + Debug, const N: usize> Grid<T, N> {
-    pub fn new(dims: [isize; N], default_value: T) -> Self {
-        let size: usize = calc_size(&dims);
+    pub fn new(dims: [isize; N], default_value: T) -> GridResult<Self> {
+        let size: usize = calc_size(&dims)?;
         let data = vec![default_value; size];
-        Self { dims, data }
+        Ok(Self { dims, data })
     }
 
     pub fn dims(&self) -> &[isize; N] {
@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_grid_creation() {
-        let grid: Grid<isize, 3> = Grid::new([3isize, 4isize, 5isize], 0);
+        let grid: Grid<isize, 3> = Grid::new([3isize, 4isize, 5isize], 0).unwrap();
         assert_eq!(grid.dims(), &[3, 4, 5]);
 
         // Test that all values are initialized to default
@@ -145,7 +145,7 @@ mod tests {
 
     #[test]
     fn test_grid_set_get() {
-        let mut grid: Grid<isize, 3> = Grid::new([3isize, 4isize, 5isize], 0);
+        let mut grid: Grid<isize, 3> = Grid::new([3isize, 4isize, 5isize], 0).unwrap();
 
         // Set some values
         grid.set(&[1, 2, 3], 42).unwrap();
@@ -163,7 +163,7 @@ mod tests {
 
     #[test]
     fn test_grid_indexing() {
-        let mut grid: Grid<isize, 3> = Grid::new([3isize, 4isize, 5isize], 0);
+        let mut grid: Grid<isize, 3> = Grid::new([3isize, 4isize, 5isize], 0).unwrap();
 
         // Set using indexing
         grid[&[1, 2, 3]] = 42;
@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn test_valid_indices() {
-        let grid: Grid<isize, 3> = Grid::new([3isize, 4isize, 5isize], 0);
+        let grid: Grid<isize, 3> = Grid::new([3isize, 4isize, 5isize], 0).unwrap();
 
         // Test valid indices
         assert!(grid.valid_indices(&[0, 0, 0]).is_ok());
@@ -187,7 +187,7 @@ mod tests {
 
     #[test]
     fn test_invalid_indices() {
-        let grid: Grid<isize, 3> = Grid::new([3isize, 4isize, 5isize], 0);
+        let grid: Grid<isize, 3> = Grid::new([3isize, 4isize, 5isize], 0).unwrap();
 
         // Test out-of-bounds indices
         assert!(grid.valid_indices(&[3, 0, 0]).is_err());
