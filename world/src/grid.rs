@@ -4,120 +4,116 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum GridError {
-    #[error("Index out of bounds: {0}")]
-    IndexOutOfBounds(String),
+    #[error("Index [{0}] out of bounds: {1} >= {2}")]
+    IndexOutOfBounds(isize, isize, isize),
 }
 
-/// A 3D grid of numeric data with a transform for converting between indices and coordinates.
+fn calc_size<const N: usize>(dims: &[isize; N]) -> usize {
+    let mut n: usize = 1;
+    for i in 0..N {
+        if dims[i] < 0 {
+            panic!("Dimensions must be positive");
+        }
+        n *= dims[i] as usize;
+    }
+    n
+}
+
 #[derive(Debug, Clone)]
-pub struct Grid3D<T: Copy + Debug> {
-    /// The 3D array of data
+pub struct Grid<T: Copy + Debug, const N: usize> {
+    dims: [isize; N],
     data: Vec<T>,
-    /// The dimensions of the grid (x, y, z)
-    dimensions: (usize, usize, usize),
-    /// Default value for uninitialized cells
-    default_value: T,
 }
 
-impl<T: Copy + Debug> Grid3D<T> {
-    /// Create a new 3D grid with the given dimensions and default value.
-    pub fn new(dimensions: (usize, usize, usize), default_value: T) -> Self {
-        let size = dimensions.0 * dimensions.1 * dimensions.2;
+impl<T: Copy + Debug, const N: usize> Grid<T, N> {
+    pub fn new(dims: [isize; N], default_value: T) -> Self {
+        let size: usize = calc_size(&dims);
         let data = vec![default_value; size];
-
-        Self {
-            data,
-            dimensions,
-            default_value,
-        }
+        Self { dims, data }
     }
 
-    /// Get the dimensions of the grid.
-    pub fn dims(&self) -> (usize, usize, usize) {
-        self.dimensions
+    pub fn dims(&self) -> &[isize; N] {
+        &self.dims
     }
 
-    /// Get the value at the given indices.
-    ///
-    /// Returns an error if the indices are out of bounds.
-    pub fn get(&self, x: usize, y: usize, z: usize) -> Result<T, GridError> {
-        let index = self.linear_index(x, y, z)?;
-        Ok(self.data[index])
+    pub fn len(&self) -> usize {
+        self.data.len()
     }
 
-    /// Set the value at the given indices.
-    ///
-    /// Returns an error if the indices are out of bounds.
-    pub fn set(&mut self, x: usize, y: usize, z: usize, value: T) -> Result<(), GridError> {
-        let index = self.linear_index(x, y, z)?;
-        self.data[index] = value;
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
+    pub fn set(&mut self, index: &[isize; N], value: T) -> Result<(), GridError> {
+        self.valid_indices(index)?;
+        let x = self.linear_index(index)?;
+        self.data[x] = value;
         Ok(())
     }
 
-    /// Calculate the 1D index from 3D indices.
-    fn linear_index(&self, x: usize, y: usize, z: usize) -> Result<usize, GridError> {
-        self.valid_indices(x, y, z)?;
-        Ok(x + y * self.dimensions.0 + z * self.dimensions.0 * self.dimensions.1)
+    pub fn get(&self, index: &[isize; N]) -> Result<T, GridError> {
+        self.valid_indices(index)?;
+        let x = self.linear_index(index)?;
+        Ok(self.data[x])
     }
 
-    /// Checks if the given indices are within the grid's dimensions.
-    ///
-    /// # Arguments
-    /// * `x` - The x-axis index to check
-    /// * `y` - The y-axis index to check
-    /// * `z` - The z-axis index to check
-    ///
-    /// # Returns
-    /// * `Ok(())` if the indices are valid
-    /// * `Err(GridError::IndexOutOfBounds)` if any index is out of bounds
-    fn valid_indices(&self, x: usize, y: usize, z: usize) -> Result<(), GridError> {
-        if x >= self.dimensions.0 || y >= self.dimensions.1 || z >= self.dimensions.2 {
-            return Err(GridError::IndexOutOfBounds(format!(
-                "Indices ({x}, {y}, {z}) out of bounds for dimensions {:#?}",
-                self.dimensions
-            )));
+    pub fn get_ref(&self, index: &[isize; N]) -> Result<&T, GridError> {
+        self.valid_indices(index)?;
+        let x = self.linear_index(index)?;
+        Ok(&self.data[x])
+    }
+
+    pub fn get_mut(&mut self, index: &[isize; N]) -> Result<&mut T, GridError> {
+        self.valid_indices(index)?;
+        let x = self.linear_index(index)?;
+        Ok(&mut self.data[x])
+    }
+
+    fn valid_indices(&self, index: &[isize; N]) -> Result<(), GridError> {
+        for i in 0..N {
+            if index[i] >= self.dims[i] {
+                return Err(GridError::IndexOutOfBounds(
+                    i as isize,
+                    index[i],
+                    self.dims[i],
+                ));
+            }
         }
         Ok(())
     }
 
-    /// Fill the entire grid with the given value.
-    pub fn fill(&mut self, value: T) {
-        self.data.fill(value);
-    }
-
-    /// Reset the grid to the default value.
-    pub fn reset(&mut self) {
-        self.fill(self.default_value);
+    fn linear_index(&self, index: &[isize; N]) -> Result<usize, GridError> {
+        let mut x: usize = 0;
+        for i in 0..N {
+            let mut m: usize = 1;
+            for j in i + 1..N {
+                m *= self.dims[j] as usize;
+            }
+            x += m * index[i] as usize;
+        }
+        Ok(x)
     }
 }
 
-impl<T: Copy + Debug> Index<(usize, usize, usize)> for Grid3D<T> {
+impl<T: Copy + Debug, const N: usize> Index<&[isize; N]> for Grid<T, N> {
     type Output = T;
 
-    fn index(&self, indices: (usize, usize, usize)) -> &Self::Output {
-        let (x, y, z) = indices;
-        match self.linear_index(x, y, z) {
-            Ok(index) => &self.data[index],
-            Err(_) => {
-                panic!(
-                    "Index out of bounds: ({x}, {y}, {z}) for dimensions {:#?}",
-                    self.dimensions
-                );
+    fn index(&self, index: &[isize; N]) -> &Self::Output {
+        match self.get_ref(index) {
+            Ok(value) => value,
+            Err(e) => {
+                panic!("Error reading Grid index {index:#?}: {e}");
             }
         }
     }
 }
 
-impl<T: Copy + Debug> IndexMut<(usize, usize, usize)> for Grid3D<T> {
-    fn index_mut(&mut self, indices: (usize, usize, usize)) -> &mut Self::Output {
-        let (x, y, z) = indices;
-        match self.linear_index(x, y, z) {
-            Ok(index) => &mut self.data[index],
-            Err(_) => {
-                panic!(
-                    "Index out of bounds: ({x}, {y}, {z}) for dimensions {:#?}",
-                    self.dimensions
-                );
+impl<T: Copy + Debug, const N: usize> IndexMut<&[isize; N]> for Grid<T, N> {
+    fn index_mut(&mut self, index: &[isize; N]) -> &mut Self::Output {
+        match self.get_mut(index) {
+            Ok(value) => value,
+            Err(e) => {
+                panic!("Error reading Grid index {index:#?}: {e}");
             }
         }
     }
@@ -129,14 +125,14 @@ mod tests {
 
     #[test]
     fn test_grid_creation() {
-        let grid = Grid3D::new((3, 4, 5), 0);
-        assert_eq!(grid.dims(), (3, 4, 5));
+        let grid: Grid<isize, 3> = Grid::new([3isize, 4isize, 5isize], 0);
+        assert_eq!(grid.dims(), &[3, 4, 5]);
 
         // Test that all values are initialized to default
         for x in 0..3 {
             for y in 0..4 {
                 for z in 0..5 {
-                    assert_eq!(grid.get(x, y, z).unwrap(), 0);
+                    assert_eq!(grid.get(&[x, y, z]).unwrap(), 0);
                 }
             }
         }
@@ -144,54 +140,54 @@ mod tests {
 
     #[test]
     fn test_grid_set_get() {
-        let mut grid = Grid3D::new((3, 4, 5), 0);
+        let mut grid: Grid<isize, 3> = Grid::new([3isize, 4isize, 5isize], 0);
 
         // Set some values
-        grid.set(1, 2, 3, 42).unwrap();
-        grid.set(0, 0, 0, 10).unwrap();
+        grid.set(&[1, 2, 3], 42).unwrap();
+        grid.set(&[0, 0, 0], 10).unwrap();
 
         // Check the values
-        assert_eq!(grid.get(1, 2, 3).unwrap(), 42);
-        assert_eq!(grid.get(0, 0, 0).unwrap(), 10);
-        assert_eq!(grid.get(2, 3, 4).unwrap(), 0); // Default value
+        assert_eq!(grid.get(&[1, 2, 3]).unwrap(), 42);
+        assert_eq!(grid.get(&[0, 0, 0]).unwrap(), 10);
+        assert_eq!(grid.get(&[2, 3, 4]).unwrap(), 0); // Default value
 
         // Test out of bounds
-        assert!(grid.get(3, 0, 0).is_err());
-        assert!(grid.set(0, 4, 0, 100).is_err());
+        assert!(grid.get(&[3, 0, 0]).is_err());
+        assert!(grid.set(&[0, 4, 0], 100).is_err());
     }
 
     #[test]
     fn test_grid_indexing() {
-        let mut grid = Grid3D::new((3, 4, 5), 0);
+        let mut grid: Grid<isize, 3> = Grid::new([3isize, 4isize, 5isize], 0);
 
         // Set using indexing
-        grid[(1, 2, 3)] = 42;
-        grid[(0, 0, 0)] = 10;
+        grid[&[1, 2, 3]] = 42;
+        grid[&[0, 0, 0]] = 10;
 
         // Get using indexing
-        assert_eq!(grid[(1, 2, 3)], 42);
-        assert_eq!(grid[(0, 0, 0)], 10);
-        assert_eq!(grid[(2, 3, 4)], 0); // Default value
+        assert_eq!(grid[&[1, 2, 3]], 42);
+        assert_eq!(grid[&[0, 0, 0]], 10);
+        assert_eq!(grid[&[2, 3, 4]], 0); // Default value
     }
 
     #[test]
     fn test_valid_indices() {
-        let grid = Grid3D::new((3, 4, 5), 0);
+        let grid: Grid<isize, 3> = Grid::new([3isize, 4isize, 5isize], 0);
 
         // Test valid indices
-        assert!(grid.valid_indices(0, 0, 0).is_ok());
-        assert!(grid.valid_indices(2, 3, 4).is_ok());
-        assert!(grid.valid_indices(1, 2, 3).is_ok());
+        assert!(grid.valid_indices(&[0, 0, 0]).is_ok());
+        assert!(grid.valid_indices(&[2, 3, 4]).is_ok());
+        assert!(grid.valid_indices(&[1, 2, 3]).is_ok());
     }
 
     #[test]
     fn test_invalid_indices() {
-        let grid = Grid3D::new((3, 4, 5), 0);
+        let grid: Grid<isize, 3> = Grid::new([3isize, 4isize, 5isize], 0);
 
         // Test out-of-bounds indices
-        assert!(grid.valid_indices(3, 0, 0).is_err());
-        assert!(grid.valid_indices(0, 4, 0).is_err());
-        assert!(grid.valid_indices(0, 0, 5).is_err());
-        assert!(grid.valid_indices(10, 10, 10).is_err());
+        assert!(grid.valid_indices(&[3, 0, 0]).is_err());
+        assert!(grid.valid_indices(&[0, 4, 0]).is_err());
+        assert!(grid.valid_indices(&[0, 0, 5]).is_err());
+        assert!(grid.valid_indices(&[10, 10, 10]).is_err());
     }
 }
