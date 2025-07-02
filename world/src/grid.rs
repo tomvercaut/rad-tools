@@ -8,6 +8,8 @@ pub enum GridError {
     IndexOutOfBounds(isize, isize, isize),
 }
 
+pub type GridResult<T> = Result<T, GridError>;
+
 fn calc_size<const N: usize>(dims: &[isize; N]) -> usize {
     let mut n: usize = 1;
     for i in 0..N {
@@ -44,32 +46,32 @@ impl<T: Copy + Debug, const N: usize> Grid<T, N> {
         self.data.is_empty()
     }
 
-    pub fn set(&mut self, index: &[isize; N], value: T) -> Result<(), GridError> {
+    pub fn set(&mut self, index: &[isize; N], value: T) -> GridResult<()> {
         self.valid_indices(index)?;
         let x = self.linear_index(index)?;
         self.data[x] = value;
         Ok(())
     }
 
-    pub fn get(&self, index: &[isize; N]) -> Result<T, GridError> {
+    pub fn get(&self, index: &[isize; N]) -> GridResult<T> {
         self.valid_indices(index)?;
         let x = self.linear_index(index)?;
         Ok(self.data[x])
     }
 
-    pub fn get_ref(&self, index: &[isize; N]) -> Result<&T, GridError> {
+    pub fn get_ref(&self, index: &[isize; N]) -> GridResult<&T> {
         self.valid_indices(index)?;
         let x = self.linear_index(index)?;
         Ok(&self.data[x])
     }
 
-    pub fn get_mut(&mut self, index: &[isize; N]) -> Result<&mut T, GridError> {
+    pub fn get_mut(&mut self, index: &[isize; N]) -> GridResult<&mut T> {
         self.valid_indices(index)?;
         let x = self.linear_index(index)?;
         Ok(&mut self.data[x])
     }
 
-    fn valid_indices(&self, index: &[isize; N]) -> Result<(), GridError> {
+    fn valid_indices(&self, index: &[isize; N]) -> GridResult<()> {
         for i in 0..N {
             if index[i] >= self.dims[i] {
                 return Err(GridError::IndexOutOfBounds(
@@ -82,7 +84,7 @@ impl<T: Copy + Debug, const N: usize> Grid<T, N> {
         Ok(())
     }
 
-    fn linear_index(&self, index: &[isize; N]) -> Result<usize, GridError> {
+    fn linear_index(&self, index: &[isize; N]) -> GridResult<usize> {
         let mut x: usize = 0;
         for i in 0..N {
             let mut m: usize = 1;
