@@ -6,6 +6,8 @@ use thiserror::Error;
 pub enum GridError {
     #[error("Index [{0}] out of bounds: {1} >= {2}")]
     IndexOutOfBounds(isize, isize, isize),
+    #[error("Dimension {0} doesn't match with the number of data elements {1}.")]
+    DimensionSizeMismatch(usize, usize),
 }
 
 pub type GridResult<T> = Result<T, GridError>;
@@ -33,6 +35,17 @@ impl<T: Copy + Debug, const N: usize> Grid<T, N> {
         let size: usize = calc_size(&dims)?;
         let data = vec![default_value; size];
         Ok(Self { dims, data })
+    }
+
+    pub fn new_from_slice(dims: [isize; N], data: &[T]) -> GridResult<Self> {
+        let size: usize = calc_size(&dims)?;
+        if data.len() != size {
+            return Err(GridError::DimensionSizeMismatch(size, data.len()));
+        }
+        Ok(Self {
+            dims,
+            data: data.to_vec(),
+        })
     }
 
     pub fn dims(&self) -> &[isize; N] {
@@ -194,5 +207,49 @@ mod tests {
         assert!(grid.valid_indices(&[0, 4, 0]).is_err());
         assert!(grid.valid_indices(&[0, 0, 5]).is_err());
         assert!(grid.valid_indices(&[10, 10, 10]).is_err());
+    }
+
+    #[test]
+    fn test_grid_new_from_slice() {
+        let data = vec![1, 2, 3, 4, 5, 6];
+        let grid = Grid::new_from_slice([2isize, 3isize], &data).unwrap();
+
+        // Test dimensions
+        assert_eq!(grid.dims(), &[2, 3]);
+
+        // Test values
+        assert_eq!(grid.get(&[0, 0]).unwrap(), 1);
+        assert_eq!(grid.get(&[0, 1]).unwrap(), 2);
+        assert_eq!(grid.get(&[0, 2]).unwrap(), 3);
+        assert_eq!(grid.get(&[1, 0]).unwrap(), 4);
+        assert_eq!(grid.get(&[1, 1]).unwrap(), 5);
+        assert_eq!(grid.get(&[1, 2]).unwrap(), 6);
+
+        // Test error case - wrong size
+        let wrong_data = vec![1, 2, 3];
+        assert!(Grid::<i32, 2>::new_from_slice([2isize, 3isize], &wrong_data).is_err());
+    }
+
+    #[test]
+    fn test_grid_new_from_slice_3d() {
+        let data = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let grid = Grid::new_from_slice([2isize, 2isize, 2isize], &data).unwrap();
+
+        // Test dimensions
+        assert_eq!(grid.dims(), &[2, 2, 2]);
+
+        // Test values
+        assert_eq!(grid.get(&[0, 0, 0]).unwrap(), 1);
+        assert_eq!(grid.get(&[0, 0, 1]).unwrap(), 2);
+        assert_eq!(grid.get(&[0, 1, 0]).unwrap(), 3);
+        assert_eq!(grid.get(&[0, 1, 1]).unwrap(), 4);
+        assert_eq!(grid.get(&[1, 0, 0]).unwrap(), 5);
+        assert_eq!(grid.get(&[1, 0, 1]).unwrap(), 6);
+        assert_eq!(grid.get(&[1, 1, 0]).unwrap(), 7);
+        assert_eq!(grid.get(&[1, 1, 1]).unwrap(), 8);
+
+        // Test error case - wrong size
+        let wrong_data = vec![1, 2, 3, 4];
+        assert!(Grid::<i32, 3>::new_from_slice([2isize, 2isize, 2isize], &wrong_data).is_err());
     }
 }
