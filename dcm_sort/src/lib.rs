@@ -3,10 +3,11 @@ mod support;
 use std::path::{Path, PathBuf};
 
 use dicom_dictionary_std::tags::{
-    MODALITY, PATIENT_ID, SERIES_DESCRIPTION, SERIES_INSTANCE_UID, SERIES_NUMBER,
-    STUDY_DESCRIPTION, STUDY_INSTANCE_UID,
+    MODALITY, PATIENT_ID, PIXEL_DATA, SERIES_DESCRIPTION, SERIES_INSTANCE_UID, SERIES_NUMBER,
+    SOP_INSTANCE_UID, STUDY_DESCRIPTION, STUDY_INSTANCE_UID,
 };
-use dicom_object::InMemDicomObject;
+use dicom_object::{DefaultDicomObject, InMemDicomObject, OpenFileOptions, ReadError};
+use tracing::{debug, error};
 
 const STUDY_INSTANCE_UID_UNKNOWN: &str = "STUDY_UID_UNKNOWN";
 const SERIES_INSTANCE_UID_UNKNOWN: &str = "SERIES_UID_UNKNOWN";
@@ -20,6 +21,28 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// Reads a DICOM file and loads its metadata without reading pixel data.
+///
+/// This function opens a DICOM file and reads all metadata tags up until (but not including)
+/// the pixel data element to optimize memory usage and reading speed.
+///
+/// # Arguments
+///
+/// * `path` - A string slice containing the path to the DICOM file to read
+///
+/// # Returns
+///
+/// * `Ok(DefaultDicomObject)` - The DICOM object containing the file's metadata
+/// * `Err(ReadError)` - If an error occurs while reading the DICOM file
+pub fn read_dicom_file_without_pixels(
+    path: &str,
+) -> std::result::Result<DefaultDicomObject, ReadError> {
+    debug!("Trying to read DICOM data from: {:#?}", path);
+    OpenFileOptions::new()
+        .read_until(PIXEL_DATA)
+        .open_file(path)
+}
 
 /// A trait to convert a DICOM object into another data type.
 pub trait TryFromDicomObject: Sized {
@@ -39,6 +62,8 @@ pub trait TryFromDicomObject: Sized {
 pub struct Data {
     /// Unique patient identifier
     patient_id: String,
+    /// SOP instance UID
+    sop_instance_uid: String,
     /// Study Instance UID
     study_uid: String,
     /// Study description
@@ -89,9 +114,25 @@ impl Data {
         &self.modality
     }
 }
+impl AsRef<Data> for Data {
+    fn as_ref(&self) -> &Data {
+        self
+    }
+}
 
-#[derive(Debug)]
-pub enum FromDicomObjectError {}
+#[derive(thiserror::Error, Debug)]
+pub enum FromDicomObjectError {
+    #[error("DICOM instance requires a Patient ID.")]
+    MissingPatientID,
+    #[error("DICOM instance requires a SOP Instance UID.")]
+    MissingSopInstancedUid,
+    #[error("DICOM instance requires a Study Instance UID.")]
+    MissingStudyInstanceUid,
+    #[error("DICOM instance requires a Series Instance UID.")]
+    MissingSeriesInstanceUid,
+    #[error("DICOM instance requires a Modality.")]
+    MissingModality,
+}
 
 impl TryFromDicomObject for Data {
     type DicomObjectError = FromDicomObjectError;
@@ -99,15 +140,47 @@ impl TryFromDicomObject for Data {
     fn try_from_dicom_obj(
         obj: &InMemDicomObject,
     ) -> std::result::Result<Self, Self::DicomObjectError> {
-        let patient_id = support::get_str(obj, PATIENT_ID).unwrap();
-        let study_uid = support::get_str(obj, STUDY_INSTANCE_UID).unwrap();
+        let patient_id = match support::get_str(obj, PATIENT_ID) {
+            Ok(value) => Ok(value),
+            Err(e) => {
+                error!("Unable to get Patient ID: {:#?}", e);
+                Err(FromDicomObjectError::MissingPatientID)
+            }
+        }?;
+        let sop_instance_uid = match support::get_str(obj, SOP_INSTANCE_UID) {
+            Ok(value) => Ok(value),
+            Err(e) => {
+                error!("Unable to get SOP Instance UID: {:#?}", e);
+                Err(FromDicomObjectError::MissingSopInstancedUid)
+            }
+        }?;
+        let study_uid = match support::get_str(obj, STUDY_INSTANCE_UID) {
+            Ok(value) => Ok(value),
+            Err(e) => {
+                error!("Unable to get Study Instance UID: {:#?}", e);
+                Err(FromDicomObjectError::MissingStudyInstanceUid)
+            }
+        }?;
         let study_descr = support::get_str_or_default(obj, STUDY_DESCRIPTION);
-        let series_uid = support::get_str(obj, SERIES_INSTANCE_UID).unwrap();
+        let series_uid = match support::get_str(obj, SERIES_INSTANCE_UID) {
+            Ok(value) => Ok(value),
+            Err(e) => {
+                error!("Unable to get Series Instance UID: {:#?}", e);
+                Err(FromDicomObjectError::MissingSeriesInstanceUid)
+            }
+        }?;
         let series_descr = support::get_str_or_default(obj, SERIES_DESCRIPTION);
         let series_nr = support::get_str_or_default(obj, SERIES_NUMBER);
-        let modality = support::get_str(obj, MODALITY).unwrap();
+        let modality = match support::get_str(obj, MODALITY) {
+            Ok(value) => Ok(value),
+            Err(e) => {
+                error!("Unable to get Modality: {:#?}", e);
+                Err(FromDicomObjectError::MissingModality)
+            }
+        }?;
         let data = Data {
             patient_id,
+            sop_instance_uid,
             study_uid,
             study_descr,
             series_uid,
@@ -119,12 +192,47 @@ impl TryFromDicomObject for Data {
     }
 }
 
+/// Sanitizes a string by replacing non-allowed characters with underscores ('_').
+///
+/// The following characters are preserved:
+/// - Alphanumeric characters (a-z, A-Z, 0-9)
+/// - Space character
+/// - Round brackets: '(' and ')'
+/// - Square brackets: '[' and ']'
+///
+/// All other characters are replaced with an underscore.
+/// Multiple consecutive underscores and spaces are collapsed into a single one.
+fn sanitize(input: &str) -> String {
+    // Single-pass: normalize disallowed chars to '_' and collapse runs of '_' and ' '.
+    let mut out = String::with_capacity(input.len());
+    let mut last: Option<char> = None;
+
+    for c in input.chars() {
+        // Normalize: keep allowed chars, otherwise map to '_'
+        let n = if is_allowed_char(c) { c } else { '_' };
+
+        // Collapse consecutive '_' or ' '
+        let is_collapse_target = n == '_' || n == ' ';
+        if !(is_collapse_target && Some(n) == last) {
+            out.push(n);
+        }
+        last = Some(n);
+    }
+
+    out
+}
+
+#[inline]
+fn is_allowed_char(c: char) -> bool {
+    c.is_alphanumeric() || matches!(c, ' ' | '(' | ')' | '[' | ']')
+}
+
 /// Create a file path based on the data.
 ///
 /// Format of the path being created:
-/// <p>/<patient ID>/<study>/<series>/<series nr>/<modality>
+/// `<p>/<patient ID>/<study>/<series>/<series nr>/<modality>`
 ///
-/// where:
+/// Where:
 /// - `p`: input path
 /// - `patient ID`: unique patient identifier
 /// - `study`:
@@ -141,43 +249,94 @@ impl TryFromDicomObject for Data {
 /// - `modality`:
 ///     - modality, if not empty
 ///     - MODALITY_UNKNOWN
-pub fn to_path_buf<P>(d: &Data, p: P) -> Result<PathBuf>
+pub fn to_path_buf<D, P>(d: D, p: P) -> Result<PathBuf>
 where
+    D: AsRef<Data>,
     P: AsRef<Path>,
 {
+    let d = d.as_ref();
     if d.patient_id.trim().is_empty() {
         return Err(Error::PatientIdUnknown);
     }
     let p = p.as_ref();
+    let study = sanitize(if d.study_uid().is_empty() && d.study_descr().is_empty() {
+        STUDY_INSTANCE_UID_UNKNOWN
+    } else if !d.study_descr().is_empty() {
+        d.study_descr()
+    } else {
+        d.study_uid()
+    });
+    let series = sanitize(
+        if d.series_uid().is_empty() && d.series_descr().is_empty() {
+            SERIES_INSTANCE_UID_UNKNOWN
+        } else if !d.series_descr().is_empty() {
+            d.series_descr()
+        } else {
+            d.series_uid()
+        },
+    );
+    let serie_number = sanitize(if d.series_nr().is_empty() {
+        SERIES_NUMBER_UNKNOWN
+    } else {
+        d.series_nr()
+    });
+    let modality = sanitize(if d.modality().is_empty() {
+        MODALITY_UNKNOWN
+    } else {
+        d.modality()
+    });
     let pb = p
         .join(d.patient_id())
-        .join(if d.study_uid().is_empty() && d.study_descr().is_empty() {
-            STUDY_INSTANCE_UID_UNKNOWN
-        } else if !d.study_descr().is_empty() {
-            d.study_descr()
-        } else {
-            d.study_uid()
-        })
-        .join(
-            if d.series_uid().is_empty() && d.series_descr().is_empty() {
-                SERIES_INSTANCE_UID_UNKNOWN
-            } else if !d.series_descr().is_empty() {
-                d.series_descr()
-            } else {
-                d.series_uid()
-            },
-        )
-        .join(if d.series_nr().is_empty() {
-            SERIES_NUMBER_UNKNOWN
-        } else {
-            d.series_nr()
-        })
-        .join(if d.modality().is_empty() {
-            MODALITY_UNKNOWN
-        } else {
-            d.modality()
-        });
+        .join(study)
+        .join(series)
+        .join(serie_number)
+        .join(modality);
     Ok(pb)
+}
+
+/// Creates a unique file path for a DICOM file within the specified directory.
+///
+/// This function generates a unique file path by using SOP Instance UID from the DICOM data
+/// as the base filename with a ".dcm" extension. If a file with that name already exists,
+/// it appends an incrementing number to the filename until a unique path is found.
+///
+/// # Arguments
+///
+/// * `data` - The DICOM data containing the SOP Instance UID
+/// * `dir` - The directory where the file should be created
+///
+/// # Returns
+///
+/// * `Ok(PathBuf)` - A unique path for the DICOM file
+/// * `Err(std::io::Error)` - If the directory cannot be created, or if too many files with similar names exist
+pub fn unique_dcm_file<P, D>(data: D, dir: P) -> std::io::Result<PathBuf>
+where
+    P: AsRef<Path>,
+    D: AsRef<Data>,
+{
+    let dir = dir.as_ref();
+    let data = data.as_ref();
+
+    let mut output_path = dir.join(format!("{}.dcm", data.sop_instance_uid));
+    let mut exists = output_path.exists();
+
+    if !exists {
+        return Ok(output_path);
+    }
+
+    let mut i = -1isize;
+    while exists {
+        i += 1;
+        output_path = dir.join(format!("{}_{}.dcm", data.sop_instance_uid, i));
+        exists = output_path.exists();
+        if !exists {
+            return Ok(output_path);
+        }
+        if i == isize::MAX {
+            break;
+        }
+    }
+    Err(std::io::Error::other("Too many files with the same name."))
 }
 
 #[cfg(test)]
@@ -196,6 +355,7 @@ mod test {
         let datas = [
             Data {
                 patient_id: "pt_id".into(),
+                sop_instance_uid: "sop_instance_uid_0".into(),
                 study_uid: "study".into(),
                 study_descr: "study_descr".into(),
                 series_uid: "series".into(),
@@ -205,6 +365,7 @@ mod test {
             },
             Data {
                 patient_id: "pt_id".into(),
+                sop_instance_uid: "sop_instance_uid_1".into(),
                 study_uid: "study".into(),
                 study_descr: "".into(),
                 series_uid: "series".into(),
@@ -214,6 +375,7 @@ mod test {
             },
             Data {
                 patient_id: "pt_id".into(),
+                sop_instance_uid: "sop_instance_uid_2".into(),
                 study_uid: "".into(),
                 study_descr: "".into(),
                 series_uid: "".into(),

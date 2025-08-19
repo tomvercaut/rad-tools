@@ -1,5 +1,5 @@
 [package]
-name = "dcm_sort"
+name = "rad-tools-dcm_sort"
 description = "A command line interface (CLI) application to sort DICOM data into a set of subdirectories."
 
 version.workspace = true
@@ -15,3 +15,7 @@ walkdir.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 thiserror.workspace = true
+
+[[bin]]
+name = "dcm_sort"
+path = "src/main.rs"
