@@ -2,7 +2,7 @@ use clap::Parser;
 use rad_tools_dcm_sort::{
     Data, TryFromDicomObject, read_dicom_file_without_pixels, to_path_buf, unique_dcm_file,
 };
-use tracing::{Level, debug, error, info, trace};
+use tracing::{debug, error, info, trace, warn};
 use walkdir::WalkDir;
 
 /// A command line interface (CLI) application to sort DICOM files into a set of subdirectories.
@@ -82,18 +82,11 @@ fn main() {
             continue;
         }
 
-        let path_str = match path.to_str() {
-            Some(s) => s,
-            None => {
-                error!("Non-UTF8 path encountered: {:#?}", path);
-                continue;
-            }
-        };
-
-        let dicom_open = read_dicom_file_without_pixels(path_str);
-        if dicom_open.as_ref().is_err() && level >= Level::INFO {
-            error!(
-                "Error reading DICOM metadata from {:#?}: {:#?}",
+        let dicom_open = read_dicom_file_without_pixels(path);
+        if dicom_open.as_ref().is_err() {
+            warn!("Unable to read DICOM data from {:#?}", &path);
+            trace!(
+                "Unable to read DICOM data from {:#?}: {:#?}",
                 path,
                 dicom_open.as_ref().err()
             );
@@ -112,7 +105,7 @@ fn main() {
             }
         };
 
-        trace!("Data read from: {:#?}\n{:#?}", path, &data);
+        trace!("Data read from: {:#?}", path);
 
         let output_dir = match to_path_buf(&data, &cli.output) {
             Ok(p) => p,

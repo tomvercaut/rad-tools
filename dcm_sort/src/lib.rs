@@ -1,4 +1,7 @@
+mod error;
 mod support;
+
+pub use error::{Error, Result};
 
 use std::path::{Path, PathBuf};
 
@@ -6,21 +9,15 @@ use dicom_dictionary_std::tags::{
     MODALITY, PATIENT_ID, PIXEL_DATA, SERIES_DESCRIPTION, SERIES_INSTANCE_UID, SERIES_NUMBER,
     SOP_INSTANCE_UID, STUDY_DESCRIPTION, STUDY_INSTANCE_UID,
 };
-use dicom_object::{DefaultDicomObject, InMemDicomObject, OpenFileOptions, ReadError};
+use dicom_object::{
+    DefaultDicomObject, InMemDicomObject, OpenFileOptions, ReadError,
+};
 use tracing::{debug, error};
 
 const STUDY_INSTANCE_UID_UNKNOWN: &str = "STUDY_UID_UNKNOWN";
 const SERIES_INSTANCE_UID_UNKNOWN: &str = "SERIES_UID_UNKNOWN";
 const SERIES_NUMBER_UNKNOWN: &str = "SERIES_NUMBER_UNKNOWN";
 const MODALITY_UNKNOWN: &str = "MODALITY_UNKNOWN";
-
-#[derive(thiserror::Error, Debug)]
-pub enum Error {
-    #[error("Patient ID is undefined or not set.")]
-    PatientIdUnknown,
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
 
 /// Reads a DICOM file and loads its metadata without reading pixel data.
 ///
@@ -29,15 +26,19 @@ pub type Result<T> = std::result::Result<T, Error>;
 ///
 /// # Arguments
 ///
-/// * `path` - A string slice containing the path to the DICOM file to read
+/// * `path` - Path to the DICOM file to read. Can be any type that implements AsRef<Path>
 ///
 /// # Returns
 ///
 /// * `Ok(DefaultDicomObject)` - The DICOM object containing the file's metadata
 /// * `Err(ReadError)` - If an error occurs while reading the DICOM file
-pub fn read_dicom_file_without_pixels(
-    path: &str,
-) -> std::result::Result<DefaultDicomObject, ReadError> {
+pub fn read_dicom_file_without_pixels<P>(
+    path: P,
+) -> std::result::Result<DefaultDicomObject, ReadError>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref();
     debug!("Trying to read DICOM data from: {:#?}", path);
     OpenFileOptions::new()
         .read_until(PIXEL_DATA)
@@ -84,6 +85,10 @@ impl Data {
         &self.patient_id
     }
 
+    pub fn sop_instance_uid(&self) -> &str {
+        &self.sop_instance_uid
+    }
+
     /// Get the study instance UID.
     pub fn study_uid(&self) -> &str {
         &self.study_uid
@@ -120,22 +125,8 @@ impl AsRef<Data> for Data {
     }
 }
 
-#[derive(thiserror::Error, Debug)]
-pub enum FromDicomObjectError {
-    #[error("DICOM instance requires a Patient ID.")]
-    MissingPatientID,
-    #[error("DICOM instance requires a SOP Instance UID.")]
-    MissingSopInstancedUid,
-    #[error("DICOM instance requires a Study Instance UID.")]
-    MissingStudyInstanceUid,
-    #[error("DICOM instance requires a Series Instance UID.")]
-    MissingSeriesInstanceUid,
-    #[error("DICOM instance requires a Modality.")]
-    MissingModality,
-}
-
 impl TryFromDicomObject for Data {
-    type DicomObjectError = FromDicomObjectError;
+    type DicomObjectError = Error;
 
     fn try_from_dicom_obj(
         obj: &InMemDicomObject,
@@ -144,21 +135,21 @@ impl TryFromDicomObject for Data {
             Ok(value) => Ok(value),
             Err(e) => {
                 error!("Unable to get Patient ID: {:#?}", e);
-                Err(FromDicomObjectError::MissingPatientID)
+                Err(Error::DicomInstanceMissingPatientId)
             }
         }?;
         let sop_instance_uid = match support::get_str(obj, SOP_INSTANCE_UID) {
             Ok(value) => Ok(value),
             Err(e) => {
                 error!("Unable to get SOP Instance UID: {:#?}", e);
-                Err(FromDicomObjectError::MissingSopInstancedUid)
+                Err(Error::DicomInstanceMissingSopInstanceUid)
             }
         }?;
         let study_uid = match support::get_str(obj, STUDY_INSTANCE_UID) {
             Ok(value) => Ok(value),
             Err(e) => {
                 error!("Unable to get Study Instance UID: {:#?}", e);
-                Err(FromDicomObjectError::MissingStudyInstanceUid)
+                Err(Error::DicomInstanceMissingStudyInstanceUid)
             }
         }?;
         let study_descr = support::get_str_or_default(obj, STUDY_DESCRIPTION);
@@ -166,7 +157,7 @@ impl TryFromDicomObject for Data {
             Ok(value) => Ok(value),
             Err(e) => {
                 error!("Unable to get Series Instance UID: {:#?}", e);
-                Err(FromDicomObjectError::MissingSeriesInstanceUid)
+                Err(Error::DicomInstanceMissingSeriesInstanceUid)
             }
         }?;
         let series_descr = support::get_str_or_default(obj, SERIES_DESCRIPTION);
@@ -175,7 +166,7 @@ impl TryFromDicomObject for Data {
             Ok(value) => Ok(value),
             Err(e) => {
                 error!("Unable to get Modality: {:#?}", e);
-                Err(FromDicomObjectError::MissingModality)
+                Err(Error::DicomInstanceMissingModality)
             }
         }?;
         let data = Data {
@@ -202,10 +193,11 @@ impl TryFromDicomObject for Data {
 ///
 /// All other characters are replaced with an underscore.
 /// Multiple consecutive underscores and spaces are collapsed into a single one.
+/// The returned string is also trimmed.
 fn sanitize(input: &str) -> String {
     // Single-pass: normalize disallowed chars to '_' and collapse runs of '_' and ' '.
     let mut out = String::with_capacity(input.len());
-    let mut last: Option<char> = None;
+    let mut last_should_be_unique = false;
 
     for c in input.chars() {
         // Normalize: keep allowed chars, otherwise map to '_'
@@ -213,13 +205,16 @@ fn sanitize(input: &str) -> String {
 
         // Collapse consecutive '_' or ' '
         let is_collapse_target = n == '_' || n == ' ';
-        if !(is_collapse_target && Some(n) == last) {
+        if !(is_collapse_target && last_should_be_unique) {
             out.push(n);
+        } else if is_collapse_target && last_should_be_unique && !out.ends_with('_') {
+            let _ = out.pop();
+            out.push('_');
         }
-        last = Some(n);
+        last_should_be_unique = is_collapse_target;
     }
 
-    out
+    out.trim_matches(['_', ' ']).to_string()
 }
 
 #[inline]
@@ -255,7 +250,9 @@ where
     P: AsRef<Path>,
 {
     let d = d.as_ref();
-    if d.patient_id.trim().is_empty() {
+    // Patient ID must not be empty and is not sanitized to preserve the original value.
+    let patient_id = d.patient_id().trim();
+    if patient_id.is_empty() {
         return Err(Error::PatientIdUnknown);
     }
     let p = p.as_ref();
@@ -286,7 +283,7 @@ where
         d.modality()
     });
     let pb = p
-        .join(d.patient_id())
+        .join(patient_id)
         .join(study)
         .join(series)
         .join(serie_number)
@@ -349,6 +346,31 @@ mod test {
         Data, MODALITY_UNKNOWN, SERIES_INSTANCE_UID_UNKNOWN, SERIES_NUMBER_UNKNOWN,
         STUDY_INSTANCE_UID_UNKNOWN,
     };
+
+    #[test]
+    fn test_sanitize() {
+        let test_cases = [
+            ("hello world", "hello world"),
+            ("hello__world", "hello_world"),
+            ("hello  world", "hello_world"),
+            ("hello#$%world", "hello_world"),
+            ("hello(world)", "hello(world)"),
+            ("hello[world]", "hello[world]"),
+            ("  hello  world  ", "hello_world"),
+            ("hello___world", "hello_world"),
+            ("hello_ _world", "hello_world"),
+            ("hello   world", "hello_world"),
+            ("hello _ world", "hello_world"),
+            ("123ABC", "123ABC"),
+            ("", ""),
+            ("hello@#$%^&*world", "hello_world"),
+            ("Test Case(1)[2]", "Test Case(1)[2]"),
+        ];
+
+        for (input, expected) in test_cases {
+            assert_eq!(super::sanitize(input), expected);
+        }
+    }
 
     #[test]
     fn to_path_buf() {
