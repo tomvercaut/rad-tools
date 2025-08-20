@@ -57,15 +57,7 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let level = if cli.verbose {
-        Level::INFO
-    } else if cli.trace {
-        Level::TRACE
-    } else if cli.debug {
-        Level::DEBUG
-    } else {
-        Level::WARN
-    };
+    let level = rad_tools_common::get_log_level!(cli);
     tracing_subscriber::fmt()
         .with_thread_ids(true)
         .with_target(true)
