@@ -9,9 +9,7 @@ use dicom_dictionary_std::tags::{
     MODALITY, PATIENT_ID, PIXEL_DATA, SERIES_DESCRIPTION, SERIES_INSTANCE_UID, SERIES_NUMBER,
     SOP_INSTANCE_UID, STUDY_DESCRIPTION, STUDY_INSTANCE_UID,
 };
-use dicom_object::{
-    DefaultDicomObject, InMemDicomObject, OpenFileOptions, ReadError,
-};
+use dicom_object::{DefaultDicomObject, InMemDicomObject, OpenFileOptions, ReadError};
 use tracing::{debug, error};
 
 const STUDY_INSTANCE_UID_UNKNOWN: &str = "STUDY_UID_UNKNOWN";
@@ -240,7 +238,7 @@ fn is_allowed_char(c: char) -> bool {
 ///     - SERIES_UID_UNKNOWN
 /// - `series nr`:
 ///     - series number, if not empty
-///     - SERIES_UID_UNKNOWN
+///     - SERIES_NUMBER_UNKNOWN
 /// - `modality`:
 ///     - modality, if not empty
 ///     - MODALITY_UNKNOWN
@@ -261,6 +259,7 @@ where
     } else if !d.study_descr().is_empty() {
         d.study_descr()
     } else {
+        // DICOM UIDs will not be modified by sanitize if they are valid.
         d.study_uid()
     });
     let series = sanitize(
@@ -269,6 +268,7 @@ where
         } else if !d.series_descr().is_empty() {
             d.series_descr()
         } else {
+            // DICOM UIDs will not be modified by sanitize if they are valid.
             d.series_uid()
         },
     );
@@ -437,7 +437,7 @@ mod test {
             }
             assert!(r.is_ok(), "Failed to create PathBuf from Data.");
             let buf = r.unwrap();
-            assert_eq!(expected.to_str().unwrap(), buf.to_str().unwrap());
+            assert_eq!(expected, &buf);
         }
     }
 }
