@@ -81,7 +81,7 @@ fn main() {
             continue;
         }
 
-        let dicom_open = rad_tools_common::dicom::read_file_until(path, PIXEL_DATA);
+        let dicom_open = rad_tools_common::dicom::open_file_until(path, PIXEL_DATA);
         if dicom_open.as_ref().is_err() {
             warn!("Unable to read DICOM data from {:#?}", &path);
             trace!(
