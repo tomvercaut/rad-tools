@@ -1,16 +1,7 @@
+use crate::{Error, Result};
 use dicom_core::Tag;
 use dicom_object::InMemDicomObject;
 use tracing::error;
-
-#[derive(thiserror::Error, Debug, PartialEq)]
-pub(crate) enum ElementError {
-    #[error("Unable to access tag {0} in DICOM object.")]
-    AccessError(Tag),
-    #[error("Unable to convert DICOM tag [{0}] value to string")]
-    StringConvertValue(Tag),
-}
-
-pub(crate) type Result<T> = std::result::Result<T, ElementError>;
 
 fn get_str_internal(obj: &InMemDicomObject, tag: Tag, log_errors: bool) -> Result<String> {
     let r = obj.element(tag);
@@ -18,7 +9,7 @@ fn get_str_internal(obj: &InMemDicomObject, tag: Tag, log_errors: bool) -> Resul
         if log_errors {
             error!("{:#?}", r.as_ref().unwrap_err());
         }
-        return Err(ElementError::AccessError(tag));
+        return Err(Error::DicomElementAccessError(tag));
     }
     let elem = r.unwrap();
     let r = elem.to_str();
@@ -26,7 +17,7 @@ fn get_str_internal(obj: &InMemDicomObject, tag: Tag, log_errors: bool) -> Resul
         if log_errors {
             error!("{:#?}", r.as_ref().unwrap_err());
         }
-        return Err(ElementError::StringConvertValue(tag));
+        return Err(Error::DicomElementStringConvertValue(tag));
     }
     let elem_value = r.unwrap();
     Ok(elem_value.trim().to_string())
@@ -53,7 +44,7 @@ mod test {
     use dicom_dictionary_std::tags::{PATIENT_ID, PATIENT_NAME};
     use dicom_object::InMemDicomObject;
 
-    use crate::support::ElementError;
+    use crate::Error;
 
     fn get_test_data() -> InMemDicomObject {
         let mut obj = InMemDicomObject::new_empty();
@@ -76,7 +67,7 @@ mod test {
         let r = super::get_str(&obj, PATIENT_NAME);
         assert!(r.is_err());
         let e = r.unwrap_err();
-        assert_eq!(ElementError::AccessError(PATIENT_NAME), e);
+        assert_eq!(Error::DicomElementAccessError(PATIENT_NAME), e);
     }
 
     #[test]
