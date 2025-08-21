@@ -1,0 +1,16 @@
+[package]
+name = "rad-tools-dcm-grep"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+regex.workspace = true
+tracing.workspace = true
+dicom-core.workspace = true
+dicom-object.workspace = true
+dicom-dictionary-std.workspace = true
+dicom-encoding.workspace = true
+dicom-transfer-syntax-registry.workspace = true
+
