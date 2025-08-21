@@ -1,7 +1,6 @@
 use clap::Parser;
-use rad_tools_dcm_sort::{
-    Data, TryFromDicomObject, read_dicom_file_without_pixels, to_path_buf, unique_dcm_file,
-};
+use dicom_dictionary_std::tags::PIXEL_DATA;
+use rad_tools_dcm_sort::{Data, TryFromDicomObject, to_path_buf, unique_dcm_file};
 use tracing::{debug, error, info, trace, warn};
 use walkdir::WalkDir;
 
@@ -82,7 +81,7 @@ fn main() {
             continue;
         }
 
-        let dicom_open = read_dicom_file_without_pixels(path);
+        let dicom_open = rad_tools_common::dicom::read_file_until(path, PIXEL_DATA);
         if dicom_open.as_ref().is_err() {
             warn!("Unable to read DICOM data from {:#?}", &path);
             trace!(
