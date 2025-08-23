@@ -6,42 +6,16 @@ pub use error::{Error, Result};
 use std::path::{Path, PathBuf};
 
 use dicom_dictionary_std::tags::{
-    MODALITY, PATIENT_ID, PIXEL_DATA, SERIES_DESCRIPTION, SERIES_INSTANCE_UID, SERIES_NUMBER,
-    SOP_INSTANCE_UID, STUDY_DESCRIPTION, STUDY_INSTANCE_UID,
+    MODALITY, PATIENT_ID, SERIES_DESCRIPTION, SERIES_INSTANCE_UID, SERIES_NUMBER, SOP_INSTANCE_UID,
+    STUDY_DESCRIPTION, STUDY_INSTANCE_UID,
 };
-use dicom_object::{DefaultDicomObject, InMemDicomObject, OpenFileOptions, ReadError};
-use tracing::{debug, error};
+use dicom_object::InMemDicomObject;
+use tracing::error;
 
 const STUDY_INSTANCE_UID_UNKNOWN: &str = "STUDY_UID_UNKNOWN";
 const SERIES_INSTANCE_UID_UNKNOWN: &str = "SERIES_UID_UNKNOWN";
 const SERIES_NUMBER_UNKNOWN: &str = "SERIES_NUMBER_UNKNOWN";
 const MODALITY_UNKNOWN: &str = "MODALITY_UNKNOWN";
-
-/// Reads a DICOM file and loads its metadata without reading pixel data.
-///
-/// This function opens a DICOM file and reads all metadata tags up until (but not including)
-/// the pixel data element to optimize memory usage and reading speed.
-///
-/// # Arguments
-///
-/// * `path` - Path to the DICOM file to read. Can be any type that implements AsRef<Path>
-///
-/// # Returns
-///
-/// * `Ok(DefaultDicomObject)` - The DICOM object containing the file's metadata
-/// * `Err(ReadError)` - If an error occurs while reading the DICOM file
-pub fn read_dicom_file_without_pixels<P>(
-    path: P,
-) -> std::result::Result<DefaultDicomObject, ReadError>
-where
-    P: AsRef<Path>,
-{
-    let path = path.as_ref();
-    debug!("Trying to read DICOM data from: {:#?}", path);
-    OpenFileOptions::new()
-        .read_until(PIXEL_DATA)
-        .open_file(path)
-}
 
 /// A trait to convert a DICOM object into another data type.
 pub trait TryFromDicomObject: Sized {
@@ -259,7 +233,7 @@ where
     } else if !d.study_descr().is_empty() {
         d.study_descr()
     } else {
-        // DICOM UIDs will not be modified by sanitize if they are valid.
+        // DICOM UIDs will not be modified by the function `sanitize` if they are valid.
         d.study_uid()
     });
     let series = sanitize(
@@ -268,7 +242,7 @@ where
         } else if !d.series_descr().is_empty() {
             d.series_descr()
         } else {
-            // DICOM UIDs will not be modified by sanitize if they are valid.
+            // DICOM UIDs will not be modified by the function `sanitize` if they are valid.
             d.series_uid()
         },
     );
