@@ -10,6 +10,7 @@ Typical use cases:
 - You pass one or more element patterns with -e.
 - Each pattern identifies a DICOM element by tag and optional selectors for sequences.
 - The tool opens one DICOM file, evaluates one or more patterns, and prints the results (one value per line).
+- With --recursive it searches for the pattern in nested sequences.
 - With --show-path it prints “path: value” for each match.
 
 Note: `dcm_grep` operates on a single file at a time. Use shell tools like find, xargs, or loops to process many files.
@@ -71,6 +72,9 @@ Options:
 
           - (3006,0010)[1]/(0020,0052): selects the Frame Of Reference UID in the second Referenced Frame Of Reference Sequence item.
 
+  -r, --recursive
+          Recursively search for the pattern in nested DICOM elements
+
       --show-path
 
 
@@ -124,4 +128,16 @@ Output:
 (0028,0010): 512
 (0028,0030): 0.55566015625\0.55566015625
 (0018,9346)[0]/(0008,0100): 113691
+```
+
+- Extract the nested Referenced SOP Class UIDs using the -r option:
+```shell
+dcm_grep -i ct.dcm  -e '(0008,1150)' -r 
+```
+
+Output:
+```
+1.2.840.10008.3.1.2.3.3
+1.2.840.10008.5.1.4.1.1.2
+1.2.840.10008.3.1.2.3.1
 ```

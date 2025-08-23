@@ -44,6 +44,10 @@ struct Args {
     #[clap(short = 'e', value_name = "PATTERN")]
     patterns: Vec<String>,
 
+    /// Recursively search for the pattern in nested DICOM elements.
+    #[arg(short, long, default_value_t = false)]
+    recursive: bool,
+
     #[arg(long, default_value_t = false)]
     show_path: bool,
 
@@ -81,7 +85,7 @@ fn main() {
     let mut results = vec![];
 
     for pattern in args.patterns {
-        let v = grep(&obj, pattern.as_str()).expect("Failed to grep data.");
+        let v = grep(&obj, pattern.as_str(), args.recursive).expect("Failed to grep data.");
         results.extend(v);
     }
 

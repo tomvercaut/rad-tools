@@ -1,5 +1,6 @@
 use crate::Error;
 use crate::pattern::{SearchPatterns, Selector};
+use dicom_core::header::Header;
 use dicom_core::value::Value;
 use dicom_object::InMemDicomObject;
 use std::str::FromStr;
@@ -10,17 +11,22 @@ use tracing::error;
 /// # Arguments
 /// * `obj` - The DICOM object to search through
 /// * `pattern` - A string representing the search pattern in the format "tag[selector]/tag[selector]/..."
+/// * `recursive` - Whether to search recursively through nested sequences
 ///
 /// # Returns
 /// * `Ok(Vec<GrepResult>)` - A vector of matching elements with their paths and values
 /// * `Err(Error)` - If the pattern is invalid
-pub fn grep(obj: &InMemDicomObject, pattern: &str) -> Result<Vec<GrepResult>, Error> {
+pub fn grep(
+    obj: &InMemDicomObject,
+    pattern: &str,
+    recursive: bool,
+) -> Result<Vec<GrepResult>, Error> {
     let patterns = SearchPatterns::from_str(pattern).map_err(|e| {
         error!("Unable to create search patterns: {e:#?}");
-        Error::NoMatchingElementFound
+        Error::InvalidState
     })?;
 
-    let v = grep_matching_elements(obj, &patterns, 0);
+    let v = grep_matching_elements(obj, &patterns, 0, recursive);
     Ok(v)
 }
 
@@ -40,6 +46,7 @@ pub struct GrepResult {
 /// * `obj` - The DICOM object to search through
 /// * `patterns` - The parsed search patterns to match against
 /// * `ipattern` - The current pattern index being processed
+/// * `recursive` - Whether to search recursively through nested sequences
 ///
 /// # Returns
 /// A vector of GrepResult containing matching elements and their paths
@@ -47,6 +54,7 @@ fn grep_matching_elements(
     obj: &InMemDicomObject,
     patterns: &SearchPatterns,
     ipattern: usize,
+    recursive: bool,
 ) -> Vec<GrepResult> {
     let pattern = &patterns.patterns[ipattern];
     let mut vec = vec![];
@@ -64,7 +72,7 @@ fn grep_matching_elements(
 
                 if pattern.selectors.is_empty() {
                     vec.push(GrepResult {
-                        path: stag,
+                        path: stag.clone(),
                         value: "Sequence".to_string(),
                     });
                 } else {
@@ -74,7 +82,12 @@ fn grep_matching_elements(
                                 let nested_results = items
                                     .iter()
                                     .map(|item| {
-                                        grep_matching_elements(item, patterns, ipattern + 1)
+                                        grep_matching_elements(
+                                            item,
+                                            patterns,
+                                            ipattern + 1,
+                                            recursive,
+                                        )
                                     })
                                     .collect::<Vec<_>>();
                                 for (index, nested_result) in nested_results.into_iter().enumerate()
@@ -85,8 +98,12 @@ fn grep_matching_elements(
                             }
                             Selector::Index(index) => {
                                 if let Some(sub_item) = items.get(*index) {
-                                    let nested_result =
-                                        grep_matching_elements(sub_item, patterns, ipattern + 1);
+                                    let nested_result = grep_matching_elements(
+                                        sub_item,
+                                        patterns,
+                                        ipattern + 1,
+                                        recursive,
+                                    );
                                     let path_prefix = format!("{stag}[{index}]");
                                     append_result(&mut vec, path_prefix, nested_result);
                                 }
@@ -99,6 +116,7 @@ fn grep_matching_elements(
                                             sub_item,
                                             patterns,
                                             ipattern + 1,
+                                            recursive,
                                         );
                                         append_result(&mut vec, path_prefix, nested_result);
                                     }
@@ -107,12 +125,41 @@ fn grep_matching_elements(
                         }
                     }
                 }
+
+                if recursive {
+                    for (index, item) in items.iter().enumerate() {
+                        // When recursive, the pattern index is reset to 0, so the pattern can be discovered deeper in the tree.
+                        let nested_results = grep_matching_elements(item, patterns, 0, recursive);
+                        let path_prefix = format!("{}[{index}]", &stag);
+                        append_result(&mut vec, path_prefix, nested_results);
+                    }
+                }
             }
             Value::PixelSequence(_) => {
                 vec.push(GrepResult {
                     path: stag,
                     value: "PixelSequence".to_string(),
                 });
+            }
+        }
+    }
+
+    if recursive {
+        for element in obj {
+            match element.value() {
+                Value::Sequence(seq) => {
+                    let items = seq.items();
+                    for (index, item) in items.iter().enumerate() {
+                        // When recursive, the pattern index is reset to 0, so the pattern can be discovered deeper in the tree.
+                        let nested_results = grep_matching_elements(item, patterns, 0, recursive);
+                        let path_prefix = format!("{}[{index}]", element.tag());
+                        append_result(&mut vec, path_prefix, nested_results);
+                    }
+                }
+                _ => {
+                    // Not needed otherwise it would have been found in the previous if block.
+                    // We only want to find elements that are in a sequence.
+                }
             }
         }
     }
@@ -244,7 +291,7 @@ mod tests {
     #[test]
     fn find_non_nested_elements() {
         let obj = create_dicom_model();
-        match grep(&obj, &SOP_CLASS_UID.to_string()) {
+        match grep(&obj, &SOP_CLASS_UID.to_string(), false) {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
                 assert_eq!(results[0].path, SOP_CLASS_UID.to_string());
@@ -252,7 +299,7 @@ mod tests {
             }
             Err(e) => panic!("Unable to find SOP_CLASS_UID: {e:#?}"),
         }
-        match grep(&obj, &PATIENT_ID.to_string()) {
+        match grep(&obj, &PATIENT_ID.to_string(), false) {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
                 assert_eq!(results[0].path, PATIENT_ID.to_string());
@@ -260,7 +307,7 @@ mod tests {
             }
             Err(e) => panic!("Unable to find PATIENT_ID: {e:#?}"),
         }
-        match grep(&obj, &PATIENT_NAME.to_string()) {
+        match grep(&obj, &PATIENT_NAME.to_string(), false) {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
                 assert_eq!(results[0].path, PATIENT_NAME.to_string());
@@ -268,7 +315,7 @@ mod tests {
             }
             Err(e) => panic!("Unable to find PATIENT_NAME: {e:#?}"),
         }
-        match grep(&obj, &STUDY_DATE.to_string()) {
+        match grep(&obj, &STUDY_DATE.to_string(), false) {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
                 assert_eq!(results[0].path, STUDY_DATE.to_string());
@@ -276,7 +323,7 @@ mod tests {
             }
             Err(e) => panic!("Unable to find STUDY_DATE: {e:#?}"),
         }
-        match grep(&obj, &STUDY_TIME.to_string()) {
+        match grep(&obj, &STUDY_TIME.to_string(), false) {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
                 assert_eq!(results[0].path, STUDY_TIME.to_string());
@@ -284,7 +331,7 @@ mod tests {
             }
             Err(e) => panic!("Unable to find STUDY_TIME: {e:#?}"),
         }
-        match grep(&obj, &SERIES_DATE.to_string()) {
+        match grep(&obj, &SERIES_DATE.to_string(), false) {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
                 assert_eq!(results[0].path, SERIES_DATE.to_string());
@@ -292,7 +339,7 @@ mod tests {
             }
             Err(e) => panic!("Unable to find SERIES_DATE: {e:#?}"),
         }
-        match grep(&obj, &SERIES_TIME.to_string()) {
+        match grep(&obj, &SERIES_TIME.to_string(), false) {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
                 assert_eq!(results[0].path, SERIES_TIME.to_string());
@@ -305,7 +352,7 @@ mod tests {
     #[test]
     fn find_sequence_level1() {
         let obj = create_dicom_model();
-        match grep(&obj, &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string()) {
+        match grep(&obj, &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(), false) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
                 assert_eq!(result[0].path, CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string());
@@ -325,6 +372,7 @@ mod tests {
                 "{}[*]/{}",
                 REQUEST_ATTRIBUTES_SEQUENCE, REFERENCED_STUDY_SEQUENCE
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 2);
@@ -361,6 +409,7 @@ mod tests {
                 &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
                 &CODE_VALUE.to_string()
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 2);
@@ -394,6 +443,7 @@ mod tests {
                 &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
                 &CODING_SCHEME_DESIGNATOR.to_string()
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 2);
@@ -429,6 +479,7 @@ mod tests {
                 &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
                 &CODE_MEANING.to_string()
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 2);
@@ -467,6 +518,7 @@ mod tests {
                 &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
                 &CODE_VALUE.to_string()
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
@@ -493,6 +545,7 @@ mod tests {
                 &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
                 &CODE_VALUE.to_string()
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
@@ -519,6 +572,7 @@ mod tests {
                 &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
                 &CODING_SCHEME_DESIGNATOR.to_string()
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
@@ -545,6 +599,7 @@ mod tests {
                 &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
                 &CODING_SCHEME_DESIGNATOR.to_string()
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
@@ -571,6 +626,7 @@ mod tests {
                 &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
                 &CODE_MEANING.to_string()
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
@@ -597,6 +653,7 @@ mod tests {
                 &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
                 &CODE_MEANING.to_string()
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
@@ -627,6 +684,7 @@ mod tests {
                 "{}[*]/{}[*]/{}",
                 &REQUEST_ATTRIBUTES_SEQUENCE, &REFERENCED_STUDY_SEQUENCE, &REFERENCED_SOP_CLASS_UID
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 3);
@@ -674,6 +732,7 @@ mod tests {
                 &REFERENCED_STUDY_SEQUENCE,
                 &REFERENCED_SOP_INSTANCE_UID
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 3);
@@ -723,6 +782,7 @@ mod tests {
                 "{}[0]/{}[0]/{}",
                 &REQUEST_ATTRIBUTES_SEQUENCE, &REFERENCED_STUDY_SEQUENCE, &REFERENCED_SOP_CLASS_UID
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
@@ -738,7 +798,7 @@ mod tests {
                 assert_eq!(result[0].value, "RefSopClass1");
             }
             Err(e) => {
-                panic!("Unable to find the first ReferencedSopClassUIDs: {e:#?}");
+                panic!("Unable to find the first ReferencedSopClassUID: {e:#?}");
             }
         }
 
@@ -748,6 +808,7 @@ mod tests {
                 "{}[1]/{}[0]/{}",
                 &REQUEST_ATTRIBUTES_SEQUENCE, &REFERENCED_STUDY_SEQUENCE, &REFERENCED_SOP_CLASS_UID
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
@@ -763,7 +824,7 @@ mod tests {
                 assert_eq!(result[0].value, "RefSopClass2");
             }
             Err(e) => {
-                panic!("Unable to find the second ReferencedSopClassUIDs: {e:#?}");
+                panic!("Unable to find the second ReferencedSopClassUID: {e:#?}");
             }
         }
 
@@ -773,6 +834,7 @@ mod tests {
                 "{}[1]/{}[1]/{}",
                 &REQUEST_ATTRIBUTES_SEQUENCE, &REFERENCED_STUDY_SEQUENCE, &REFERENCED_SOP_CLASS_UID
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
@@ -788,7 +850,7 @@ mod tests {
                 assert_eq!(result[0].value, "RefSopClass3");
             }
             Err(e) => {
-                panic!("Unable to find the third ReferencedSopClassUIDs: {e:#?}");
+                panic!("Unable to find the third ReferencedSopClassUID: {e:#?}");
             }
         }
 
@@ -801,6 +863,7 @@ mod tests {
                 &REFERENCED_STUDY_SEQUENCE,
                 &REFERENCED_SOP_INSTANCE_UID
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
@@ -827,6 +890,7 @@ mod tests {
                 &REFERENCED_STUDY_SEQUENCE,
                 &REFERENCED_SOP_INSTANCE_UID
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
@@ -853,6 +917,7 @@ mod tests {
                 &REFERENCED_STUDY_SEQUENCE,
                 &REFERENCED_SOP_INSTANCE_UID
             ),
+            false,
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
@@ -870,6 +935,84 @@ mod tests {
             Err(e) => {
                 panic!("Unable to find the third ReferencedSopInstanceUID: {e:#?}");
             }
+        }
+    }
+
+    #[test]
+    fn find_nested_elements_recursive() {
+        let obj = create_dicom_model();
+        match grep(&obj, &REFERENCED_SOP_CLASS_UID.to_string(), true) {
+            Ok(results) => {
+                assert_eq!(results.len(), 3);
+                assert_eq!(
+                    results[0].path,
+                    format!(
+                        "{}[0]/{}[0]/{}",
+                        &REQUEST_ATTRIBUTES_SEQUENCE,
+                        &REFERENCED_STUDY_SEQUENCE,
+                        &REFERENCED_SOP_CLASS_UID
+                    )
+                );
+                assert_eq!(results[0].value, "RefSopClass1");
+                assert_eq!(
+                    results[1].path,
+                    format!(
+                        "{}[1]/{}[0]/{}",
+                        &REQUEST_ATTRIBUTES_SEQUENCE,
+                        &REFERENCED_STUDY_SEQUENCE,
+                        &REFERENCED_SOP_CLASS_UID
+                    )
+                );
+                assert_eq!(results[1].value, "RefSopClass2");
+                assert_eq!(
+                    results[2].path,
+                    format!(
+                        "{}[1]/{}[1]/{}",
+                        &REQUEST_ATTRIBUTES_SEQUENCE,
+                        &REFERENCED_STUDY_SEQUENCE,
+                        &REFERENCED_SOP_CLASS_UID
+                    )
+                );
+                assert_eq!(results[2].value, "RefSopClass3");
+            }
+            Err(e) => panic!("Unable to recursively find ReferencedSopClassUIDs: {e:#?}"),
+        }
+
+        match grep(&obj, &REFERENCED_SOP_INSTANCE_UID.to_string(), true) {
+            Ok(results) => {
+                assert_eq!(results.len(), 3);
+                assert_eq!(
+                    results[0].path,
+                    format!(
+                        "{}[0]/{}[0]/{}",
+                        &REQUEST_ATTRIBUTES_SEQUENCE,
+                        &REFERENCED_STUDY_SEQUENCE,
+                        &REFERENCED_SOP_INSTANCE_UID
+                    )
+                );
+                assert_eq!(results[0].value, "RefSopInstance1");
+                assert_eq!(
+                    results[1].path,
+                    format!(
+                        "{}[1]/{}[0]/{}",
+                        &REQUEST_ATTRIBUTES_SEQUENCE,
+                        &REFERENCED_STUDY_SEQUENCE,
+                        &REFERENCED_SOP_INSTANCE_UID
+                    )
+                );
+                assert_eq!(results[1].value, "RefSopInstance2");
+                assert_eq!(
+                    results[2].path,
+                    format!(
+                        "{}[1]/{}[1]/{}",
+                        &REQUEST_ATTRIBUTES_SEQUENCE,
+                        &REFERENCED_STUDY_SEQUENCE,
+                        &REFERENCED_SOP_INSTANCE_UID
+                    )
+                );
+                assert_eq!(results[2].value, "RefSopInstance3");
+            }
+            Err(e) => panic!("Unable to recursively find ReferencedSopInstanceUIDs: {e:#?}"),
         }
     }
 }

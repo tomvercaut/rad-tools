@@ -16,6 +16,6 @@ pub enum Error {
     InvalidElementFormat,
     #[error("Invalid search PATTERN")]
     InvalidSearchPattern,
-    #[error("No matching element found according to the search pattern")]
-    NoMatchingElementFound,
+    #[error("Invalid state to perform the operation")]
+    InvalidState,
 }
