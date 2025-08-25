@@ -3,6 +3,7 @@ use crate::pattern::{SearchPatterns, Selector};
 use dicom_core::header::Header;
 use dicom_core::value::Value;
 use dicom_object::InMemDicomObject;
+use dicom_object::mem::InMemElement;
 use std::str::FromStr;
 use tracing::error;
 
@@ -16,11 +17,11 @@ use tracing::error;
 /// # Returns
 /// * `Ok(Vec<GrepResult>)` - A vector of matching elements with their paths and values
 /// * `Err(Error)` - If the pattern is invalid
-pub fn grep(
-    obj: &InMemDicomObject,
+pub fn grep<'a>(
+    obj: &'a InMemDicomObject,
     pattern: &str,
     recursive: bool,
-) -> Result<Vec<GrepResult>, Error> {
+) -> Result<Vec<GrepResult<'a>>, Error> {
     let patterns = SearchPatterns::from_str(pattern).map_err(|e| {
         error!("Unable to create search patterns: {e:#?}");
         Error::InvalidState
@@ -32,12 +33,30 @@ pub fn grep(
 
 /// Represents a matched DICOM element from a grep search operation
 #[derive(Debug)]
-pub struct GrepResult {
+pub struct GrepResult<'a> {
     /// Path of the element value in the DICOM object.
     /// Example: (1234,5678)[2]/(9876,5432)
     pub path: String,
-    /// String representation of the element's value
-    pub value: String,
+    /// DICOM element
+    pub element: &'a InMemElement,
+}
+
+/// Converts a DICOM element's value to a string representation
+///
+/// # Arguments
+/// * `element` - The DICOM element to convert
+///
+/// # Returns
+/// A string representation of the element's value:
+/// * For primitive values - their string representation
+/// * For sequences - the text "Sequence"
+/// * For pixel sequences - the text "PixelSequence"
+pub fn element_value_to_string(element: &InMemElement) -> String {
+    match element.value() {
+        Value::Primitive(value) => value.to_string(),
+        Value::Sequence(_) => "Sequence".to_string(),
+        Value::PixelSequence(_) => "PixelSequence".to_string(),
+    }
 }
 
 /// Recursively searches for DICOM elements that match the given patterns
@@ -50,21 +69,21 @@ pub struct GrepResult {
 ///
 /// # Returns
 /// A vector of GrepResult containing matching elements and their paths
-fn grep_matching_elements(
-    obj: &InMemDicomObject,
+fn grep_matching_elements<'a>(
+    obj: &'a InMemDicomObject,
     patterns: &SearchPatterns,
     ipattern: usize,
     recursive: bool,
-) -> Vec<GrepResult> {
+) -> Vec<GrepResult<'a>> {
     let pattern = &patterns.patterns[ipattern];
     let mut vec = vec![];
     let stag = format!("{}", pattern.tag);
     if let Ok(element) = obj.element(pattern.tag) {
         match element.value() {
-            Value::Primitive(primitive) => {
+            Value::Primitive(_primitive) => {
                 vec.push(GrepResult {
                     path: stag,
-                    value: primitive.to_string(),
+                    element,
                 });
             }
             Value::Sequence(seq) => {
@@ -73,7 +92,7 @@ fn grep_matching_elements(
                 if pattern.selectors.is_empty() {
                     vec.push(GrepResult {
                         path: stag.clone(),
-                        value: "Sequence".to_string(),
+                        element,
                     });
                 } else {
                     for selector in &pattern.selectors {
@@ -138,7 +157,7 @@ fn grep_matching_elements(
             Value::PixelSequence(_) => {
                 vec.push(GrepResult {
                     path: stag,
-                    value: "PixelSequence".to_string(),
+                    element,
                 });
             }
         }
@@ -172,11 +191,11 @@ fn grep_matching_elements(
 /// * `vec` - The vector to append results to
 /// * `prefix` - The path prefix to prepend to nested results
 /// * `results` - The nested results to append
-fn append_result(vec: &mut Vec<GrepResult>, prefix: String, results: Vec<GrepResult>) {
+fn append_result<'a>(vec: &mut Vec<GrepResult<'a>>, prefix: String, results: Vec<GrepResult<'a>>) {
     for fr in results {
         let nfr = GrepResult {
             path: format!("{}/{}", &prefix, fr.path),
-            value: fr.value,
+            element: fr.element,
         };
         vec.push(nfr);
     }
@@ -295,7 +314,10 @@ mod tests {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
                 assert_eq!(results[0].path, SOP_CLASS_UID.to_string());
-                assert_eq!(results[0].value, CT_IMAGE_STORAGE);
+                assert_eq!(
+                    element_value_to_string(results[0].element),
+                    CT_IMAGE_STORAGE
+                );
             }
             Err(e) => panic!("Unable to find SOP_CLASS_UID: {e:#?}"),
         }
@@ -303,7 +325,7 @@ mod tests {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
                 assert_eq!(results[0].path, PATIENT_ID.to_string());
-                assert_eq!(results[0].value, "123456");
+                assert_eq!(element_value_to_string(results[0].element), "123456");
             }
             Err(e) => panic!("Unable to find PATIENT_ID: {e:#?}"),
         }
@@ -311,7 +333,7 @@ mod tests {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
                 assert_eq!(results[0].path, PATIENT_NAME.to_string());
-                assert_eq!(results[0].value, "Last^First");
+                assert_eq!(element_value_to_string(results[0].element), "Last^First");
             }
             Err(e) => panic!("Unable to find PATIENT_NAME: {e:#?}"),
         }
@@ -319,7 +341,7 @@ mod tests {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
                 assert_eq!(results[0].path, STUDY_DATE.to_string());
-                assert_eq!(results[0].value, "20230102");
+                assert_eq!(element_value_to_string(results[0].element), "20230102");
             }
             Err(e) => panic!("Unable to find STUDY_DATE: {e:#?}"),
         }
@@ -327,7 +349,7 @@ mod tests {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
                 assert_eq!(results[0].path, STUDY_TIME.to_string());
-                assert_eq!(results[0].value, "171657.858653");
+                assert_eq!(element_value_to_string(results[0].element), "171657.858653");
             }
             Err(e) => panic!("Unable to find STUDY_TIME: {e:#?}"),
         }
@@ -335,7 +357,7 @@ mod tests {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
                 assert_eq!(results[0].path, SERIES_DATE.to_string());
-                assert_eq!(results[0].value, "20230102");
+                assert_eq!(element_value_to_string(results[0].element), "20230102");
             }
             Err(e) => panic!("Unable to find SERIES_DATE: {e:#?}"),
         }
@@ -343,7 +365,7 @@ mod tests {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
                 assert_eq!(results[0].path, SERIES_TIME.to_string());
-                assert_eq!(results[0].value, "173657.158653");
+                assert_eq!(element_value_to_string(results[0].element), "173657.158653");
             }
             Err(e) => panic!("Unable to find SERIES_TIME: {e:#?}"),
         }
@@ -356,7 +378,7 @@ mod tests {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
                 assert_eq!(result[0].path, CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string());
-                assert_eq!(result[0].value, "Sequence");
+                assert_eq!(element_value_to_string(result[0].element), "Sequence");
             }
             Err(e) => {
                 panic!("Unable to find CTDI_PHANTOM_TYPE_CODE_SEQUENCE: {e:#?}");
@@ -383,7 +405,7 @@ mod tests {
                         REQUEST_ATTRIBUTES_SEQUENCE, REFERENCED_STUDY_SEQUENCE
                     )
                 );
-                assert_eq!(result[0].value, "Sequence");
+                assert_eq!(element_value_to_string(result[0].element), "Sequence");
                 assert_eq!(
                     result[1].path,
                     format!(
@@ -391,7 +413,7 @@ mod tests {
                         REQUEST_ATTRIBUTES_SEQUENCE, REFERENCED_STUDY_SEQUENCE
                     )
                 );
-                assert_eq!(result[1].value, "Sequence");
+                assert_eq!(element_value_to_string(result[1].element), "Sequence");
             }
             Err(e) => {
                 panic!("Unable to find REFERENCED_STUDY_SEQUENCE: {e:#?}");
@@ -421,7 +443,7 @@ mod tests {
                         &CODE_VALUE.to_string()
                     )
                 );
-                assert_eq!(result[0].value, "123456");
+                assert_eq!(element_value_to_string(result[0].element), "123456");
                 assert_eq!(
                     result[1].path,
                     format!(
@@ -430,7 +452,7 @@ mod tests {
                         &CODE_VALUE.to_string()
                     )
                 );
-                assert_eq!(result[1].value, "654321");
+                assert_eq!(element_value_to_string(result[1].element), "654321");
             }
             Err(e) => {
                 panic!("Unable to find all CTDI_PHANTOM_TYPE_CODE_SEQUENCE CodeValues: {e:#?}");
@@ -455,7 +477,7 @@ mod tests {
                         &CODING_SCHEME_DESIGNATOR.to_string()
                     )
                 );
-                assert_eq!(result[0].value, "DCM1");
+                assert_eq!(element_value_to_string(result[0].element), "DCM1");
                 assert_eq!(
                     result[1].path,
                     format!(
@@ -464,7 +486,7 @@ mod tests {
                         &CODING_SCHEME_DESIGNATOR.to_string()
                     )
                 );
-                assert_eq!(result[1].value, "DCM2");
+                assert_eq!(element_value_to_string(result[1].element), "DCM2");
             }
             Err(e) => {
                 panic!(
@@ -491,7 +513,10 @@ mod tests {
                         &CODE_MEANING.to_string()
                     )
                 );
-                assert_eq!(result[0].value, "Coding Meaning1");
+                assert_eq!(
+                    element_value_to_string(result[0].element),
+                    "Coding Meaning1"
+                );
                 assert_eq!(
                     result[1].path,
                     format!(
@@ -500,7 +525,10 @@ mod tests {
                         &CODE_MEANING.to_string()
                     )
                 );
-                assert_eq!(result[1].value, "Coding Meaning2");
+                assert_eq!(
+                    element_value_to_string(result[1].element),
+                    "Coding Meaning2"
+                );
             }
             Err(e) => {
                 panic!("Unable to find all CTDI_PHANTOM_TYPE_CODE_SEQUENCE CodeMeanings: {e:#?}");
@@ -530,7 +558,7 @@ mod tests {
                         &CODE_VALUE.to_string()
                     )
                 );
-                assert_eq!(result[0].value, "123456");
+                assert_eq!(element_value_to_string(result[0].element), "123456");
             }
             Err(e) => {
                 panic!(
@@ -557,7 +585,7 @@ mod tests {
                         &CODE_VALUE.to_string()
                     )
                 );
-                assert_eq!(result[0].value, "654321");
+                assert_eq!(element_value_to_string(result[0].element), "654321");
             }
             Err(e) => {
                 panic!(
@@ -584,7 +612,7 @@ mod tests {
                         &CODING_SCHEME_DESIGNATOR.to_string()
                     )
                 );
-                assert_eq!(result[0].value, "DCM1");
+                assert_eq!(element_value_to_string(result[0].element), "DCM1");
             }
             Err(e) => {
                 panic!(
@@ -611,7 +639,7 @@ mod tests {
                         &CODING_SCHEME_DESIGNATOR.to_string()
                     )
                 );
-                assert_eq!(result[0].value, "DCM2");
+                assert_eq!(element_value_to_string(result[0].element), "DCM2");
             }
             Err(e) => {
                 panic!(
@@ -638,7 +666,10 @@ mod tests {
                         &CODE_MEANING.to_string()
                     )
                 );
-                assert_eq!(result[0].value, "Coding Meaning1");
+                assert_eq!(
+                    element_value_to_string(result[0].element),
+                    "Coding Meaning1"
+                );
             }
             Err(e) => {
                 panic!(
@@ -665,7 +696,10 @@ mod tests {
                         &CODE_MEANING.to_string()
                     )
                 );
-                assert_eq!(result[0].value, "Coding Meaning2");
+                assert_eq!(
+                    element_value_to_string(result[0].element),
+                    "Coding Meaning2"
+                );
             }
             Err(e) => {
                 panic!(
@@ -697,7 +731,7 @@ mod tests {
                         &REFERENCED_SOP_CLASS_UID,
                     )
                 );
-                assert_eq!(result[0].value, "RefSopClass1");
+                assert_eq!(element_value_to_string(result[0].element), "RefSopClass1");
                 assert_eq!(
                     result[1].path,
                     format!(
@@ -707,7 +741,7 @@ mod tests {
                         &REFERENCED_SOP_CLASS_UID,
                     )
                 );
-                assert_eq!(result[1].value, "RefSopClass2");
+                assert_eq!(element_value_to_string(result[1].element), "RefSopClass2");
                 assert_eq!(
                     result[2].path,
                     format!(
@@ -717,7 +751,7 @@ mod tests {
                         &REFERENCED_SOP_CLASS_UID,
                     )
                 );
-                assert_eq!(result[2].value, "RefSopClass3");
+                assert_eq!(element_value_to_string(result[2].element), "RefSopClass3");
             }
             Err(e) => {
                 panic!("Unable to find all ReferencedSopClassUIDs: {e:#?}");
@@ -745,7 +779,10 @@ mod tests {
                         &REFERENCED_SOP_INSTANCE_UID,
                     )
                 );
-                assert_eq!(result[0].value, "RefSopInstance1");
+                assert_eq!(
+                    element_value_to_string(result[0].element),
+                    "RefSopInstance1"
+                );
                 assert_eq!(
                     result[1].path,
                     format!(
@@ -755,7 +792,10 @@ mod tests {
                         &REFERENCED_SOP_INSTANCE_UID,
                     )
                 );
-                assert_eq!(result[1].value, "RefSopInstance2");
+                assert_eq!(
+                    element_value_to_string(result[1].element),
+                    "RefSopInstance2"
+                );
                 assert_eq!(
                     result[2].path,
                     format!(
@@ -765,7 +805,10 @@ mod tests {
                         &REFERENCED_SOP_INSTANCE_UID,
                     )
                 );
-                assert_eq!(result[2].value, "RefSopInstance3");
+                assert_eq!(
+                    element_value_to_string(result[2].element),
+                    "RefSopInstance3"
+                );
             }
             Err(e) => {
                 panic!("Unable to find all ReferencedSopInstanceUIDs: {e:#?}");
@@ -795,7 +838,7 @@ mod tests {
                         &REFERENCED_SOP_CLASS_UID,
                     )
                 );
-                assert_eq!(result[0].value, "RefSopClass1");
+                assert_eq!(element_value_to_string(result[0].element), "RefSopClass1");
             }
             Err(e) => {
                 panic!("Unable to find the first ReferencedSopClassUID: {e:#?}");
@@ -821,7 +864,7 @@ mod tests {
                         &REFERENCED_SOP_CLASS_UID,
                     )
                 );
-                assert_eq!(result[0].value, "RefSopClass2");
+                assert_eq!(element_value_to_string(result[0].element), "RefSopClass2");
             }
             Err(e) => {
                 panic!("Unable to find the second ReferencedSopClassUID: {e:#?}");
@@ -847,7 +890,7 @@ mod tests {
                         &REFERENCED_SOP_CLASS_UID,
                     )
                 );
-                assert_eq!(result[0].value, "RefSopClass3");
+                assert_eq!(element_value_to_string(result[0].element), "RefSopClass3");
             }
             Err(e) => {
                 panic!("Unable to find the third ReferencedSopClassUID: {e:#?}");
@@ -876,7 +919,10 @@ mod tests {
                         &REFERENCED_SOP_INSTANCE_UID,
                     )
                 );
-                assert_eq!(result[0].value, "RefSopInstance1");
+                assert_eq!(
+                    element_value_to_string(result[0].element),
+                    "RefSopInstance1"
+                );
             }
             Err(e) => {
                 panic!("Unable to find the first ReferencedSopInstanceUID: {e:#?}");
@@ -903,7 +949,10 @@ mod tests {
                         &REFERENCED_SOP_INSTANCE_UID,
                     )
                 );
-                assert_eq!(result[0].value, "RefSopInstance2");
+                assert_eq!(
+                    element_value_to_string(result[0].element),
+                    "RefSopInstance2"
+                );
             }
             Err(e) => {
                 panic!("Unable to find the second ReferencedSopInstanceUID: {e:#?}");
@@ -930,7 +979,10 @@ mod tests {
                         &REFERENCED_SOP_INSTANCE_UID,
                     )
                 );
-                assert_eq!(result[0].value, "RefSopInstance3");
+                assert_eq!(
+                    element_value_to_string(result[0].element),
+                    "RefSopInstance3"
+                );
             }
             Err(e) => {
                 panic!("Unable to find the third ReferencedSopInstanceUID: {e:#?}");
@@ -953,7 +1005,7 @@ mod tests {
                         &REFERENCED_SOP_CLASS_UID
                     )
                 );
-                assert_eq!(results[0].value, "RefSopClass1");
+                assert_eq!(element_value_to_string(results[0].element), "RefSopClass1");
                 assert_eq!(
                     results[1].path,
                     format!(
@@ -963,7 +1015,7 @@ mod tests {
                         &REFERENCED_SOP_CLASS_UID
                     )
                 );
-                assert_eq!(results[1].value, "RefSopClass2");
+                assert_eq!(element_value_to_string(results[1].element), "RefSopClass2");
                 assert_eq!(
                     results[2].path,
                     format!(
@@ -973,7 +1025,7 @@ mod tests {
                         &REFERENCED_SOP_CLASS_UID
                     )
                 );
-                assert_eq!(results[2].value, "RefSopClass3");
+                assert_eq!(element_value_to_string(results[2].element), "RefSopClass3");
             }
             Err(e) => panic!("Unable to recursively find ReferencedSopClassUIDs: {e:#?}"),
         }
@@ -990,7 +1042,10 @@ mod tests {
                         &REFERENCED_SOP_INSTANCE_UID
                     )
                 );
-                assert_eq!(results[0].value, "RefSopInstance1");
+                assert_eq!(
+                    element_value_to_string(results[0].element),
+                    "RefSopInstance1"
+                );
                 assert_eq!(
                     results[1].path,
                     format!(
@@ -1000,7 +1055,10 @@ mod tests {
                         &REFERENCED_SOP_INSTANCE_UID
                     )
                 );
-                assert_eq!(results[1].value, "RefSopInstance2");
+                assert_eq!(
+                    element_value_to_string(results[1].element),
+                    "RefSopInstance2"
+                );
                 assert_eq!(
                     results[2].path,
                     format!(
@@ -1010,7 +1068,10 @@ mod tests {
                         &REFERENCED_SOP_INSTANCE_UID
                     )
                 );
-                assert_eq!(results[2].value, "RefSopInstance3");
+                assert_eq!(
+                    element_value_to_string(results[2].element),
+                    "RefSopInstance3"
+                );
             }
             Err(e) => panic!("Unable to recursively find ReferencedSopInstanceUIDs: {e:#?}"),
         }
