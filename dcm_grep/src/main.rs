@@ -1,5 +1,5 @@
 use clap::Parser;
-use rad_tools_dcm_grep::grep;
+use rad_tools_dcm_grep::{element_value_to_string, grep};
 use std::io::{self, BufRead};
 
 /// Extract the values of one or more (nested) DICOM tags.
@@ -91,11 +91,15 @@ fn main() {
 
     if args.show_path {
         for result in results {
-            println!("{}: {}", result.path, result.value);
+            println!(
+                "{}: {}",
+                result.path,
+                element_value_to_string(result.element)
+            );
         }
     } else {
         for result in results {
-            println!("{}", result.value);
+            println!("{}", element_value_to_string(result.element));
         }
     }
 }
