@@ -5,6 +5,7 @@ edition.workspace = true
 authors.workspace = true
 
 [dependencies]
+thiserror.workspace = true
 tracing.workspace = true
 dicom-object.workspace = true
 dicom-dictionary-std.workspace = true
