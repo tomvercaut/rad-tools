@@ -6,8 +6,6 @@ use tracing::error;
 pub struct DicomListener {
     /// Unique name for the listener
     pub name: String,
-    /// Address to listen on
-    pub addr: String,
     /// Port to listen on
     pub port: u16,
     /// DICOM AE Title
@@ -81,7 +79,6 @@ mod tests {
         let config = Config {
             listeners: vec![DicomListener {
                 name: "listener1".to_string(),
-                addr: "127.0.0.1".to_string(),
                 port: 104,
                 ae: "DCM".to_string(),
                 output: "/tmp".to_string(),
@@ -125,7 +122,6 @@ mod tests {
         let config = Config {
             listeners: vec![DicomListener {
                 name: "listener1".to_string(),
-                addr: "127.0.0.1".to_string(),
                 port: 104,
                 ae: "DCM".to_string(),
                 output: "/tmp".to_string(),
