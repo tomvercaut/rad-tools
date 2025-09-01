@@ -16,7 +16,7 @@ pub struct DicomListener {
 
 /// Endpoint to send DICOM files to.
 #[derive(Debug, Default, Serialize, Deserialize)]
-pub struct Endpoint {
+pub struct DicomStreamEndpoint {
     /// Unique name for the endpoint
     pub name: String,
     /// Address to send the DICOM files to
@@ -44,7 +44,7 @@ pub struct Route {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Config {
     pub listeners: Vec<DicomListener>,
-    pub endpoints: Vec<Endpoint>,
+    pub endpoints: Vec<DicomStreamEndpoint>,
     pub dir_endpoints: Vec<DirEndpoint>,
     pub routes: Vec<Route>,
 }
@@ -83,7 +83,7 @@ mod tests {
                 ae: "DCM".to_string(),
                 output: "/tmp".to_string(),
             }],
-            endpoints: vec![Endpoint {
+            endpoints: vec![DicomStreamEndpoint {
                 name: "endpoint1".to_string(),
                 addr: "127.0.0.1".to_string(),
                 port: 105,
@@ -102,7 +102,7 @@ mod tests {
     fn test_invalid_route_listener() {
         let config = Config {
             listeners: vec![],
-            endpoints: vec![Endpoint {
+            endpoints: vec![DicomStreamEndpoint {
                 name: "endpoint1".to_string(),
                 addr: "127.0.0.1".to_string(),
                 port: 105,

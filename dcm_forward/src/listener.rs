@@ -1,5 +1,5 @@
 use crate::Error;
-use crate::config::Endpoint;
+use crate::config::DicomStreamEndpoint;
 use rad_tools_common::system::which;
 use std::process::Child;
 use tracing::error;
@@ -41,7 +41,7 @@ pub struct DcmtkListener {
 }
 
 pub struct DcmtkDicomEcho<'a> {
-    pub endpoint: &'a Endpoint,
+    pub endpoint: &'a DicomStreamEndpoint,
 }
 
 impl DicomListener for DcmtkListener {
