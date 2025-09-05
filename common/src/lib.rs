@@ -37,3 +37,63 @@ pub trait Validate<ResultType> {
     /// ```
     fn validate(&self) -> ResultType;
 }
+
+/// Provides functionality for types that need to be started or initialized.
+///
+/// The `ResultType` type parameter specifies the return type of the start operation,
+/// typically a `Result` or similar type that can indicate success or specific errors.
+///
+/// # Example
+/// ```
+/// use rad_tools_common::Start;
+///
+/// struct Service {
+///     is_running: bool
+/// }
+///
+/// impl Start<Result<(), String>> for Service {
+///     fn start(&mut self) -> Result<(), String> {
+///         if self.is_running {
+///             return Err("Service already running".to_string());
+///         }
+///         self.is_running = true;
+///         Ok(())
+///     }
+/// }
+///
+/// let mut service = Service { is_running: false };
+/// assert!(service.start().is_ok());
+/// ```
+pub trait Start<ResultType> {
+    fn start(&mut self) -> ResultType;
+}
+
+/// Provides functionality for types that need to be stopped or cleaned up.
+///
+/// The `ResultType` type parameter specifies the return type of the stop operation,
+/// typically a `Result` or similar type that can indicate success or specific errors.
+///
+/// # Example
+/// ```
+/// use rad_tools_common::Stop;
+///
+/// struct Service {
+///     is_running: bool
+/// }
+///
+/// impl Stop<Result<(), String>> for Service {
+///     fn stop(&mut self) -> Result<(), String> {
+///         if !self.is_running {
+///             return Err("Service not running".to_string());
+///         }
+///         self.is_running = false;
+///         Ok(())
+///     }
+/// }
+///
+/// let mut service = Service { is_running: true };
+/// assert!(service.stop().is_ok());
+/// ```
+pub trait Stop<ResultType> {
+    fn stop(&mut self) -> ResultType;
+}
