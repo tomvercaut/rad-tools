@@ -1,30 +1,10 @@
+use crate::DicomListener::Dcmtk;
 use crate::Error;
 use crate::config::DicomStreamEndpoint;
 use rad_tools_common::system::which;
+use rad_tools_common::{Start, Stop};
 use std::process::Child;
 use tracing::error;
-
-/// DicomListener trait defines the interface for DICOM service providers that can listen
-/// for incoming DICOM associations and handle received DICOM files.
-///
-/// Implementors must provide functionality to:
-/// - Start the DICOM listening service
-/// - Stop the DICOM listening service gracefully
-pub trait DicomListener {
-    /// Starts the DICOM listening service.
-    ///
-    /// # Returns
-    /// - `Ok(())` if the service started successfully
-    /// - `Err` if the service failed to start
-    fn start(&mut self) -> crate::Result<()>;
-
-    /// Stops the DICOM listening service gracefully.
-    ///
-    /// # Returns
-    /// - `Ok(())` if the service stopped successfully
-    /// - `Err` if the service failed to stop (gracefully)
-    fn stop(&mut self) -> crate::Result<()>;
-}
 
 #[derive(Debug)]
 pub struct DcmtkListener {
@@ -44,7 +24,7 @@ pub struct DcmtkDicomEcho<'a> {
     pub endpoint: &'a DicomStreamEndpoint,
 }
 
-impl DicomListener for DcmtkListener {
+impl Start<crate::Result<()>> for DcmtkListener {
     fn start(&mut self) -> crate::Result<()> {
         // Stop any existing listener
         self.stop()?;
@@ -68,7 +48,9 @@ impl DicomListener for DcmtkListener {
             }
         }
     }
+}
 
+impl Stop<crate::Result<()>> for DcmtkListener {
     fn stop(&mut self) -> crate::Result<()> {
         if let Some(mut child) = self.proc.take()
             && let Err(e) = child.kill()
@@ -77,5 +59,38 @@ impl DicomListener for DcmtkListener {
             return Err(Error::UnableToKillDicomListener);
         }
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub enum DicomListener {
+    Dcmtk(DcmtkListener),
+}
+
+impl From<&crate::config::DicomListener> for DicomListener {
+    fn from(value: &crate::config::DicomListener) -> Self {
+        Dcmtk(DcmtkListener {
+            name: value.name.clone(),
+            port: value.port,
+            ae: value.ae.clone(),
+            output: value.output.clone(),
+            proc: None,
+        })
+    }
+}
+
+impl Start<crate::Result<()>> for DicomListener {
+    fn start(&mut self) -> crate::Result<()> {
+        match self {
+            DicomListener::Dcmtk(listener) => listener.start(),
+        }
+    }
+}
+
+impl Stop<crate::Result<()>> for DicomListener {
+    fn stop(&mut self) -> crate::Result<()> {
+        match self {
+            DicomListener::Dcmtk(listener) => listener.stop(),
+        }
     }
 }

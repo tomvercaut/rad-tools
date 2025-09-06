@@ -1,4 +1,7 @@
+use crate::Error;
+use rad_tools_common::Validate;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use tracing::error;
 
 /// Listener for DICOM files.
@@ -35,6 +38,12 @@ pub struct DirEndpoint {
     pub path: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub enum Endpoint {
+    Dicom(DicomStreamEndpoint),
+    Dir(DirEndpoint),
+}
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Route {
     pub name: String,
@@ -44,30 +53,57 @@ pub struct Route {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Config {
     pub listeners: Vec<DicomListener>,
-    pub endpoints: Vec<DicomStreamEndpoint>,
-    pub dir_endpoints: Vec<DirEndpoint>,
+    pub endpoints: Vec<Endpoint>,
     pub routes: Vec<Route>,
 }
 
-pub fn are_routes_linked(config: &Config) -> bool {
+impl Validate<crate::Result<()>> for Config {
+    fn validate(&self) -> crate::Result<()> {
+        if self.listeners.is_empty() {
+            return Err(Error::NoListenersConfigured);
+        }
+        if self.endpoints.is_empty() {
+            return Err(Error::NoEndpointsConfigured);
+        }
+        for endpoint in &self.endpoints {
+            match endpoint {
+                Endpoint::Dicom(_) => {}
+                Endpoint::Dir(endpoint) => {
+                    if !endpoint_path_exists(endpoint) {
+                        return Err(Error::DirectoryEndpointPathDoesnotExist);
+                    }
+                }
+            }
+        }
+        are_routes_linked(self)?;
+        Ok(())
+    }
+}
+
+fn endpoint_path_exists(endpoint: &DirEndpoint) -> bool {
+    error!("DirEndpoint path {} is not a directory", endpoint.path);
+    Path::new(&endpoint.path).is_dir()
+}
+
+pub fn are_routes_linked(config: &Config) -> crate::Result<()> {
     for route in &config.routes {
         let has_listener = config
             .listeners
             .iter()
             .any(|listener| listener.name == route.endpoints[0]);
-        let has_endpoint = config
-            .endpoints
-            .iter()
-            .any(|endpoint| endpoint.name == route.endpoints[1]);
+        let has_endpoint = config.endpoints.iter().any(|endpoint| match endpoint {
+            Endpoint::Dicom(value) => value.name == route.endpoints[1],
+            Endpoint::Dir(value) => value.name == route.endpoints[1],
+        });
         if !has_listener || !has_endpoint {
             error!(
                 "Route from {} ↦ {} is not linked.",
                 route.endpoints[0], route.endpoints[1]
             );
-            return false;
+            return Err(Error::RouteNotFound);
         }
     }
-    true
+    Ok(())
 }
 
 #[cfg(test)]
@@ -83,38 +119,36 @@ mod tests {
                 ae: "DCM".to_string(),
                 output: "/tmp".to_string(),
             }],
-            endpoints: vec![DicomStreamEndpoint {
+            endpoints: vec![Endpoint::Dicom(DicomStreamEndpoint {
                 name: "endpoint1".to_string(),
                 addr: "127.0.0.1".to_string(),
                 port: 105,
                 ae: "STORE".to_string(),
-            }],
+            })],
             routes: vec![Route {
                 name: "route1".to_string(),
                 endpoints: vec!["listener1".to_string(), "endpoint1".to_string()],
             }],
-            dir_endpoints: vec![],
         };
-        assert!(are_routes_linked(&config));
+        assert!(are_routes_linked(&config).is_ok());
     }
 
     #[test]
     fn test_invalid_route_listener() {
         let config = Config {
             listeners: vec![],
-            endpoints: vec![DicomStreamEndpoint {
+            endpoints: vec![Endpoint::Dicom(DicomStreamEndpoint {
                 name: "endpoint1".to_string(),
                 addr: "127.0.0.1".to_string(),
                 port: 105,
                 ae: "STORE".to_string(),
-            }],
+            })],
             routes: vec![Route {
                 name: "route1".to_string(),
                 endpoints: vec!["listener1".to_string(), "endpoint1".to_string()],
             }],
-            dir_endpoints: vec![],
         };
-        assert!(!are_routes_linked(&config));
+        assert!(are_routes_linked(&config).is_err());
     }
 
     #[test]
@@ -131,8 +165,7 @@ mod tests {
                 name: "route1".to_string(),
                 endpoints: vec!["listener1".to_string(), "endpoint1".to_string()],
             }],
-            dir_endpoints: vec![],
         };
-        assert!(!are_routes_linked(&config));
+        assert!(are_routes_linked(&config).is_err());
     }
 }

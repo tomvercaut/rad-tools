@@ -4,3 +4,6 @@ Cargo.lock
 .idea
 .vscode
 config.toml
+
+dcm_forward/config_example.toml
+dcm_forward/Dockerfile

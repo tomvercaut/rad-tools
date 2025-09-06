@@ -14,6 +14,14 @@ pub enum Error {
     DcmtkEchoAssociationAborted,
     #[error("DCMTK echoscu: other error")]
     DcmtkEchoOtherError,
+    #[error("No route exists between a DICOM listener and an endpoint.")]
+    RouteNotFound,
+    #[error("Directory endpoint path does not exist")]
+    DirectoryEndpointPathDoesnotExist,
+    #[error("No listeners have been configured")]
+    NoListenersConfigured,
+    #[error("No endpoints have been configured")]
+    NoEndpointsConfigured,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
