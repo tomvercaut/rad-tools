@@ -55,3 +55,12 @@ impl From<crate::config::Endpoint> for Endpoint {
         }
     }
 }
+
+impl Endpoint {
+    pub fn name(&self) -> &str {
+        match self {
+            Endpoint::Dicom(endpoint) => &endpoint.name,
+            Endpoint::Dir(endpoint) => &endpoint.name,
+        }
+    }
+}

@@ -1,40 +1,55 @@
 use crate::DicomListener;
-use crate::config::{Config, Route};
-use crate::endpoint::Endpoint;
-use rad_tools_common::Start;
+use crate::config::Config;
+use crate::route::Route;
+use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct EndpointManager {
     listeners: Vec<DicomListener>,
-    endpoints: Vec<Endpoint>,
     routes: Vec<Route>,
 }
 
-impl TryFrom<&Config> for EndpointManager {
-    type Error = crate::Error;
-
-    fn try_from(config: &Config) -> Result<Self, Self::Error> {
-        let routes = Vec::new(); // Initialize empty and populate based on config later
-
+impl From<crate::config::Config> for EndpointManager {
+    fn from(config: Config) -> Self {
         let listeners = config
             .listeners
             .iter()
             .map(|listener| DicomListener::from(listener))
-            .collect();
+            .collect::<Vec<_>>();
 
-        Ok(Self {
-            listeners,
-            endpoints: Vec::new(),
-            routes,
-        })
-    }
-}
+        let mut routes = vec![];
+        for cr in &config.routes {
+            let listener = listeners.iter().find(|l| l.name() == cr.name);
+            if listener.is_none() {
+                continue;
+            }
+            let listener = listener.unwrap();
+            let dir = PathBuf::from(match listener {
+                DicomListener::Dcmtk(listener) => &listener.output,
+            });
+            let endpoints = config
+                .endpoints
+                .iter()
+                .filter(|e| {
+                    let tname = match e {
+                        crate::config::Endpoint::Dicom(endpoint) => &endpoint.name,
+                        crate::config::Endpoint::Dir(endpoint) => &endpoint.name,
+                    };
+                    cr.endpoints.contains(tname)
+                })
+                .collect::<Vec<_>>();
+            let endpoints = endpoints
+                .iter()
+                .map(|endpoint| {
+                    let te = (*endpoint).clone();
+                    crate::endpoint::Endpoint::from(te)
+                })
+                .collect::<Vec<crate::endpoint::Endpoint>>();
 
-impl Start<crate::Result<()>> for EndpointManager {
-    fn start(&mut self) -> crate::Result<()> {
-        for listener in &mut self.listeners {
-            listener.start()?;
+            let route = crate::route::Route { dir, endpoints };
+            routes.push(route);
         }
-        todo!()
+
+        Self { listeners, routes }
     }
 }

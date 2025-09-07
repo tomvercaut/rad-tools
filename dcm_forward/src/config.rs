@@ -5,7 +5,7 @@ use std::path::Path;
 use tracing::error;
 
 /// Listener for DICOM files.
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DicomListener {
     /// Unique name for the listener
     pub name: String,
@@ -18,7 +18,7 @@ pub struct DicomListener {
 }
 
 /// Endpoint to send DICOM files to.
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DicomStreamEndpoint {
     /// Unique name for the endpoint
     pub name: String,
@@ -30,7 +30,7 @@ pub struct DicomStreamEndpoint {
     pub ae: String,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DirEndpoint {
     /// Unique name for the endpoint
     pub name: String,
@@ -38,19 +38,19 @@ pub struct DirEndpoint {
     pub path: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Endpoint {
     Dicom(DicomStreamEndpoint),
     Dir(DirEndpoint),
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Route {
     pub name: String,
     pub endpoints: Vec<String>,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Config {
     pub listeners: Vec<DicomListener>,
     pub endpoints: Vec<Endpoint>,

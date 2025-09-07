@@ -94,3 +94,11 @@ impl Stop<crate::Result<()>> for DicomListener {
         }
     }
 }
+
+impl DicomListener {
+    pub fn name(&self) -> &str {
+        match self {
+            DicomListener::Dcmtk(listener) => listener.name.as_str(),
+        }
+    }
+}
