@@ -33,6 +33,7 @@ toml = "0.9"
 filetime = "0.2"
 regex = "1"
 sysinfo = "0.37"
+tokio = {version = "1", features = ["full"]}
 
 log = "0.4"
 env_logger = "0.11"

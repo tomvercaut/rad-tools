@@ -14,7 +14,7 @@ impl From<crate::config::Config> for EndpointManager {
         let listeners = config
             .listeners
             .iter()
-            .map(|listener| DicomListener::from(listener))
+            .map(DicomListener::from)
             .collect::<Vec<_>>();
 
         let mut routes = vec![];

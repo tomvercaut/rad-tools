@@ -14,6 +14,8 @@ pub enum Error {
     DcmtkEchoAssociationAborted,
     #[error("DCMTK echoscu: other error")]
     DcmtkEchoOtherError,
+    #[error("DCMTK storescu can't send the file")]
+    DcmtkStorescu,
     #[error("No route exists between a DICOM listener and an endpoint.")]
     RouteNotFound,
     #[error("Directory endpoint path does not exist")]
@@ -22,6 +24,12 @@ pub enum Error {
     NoListenersConfigured,
     #[error("No endpoints have been configured")]
     NoEndpointsConfigured,
+    #[error("Unable to walk directory")]
+    WalkDirError(#[from] walkdir::Error),
+    #[error("IO error: {0:?}")]
+    IO(#[from] std::io::Error),
+    #[error("Unable to send file to one or more endpoints")]
+    SendToEndpoint,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

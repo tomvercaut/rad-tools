@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Endpoint to send DICOM files to.
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct DicomStreamEndpoint {
     /// Unique name for the endpoint
     pub name: String,
@@ -24,7 +24,7 @@ impl From<crate::config::DicomStreamEndpoint> for DicomStreamEndpoint {
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct DirEndpoint {
     /// Unique name for the endpoint
     pub name: String,
@@ -41,7 +41,7 @@ impl From<crate::config::DirEndpoint> for DirEndpoint {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Endpoint {
     Dicom(DicomStreamEndpoint),
     Dir(DirEndpoint),
