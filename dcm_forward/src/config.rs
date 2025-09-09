@@ -26,8 +26,10 @@ pub struct DicomStreamEndpoint {
     pub addr: String,
     /// Port to send the DICOM files to
     pub port: u16,
-    /// DICOM AE Title
-    pub ae: String,
+    /// DICOM my calling AE Title
+    pub aet: String,
+    /// DICOM called AE Title
+    pub aec: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -123,7 +125,8 @@ mod tests {
                 name: "endpoint1".to_string(),
                 addr: "127.0.0.1".to_string(),
                 port: 105,
-                ae: "STORE".to_string(),
+                aet: "AET".to_string(),
+                aec: "STORE".to_string(),
             })],
             routes: vec![Route {
                 name: "route1".to_string(),
@@ -141,7 +144,8 @@ mod tests {
                 name: "endpoint1".to_string(),
                 addr: "127.0.0.1".to_string(),
                 port: 105,
-                ae: "STORE".to_string(),
+                aet: "AET".to_string(),
+                aec: "STORE".to_string(),
             })],
             routes: vec![Route {
                 name: "route1".to_string(),

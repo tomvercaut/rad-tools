@@ -9,8 +9,10 @@ pub struct DicomStreamEndpoint {
     pub addr: String,
     /// Port to send the DICOM files to
     pub port: u16,
-    /// DICOM AE Title
-    pub ae: String,
+    /// DICOM my calling AE Title
+    pub aet: String,
+    /// DICOM called AE Title
+    pub aec: String,
 }
 
 impl From<crate::config::DicomStreamEndpoint> for DicomStreamEndpoint {
@@ -19,7 +21,8 @@ impl From<crate::config::DicomStreamEndpoint> for DicomStreamEndpoint {
             name: value.name,
             addr: value.addr,
             port: value.port,
-            ae: value.ae,
+            aet: value.aet,
+            aec: value.aec,
         }
     }
 }

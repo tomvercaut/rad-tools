@@ -151,7 +151,9 @@ async fn storescu(path: PathBuf, endpoint: DicomStreamEndpoint) -> crate::Result
     trace!("Sending file ({:#?}) to endpoint {:#?}", &path, &endpoint);
     let mut cmd = std::process::Command::new("storescu");
     cmd.arg("-aec")
-        .arg(&endpoint.ae)
+        .arg(&endpoint.aec)
+        .arg("-aet")
+        .arg(&endpoint.aet)
         .arg(&endpoint.addr)
         .arg(endpoint.port.to_string())
         .arg(path.to_str().unwrap());

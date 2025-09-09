@@ -143,13 +143,15 @@ fn sample_config() -> Config {
             name: "DSE_1".to_string(),
             addr: "192.168.1.10".to_string(),
             port: 106,
-            ae: "DSE_1".to_string(),
+            aet: "AET_1".to_string(),
+            aec: "DSE_1".to_string(),
         }),
         Endpoint::Dicom(DicomStreamEndpoint {
             name: "DSE_2".to_string(),
             addr: "192.168.2.10".to_string(),
             port: 107,
-            ae: "DSE_2".to_string(),
+            aet: "AET_2".to_string(),
+            aec: "DSE_2".to_string(),
         }),
         Endpoint::Dir(DirEndpoint {
             name: "DE_1".to_string(),
