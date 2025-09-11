@@ -19,7 +19,7 @@ pub enum Error {
     #[error("No route exists between a DICOM listener and an endpoint.")]
     RouteNotFound,
     #[error("Directory endpoint path does not exist")]
-    DirectoryEndpointPathDoesnotExist,
+    DirectoryEndpointPathDoesNotExist,
     #[error("No listeners have been configured")]
     NoListenersConfigured,
     #[error("No endpoints have been configured")]
@@ -30,6 +30,12 @@ pub enum Error {
     IO(#[from] std::io::Error),
     #[error("Unable to send file to one or more endpoints")]
     SendToEndpoint,
+    #[error("Endpoint manager is already running")]
+    EndpointManagerAlreadyStarted,
+    #[error("Endpoint manager is not running")]
+    EndpointManagerNotStarted,
+    #[error("Endpoint manager could not stop all workers")]
+    EndpointManagerNotAllWorkersStopped,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

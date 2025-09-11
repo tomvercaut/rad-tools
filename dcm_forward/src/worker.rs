@@ -217,7 +217,7 @@ fn get_file_paths(buffer_size: usize, dir: &PathBuf, duration: Duration) -> Vec<
     if buffer_size == 0 {
         let mut paths = vec![];
         for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
-            if !is_eligible(entry.path(), duration) {
+            if !is_eligible(entry.path(), duration).unwrap_or(false) {
                 continue;
             }
             paths.push(entry.path().to_path_buf());
@@ -226,7 +226,7 @@ fn get_file_paths(buffer_size: usize, dir: &PathBuf, duration: Duration) -> Vec<
     } else {
         let mut paths = Vec::with_capacity(buffer_size);
         for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
-            if !is_eligible(entry.path(), duration) {
+            if !is_eligible(entry.path(), duration).unwrap_or(false) {
                 continue;
             }
             if paths.len() >= buffer_size {
@@ -246,29 +246,27 @@ fn get_file_paths(buffer_size: usize, dir: &PathBuf, duration: Duration) -> Vec<
 ///
 /// # Returns
 /// `true` if the file exists, is a regular file, and is older than the duration threshold
-fn is_eligible<P>(path: P, duration: Duration) -> bool
+fn is_eligible<P>(path: P, duration: Duration) -> crate::Result<bool>
 where
     P: AsRef<Path>,
 {
     let path = path.as_ref();
     if !path.is_file() {
-        return false;
+        return Ok(false);
     }
 
-    let metadata = path.metadata();
-    if let Err(e) = metadata {
-        error!("Failed to get metadata for file ({:#?}): {:#?}", path, e);
-        return false;
-    }
+    let metadata = path.metadata().map_err(|e| {
+        error!("Failed to get metadata for file: {:#?}", path);
+        e
+    })?;
     let now = SystemTime::now();
-    let metadata = metadata.unwrap();
     if let Ok(modified) = metadata.modified() {
         if let Ok(age) = now.duration_since(modified) {
-            age > duration
+            Ok(age > duration)
         } else {
-            false
+            Ok(false)
         }
     } else {
-        false
+        Ok(false)
     }
 }

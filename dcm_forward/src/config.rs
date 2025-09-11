@@ -2,7 +2,7 @@ use crate::Error;
 use rad_tools_common::Validate;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use tracing::error;
+use tracing::{error, warn};
 
 /// Listener for DICOM files.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -53,10 +53,17 @@ pub struct Route {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Manager {
+    /// Maximum number of attempts to stop all workers
+    pub max_stop_attempts: usize,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Config {
     pub listeners: Vec<DicomListener>,
     pub endpoints: Vec<Endpoint>,
     pub routes: Vec<Route>,
+    pub manager: Manager,
 }
 
 impl Validate<crate::Result<()>> for Config {
@@ -72,7 +79,7 @@ impl Validate<crate::Result<()>> for Config {
                 Endpoint::Dicom(_) => {}
                 Endpoint::Dir(endpoint) => {
                     if !endpoint_path_exists(endpoint) {
-                        return Err(Error::DirectoryEndpointPathDoesnotExist);
+                        return Err(Error::DirectoryEndpointPathDoesNotExist);
                     }
                 }
             }
@@ -83,7 +90,7 @@ impl Validate<crate::Result<()>> for Config {
 }
 
 fn endpoint_path_exists(endpoint: &DirEndpoint) -> bool {
-    error!("DirEndpoint path {} is not a directory", endpoint.path);
+    warn!("DirEndpoint path {} is not a directory", endpoint.path);
     Path::new(&endpoint.path).is_dir()
 }
 
@@ -132,6 +139,9 @@ mod tests {
                 name: "route1".to_string(),
                 endpoints: vec!["listener1".to_string(), "endpoint1".to_string()],
             }],
+            manager: Manager {
+                max_stop_attempts: 100,
+            },
         };
         assert!(are_routes_linked(&config).is_ok());
     }
@@ -151,6 +161,9 @@ mod tests {
                 name: "route1".to_string(),
                 endpoints: vec!["listener1".to_string(), "endpoint1".to_string()],
             }],
+            manager: Manager {
+                max_stop_attempts: 100,
+            },
         };
         assert!(are_routes_linked(&config).is_err());
     }
@@ -169,6 +182,9 @@ mod tests {
                 name: "route1".to_string(),
                 endpoints: vec!["listener1".to_string(), "endpoint1".to_string()],
             }],
+            manager: Manager {
+                max_stop_attempts: 100,
+            },
         };
         assert!(are_routes_linked(&config).is_err());
     }

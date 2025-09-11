@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use clap::{Parser, Subcommand};
 use rad_tools_common::Validate;
 use rad_tools_dcm_forward::config::{
-    Config, DicomListener, DicomStreamEndpoint, DirEndpoint, Endpoint, Route,
+    Config, DicomListener, DicomStreamEndpoint, DirEndpoint, Endpoint, Manager, Route,
 };
 use std::path::PathBuf;
 use tracing::error;
@@ -10,8 +10,6 @@ use tracing::error;
 #[derive(Parser)]
 #[command(version, about, long_about=None)]
 struct Args {
-    // /// Configuration file.
-    // config: Option<String>,
     #[command(subcommand)]
     commands: Option<Commands>,
 
@@ -176,5 +174,8 @@ fn sample_config() -> Config {
         listeners,
         endpoints,
         routes,
+        manager: Manager {
+            max_stop_attempts: 100,
+        },
     }
 }
