@@ -1,5 +1,5 @@
 use clap::Parser;
-use rad_tools_dcm_grep::{element_value_to_string, grep};
+use rad_tools_dcm_grep::{element_value_to_string, grep, grep_meta};
 use std::io::{self, BufRead};
 
 /// Extract the values of one or more (nested) DICOM tags.
@@ -41,6 +41,8 @@ struct Args {
     /// - (3006,0010)[0]/(0020,0052): selects the Frame Of Reference UID in the first Referenced Frame Of Reference Sequence item.
     ///
     /// - (3006,0010)[1]/(0020,0052): selects the Frame Of Reference UID in the second Referenced Frame Of Reference Sequence item.
+    ///
+    /// Importantly, while matching DICOM meta elements, selectors and nested patterns should not be used as this will result in an error.!
     #[clap(short = 'e', value_name = "PATTERN")]
     patterns: Vec<String>,
 
@@ -82,14 +84,23 @@ fn main() {
     });
     let obj = rad_tools_common::dicom::open_file(filename).expect("Failed to open the file.");
 
+    let mut meta_results = vec![];
+    for pattern in &args.patterns {
+        let v = grep_meta(obj.meta(), pattern.as_str()).expect("Failed to grep meta data.");
+        meta_results.extend(v);
+    }
+
     let mut results = vec![];
 
-    for pattern in args.patterns {
+    for pattern in &args.patterns {
         let v = grep(&obj, pattern.as_str(), args.recursive).expect("Failed to grep data.");
         results.extend(v);
     }
 
     if args.show_path {
+        for result in meta_results {
+            println!("{}: {}", result.path, result.value);
+        }
         for result in results {
             println!(
                 "{}: {}",
@@ -98,6 +109,9 @@ fn main() {
             );
         }
     } else {
+        for result in meta_results {
+            println!("{}", result.value);
+        }
         for result in results {
             println!("{}", element_value_to_string(result.element));
         }
