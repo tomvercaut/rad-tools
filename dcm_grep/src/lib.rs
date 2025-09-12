@@ -2,6 +2,6 @@ mod error;
 mod grep;
 mod pattern;
 
-pub use grep::{GrepResult, element_value_to_string, grep};
+pub use grep::{GrepMetaResult, GrepResult, element_value_to_string, grep, grep_meta};
 
 pub use error::Error;
