@@ -1,9 +1,10 @@
 use crate::Error;
 use crate::pattern::{SearchPatterns, Selector};
+use dicom_core::PrimitiveValue;
 use dicom_core::header::Header;
 use dicom_core::value::Value;
-use dicom_object::InMemDicomObject;
 use dicom_object::mem::InMemElement;
+use dicom_object::{FileMetaTable, InMemDicomObject};
 use std::str::FromStr;
 use tracing::error;
 
@@ -31,6 +32,82 @@ pub fn grep<'a>(
     Ok(v)
 }
 
+/// Searches for DICOM elements in the provided file meta table that match the given search pattern.
+///
+/// # Arguments
+/// * `obj` - The DICOM file meta table to search through
+/// * `pattern` - A string representing the search pattern in the format
+///   "tag[selector]/tag[selector]/...".
+///   It's important to note using selectors to query meta elements (with a group tag == 0x0002 and an element tag <= 0x0102)
+///   is considered an invalid pattern. Based on the registry of DICOM File Meta Elements on:
+///   https://dicom.nema.org/medical/dicom/current/output/chtml/part06/chapter_7.html
+///
+/// # Returns
+/// * `Ok(Vec<GrepMetaResult>)` - A vector of matching meta elements with their paths and primitive values
+/// * `Err(Error)` - If the pattern is invalid or contains unsupported meta values
+pub fn grep_meta(obj: &FileMetaTable, pattern: &str) -> Result<Vec<GrepMetaResult>, Error> {
+    let patterns = SearchPatterns::from_str(pattern).map_err(|e| {
+        error!("Unable to create search patterns: {e:#?}");
+        Error::InvalidState
+    })?;
+
+    let mut v = vec![];
+    let npattern = patterns.patterns.len();
+    for elem in obj.to_element_iter() {
+        let pattern = patterns.patterns.first();
+        if pattern.is_none() {
+            // No more patterns to match.
+            break;
+        }
+        let element_tag = elem.tag();
+        let p = pattern.unwrap();
+        if p.tag != element_tag {
+            continue;
+        }
+        // A matching tag has been found in the meta element table.
+        // Check if the pattern(s) and selector are valid for a meta element.
+        // There should be no other patterns or selectors.
+        let mut has_error = false;
+        if !p.selectors.is_empty() {
+            error!(
+                "{:#?} has selectors in the meta element pattern: {:#?}",
+                &element_tag, p
+            );
+            has_error = true;
+        }
+        if npattern > 1 {
+            error!(
+                "{:#?} has multiple search patterns in the meta element pattern: {:#?}",
+                &element_tag, &patterns.patterns
+            );
+            has_error = true;
+        }
+        if has_error {
+            return Err(Error::InvalidState);
+        }
+
+        // The pattern is valid for a meta element.
+        // Check if the value is supported.
+        // If it is, add the value to the results.
+        let meta_value = match elem.value() {
+            Value::Primitive(primitive) => Ok(primitive.clone()),
+            _ => {
+                error!(
+                    "{:#?} has an unsupported value representation meta element: {:#?}",
+                    &element_tag,
+                    elem.vr()
+                );
+                Err(Error::UnsupportedMetaValue)
+            }
+        }?;
+        v.push(GrepMetaResult {
+            path: format!("{}", element_tag),
+            value: meta_value,
+        });
+    }
+    Ok(v)
+}
+
 /// Represents a matched DICOM element from a grep search operation
 #[derive(Debug)]
 pub struct GrepResult<'a> {
@@ -39,6 +116,16 @@ pub struct GrepResult<'a> {
     pub path: String,
     /// DICOM element
     pub element: &'a InMemElement,
+}
+
+/// Represents a matched DICOM meta element from a grep search operation
+#[derive(Debug)]
+pub struct GrepMetaResult {
+    /// Path of the element value in the DICOM object.
+    /// Example: (1234,5678)[2]/(9876,5432)
+    pub path: String,
+    /// DICOM element
+    pub value: PrimitiveValue,
 }
 
 /// Converts a DICOM element's value to a string representation
@@ -208,11 +295,12 @@ mod tests {
     use dicom_core::{DataElement, VR};
     use dicom_dictionary_std::tags::{
         CODE_MEANING, CODE_VALUE, CODING_SCHEME_DESIGNATOR, CTDI_PHANTOM_TYPE_CODE_SEQUENCE,
-        PATIENT_ID, PATIENT_NAME, REFERENCED_SOP_CLASS_UID, REFERENCED_SOP_INSTANCE_UID,
-        REFERENCED_STUDY_SEQUENCE, REQUEST_ATTRIBUTES_SEQUENCE, SERIES_DATE, SERIES_TIME,
-        SOP_CLASS_UID, STUDY_DATE, STUDY_TIME,
+        IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME, MEDIA_STORAGE_SOP_CLASS_UID,
+        MEDIA_STORAGE_SOP_INSTANCE_UID, PATIENT_ID, PATIENT_NAME, REFERENCED_SOP_CLASS_UID,
+        REFERENCED_SOP_INSTANCE_UID, REFERENCED_STUDY_SEQUENCE, REQUEST_ATTRIBUTES_SEQUENCE,
+        SERIES_DATE, SERIES_TIME, SOP_CLASS_UID, STUDY_DATE, STUDY_TIME, TRANSFER_SYNTAX_UID,
     };
-    use dicom_dictionary_std::uids::CT_IMAGE_STORAGE;
+    use dicom_dictionary_std::uids::{CT_IMAGE_STORAGE, IMPLICIT_VR_LITTLE_ENDIAN};
     use dicom_object::FileMetaTableBuilder;
 
     fn create_dicom_model() -> InMemDicomObject {
@@ -1074,6 +1162,110 @@ mod tests {
                 );
             }
             Err(e) => panic!("Unable to recursively find ReferencedSopInstanceUIDs: {e:#?}"),
+        }
+    }
+
+    fn create_dicom_meta_table() -> FileMetaTable {
+        let meta = FileMetaTableBuilder::new()
+            .transfer_syntax(IMPLICIT_VR_LITTLE_ENDIAN)
+            .media_storage_sop_class_uid(CT_IMAGE_STORAGE)
+            .media_storage_sop_instance_uid("1.2.3.4.5.6")
+            .implementation_class_uid("1.2.3.4.5")
+            .implementation_version_name("VERSION_01");
+        meta.build().unwrap()
+    }
+    #[test]
+    fn test_grep_meta_find_elements() {
+        let meta = create_dicom_meta_table();
+
+        fn assert_single_meta(
+            meta: &FileMetaTable,
+            pattern: &str,
+            expected_value: &str,
+            label: &str,
+        ) {
+            match grep_meta(meta, pattern) {
+                Ok(matches) => {
+                    assert_eq!(matches.len(), 1, "Expected exactly one match for {}", label);
+                    let first = &matches[0];
+                    assert_eq!(first.path, pattern, "Unexpected path for {}", label);
+                    assert_eq!(
+                        first.value.to_string(),
+                        expected_value,
+                        "Unexpected value for {}",
+                        label
+                    );
+                }
+                Err(e) => panic!("Unable to find {}: {e:#?}", label),
+            }
+        }
+
+        assert_single_meta(
+            &meta,
+            &TRANSFER_SYNTAX_UID.to_string(),
+            IMPLICIT_VR_LITTLE_ENDIAN,
+            "TransferSyntaxUID",
+        );
+        assert_single_meta(
+            &meta,
+            &MEDIA_STORAGE_SOP_CLASS_UID.to_string(),
+            CT_IMAGE_STORAGE,
+            "MediaStorageSOPClassUID",
+        );
+        assert_single_meta(
+            &meta,
+            &MEDIA_STORAGE_SOP_INSTANCE_UID.to_string(),
+            "1.2.3.4.5.6",
+            "MediaStorageSOPInstanceUID",
+        );
+        assert_single_meta(
+            &meta,
+            &IMPLEMENTATION_CLASS_UID.to_string(),
+            "1.2.3.4.5",
+            "ImplementationClassUID",
+        );
+        assert_single_meta(
+            &meta,
+            &IMPLEMENTATION_VERSION_NAME.to_string(),
+            "VERSION_01",
+            "ImplementationVersionName",
+        );
+    }
+
+    #[test]
+    fn test_grep_meta_invalid_pattern() {
+        let meta = create_dicom_meta_table();
+        match grep_meta(&meta, "invalid_pattern") {
+            Ok(_) => panic!("Expected error for an invalid pattern"),
+            Err(Error::InvalidState) => (),
+            Err(e) => panic!("Unexpected error: {e:#?}"),
+        }
+
+        // Test invalid pattern with selector
+        match grep_meta(&meta, &format!("{}[0]", IMPLEMENTATION_CLASS_UID)) {
+            Ok(_) => panic!("Expected error for a pattern with selector"),
+            Err(Error::InvalidState) => (),
+            Err(e) => panic!("Unexpected error: {e:#?}"),
+        }
+
+        // Test multiple pattern elements
+        match grep_meta(
+            &meta,
+            &format!(
+                "{}/{}",
+                IMPLEMENTATION_CLASS_UID, IMPLEMENTATION_VERSION_NAME
+            ),
+        ) {
+            Ok(_) => panic!("Expected error for multiple pattern elements"),
+            Err(Error::InvalidState) => (),
+            Err(e) => panic!("Unexpected error: {e:#?}"),
+        }
+
+        // Test invalid selector range
+        match grep_meta(&meta, &format!("{}[0-1]", IMPLEMENTATION_CLASS_UID)) {
+            Ok(_) => panic!("Expected error for a pattern with selector range"),
+            Err(Error::InvalidState) => (),
+            Err(e) => panic!("Unexpected error: {e:#?}"),
         }
     }
 }

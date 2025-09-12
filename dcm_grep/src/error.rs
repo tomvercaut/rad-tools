@@ -18,4 +18,6 @@ pub enum Error {
     InvalidSearchPattern,
     #[error("Invalid state to perform the operation")]
     InvalidState,
+    #[error("Unsupported meta value")]
+    UnsupportedMetaValue,
 }
