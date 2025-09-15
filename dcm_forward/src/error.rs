@@ -28,7 +28,7 @@ pub enum Error {
     WalkDirError(#[from] walkdir::Error),
     #[error("IO error: {0:?}")]
     IO(#[from] std::io::Error),
-    #[error("Unable to send file to one or more endpoints")]
+    #[error("Unable to send a file to one or more endpoints")]
     SendToEndpoint,
     #[error("Endpoint manager is already running")]
     EndpointManagerAlreadyStarted,

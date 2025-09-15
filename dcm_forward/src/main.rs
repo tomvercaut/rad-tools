@@ -47,14 +47,14 @@ fn main() -> Result<(), anyhow::Error> {
         match commands {
             Commands::Generate => {
                 let sample_config = sample_config();
-                let toml =
-                    toml::to_string_pretty(&sample_config).expect("Failed to create TOML config.");
-                println!("{}", toml);
+                let s =
+                    to_string_pretty(&sample_config).expect("Failed to create serialized config.");
+                println!("{}", s);
                 Ok(())
             }
             Commands::Show { config } => {
                 let config = get_config(config)?;
-                println!("{:#?}", toml::to_string_pretty(&config));
+                println!("{:#?}", to_string_pretty(&config));
                 Ok(())
             }
             Commands::Start { config } => {
@@ -112,12 +112,44 @@ fn get_config(config: Option<String>) -> Result<Config, anyhow::Error> {
         error!("{:#?}", e);
         anyhow!("Failed to read config.")
     })?;
-    let parsed_config = toml::from_str(&content).map_err(|e| {
+    let parsed_config = parse_config(&content)?;
+    Ok(parsed_config)
+}
+
+#[cfg(feature = "toml")]
+fn parse_config(config: &str) -> Result<Config, anyhow::Error> {
+    let parsed_config = toml::from_str(config).map_err(|e| {
         error!("{:#?}", e);
         anyhow!("Failed to parse config.")
     })?;
-
     Ok(parsed_config)
+}
+
+#[cfg(feature = "json")]
+fn parse_config(config: &str) -> Result<Config, anyhow::Error> {
+    let parsed_config = serde_json::from_str(config).map_err(|e| {
+        error!("{:#?}", e);
+        anyhow!("Failed to create JSON config.")
+    })?;
+    Ok(parsed_config)
+}
+
+#[cfg(feature = "toml")]
+fn to_string_pretty(config: &Config) -> Result<String, anyhow::Error> {
+    let toml = toml::to_string_pretty(config).map_err(|e| {
+        error!("{:#?}", e);
+        anyhow!("Failed to create TOML config.")
+    })?;
+    Ok(toml)
+}
+
+#[cfg(feature = "json")]
+fn to_string_pretty(config: &Config) -> Result<String, anyhow::Error> {
+    let toml = serde_json::to_string_pretty(config).map_err(|e| {
+        error!("{:#?}", e);
+        anyhow!("Failed to create TOML config.")
+    })?;
+    Ok(toml)
 }
 
 fn sample_config() -> Config {
