@@ -34,7 +34,7 @@ impl std::str::FromStr for Item {
 
 #[derive(Clone, Debug, Default)]
 pub struct TagDictionary {
-    items: std::collections::HashMap<dicom_core::Tag, Item>,
+    pub(crate) items: std::collections::HashMap<dicom_core::Tag, Item>,
     named_items: std::collections::HashMap<String, dicom_core::Tag>,
 }
 
