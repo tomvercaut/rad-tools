@@ -55,6 +55,7 @@ where
     let mut s = String::new();
     s += part1;
 
+    s += "#[rustfmt::skip]\n";
     s += "pub static TAG_DICTIONARY: std::sync::LazyLock<TagDictionary> = std::sync::LazyLock::new(|| {\n";
     s += "  let mut dict = TagDictionary::default();\n";
 
