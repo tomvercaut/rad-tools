@@ -56,7 +56,7 @@ where
     s += part1;
 
     s += "#[rustfmt::skip]\n";
-    s += "pub static TAG_DICTIONARY: std::sync::LazyLock<TagDictionary> = std::sync::LazyLock::new(|| {\n";
+    s += "pub static DEFAULT_TAG_DICTIONARY: std::sync::LazyLock<TagDictionary> = std::sync::LazyLock::new(|| {\n";
     s += "  let mut dict = TagDictionary::default();\n";
 
     for (tag, item) in dict.items.iter() {
