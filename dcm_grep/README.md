@@ -1,6 +1,6 @@
 # dcm_grep
 
-`dcm_grep` is a small command-line utility to extract values of one or more DICOM elements from a single DICOM file. It uses a simple pattern syntax to navigate nested sequences and optionally prints the full element path along with values.
+`dcm_grep` is a command-line interface (CLI) application to extract values of one or more DICOM elements from a single DICOM file. It uses a simple pattern syntax to navigate nested sequences and optionally prints the full element path along with values.
 Typical use cases:
 - Quickly print core identifiers (e.g., SOP Class UID, Patient ID)
 - Extract values from nested sequences using indices, ranges, or “all” selection
@@ -15,7 +15,9 @@ Typical use cases:
 
 Note: `dcm_grep` operates on a single file at a time. Use shell tools like find, xargs, or loops to process many files.
 ## Pattern syntax
-- Tag format: (gggg,eeee) in hexadecimal, e.g. (0008,0016)
+- Tag format: 
+  - (gggg,eeee) in hexadecimal, e.g. (0008,0016)
+  - name, e.g. Modality, PatientName
 - For sequences, you can select items with:
     - [*] all items
     - [n] zero-based index
@@ -140,4 +142,15 @@ Output:
 1.2.840.10008.3.1.2.3.3
 1.2.840.10008.5.1.4.1.1.2
 1.2.840.10008.3.1.2.3.1
+```
+
+- Extract the number of rows, colums by name:
+```shell
+dcm_grep -i ct.dcm  -e 'Rows' -e 'Columns' --show-path
+```
+
+Output:
+```
+(0028,0010): 512
+(0028,0011): 512
 ```

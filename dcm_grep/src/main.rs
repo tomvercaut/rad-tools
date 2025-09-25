@@ -20,6 +20,10 @@ struct Args {
     ///
     /// - (group,element)[<selector>]
     ///
+    /// - tag name
+    ///
+    /// - tag name[<selector>]
+    ///
     /// Where group and element are DICOM tag identifiers in hexadecimal.
     ///
     /// The optional [<selector>] can be specified on DICOM sequences:
@@ -36,7 +40,11 @@ struct Args {
     ///
     /// - (0008,0016): selects the SOP Class UID
     ///
+    /// - Modality: selects the Modality
+    ///
     /// - (3006,0010)[*]/(0020,0052): selects all the Frame Of Reference UIDs in the Referenced Frame Of Reference Sequence.
+    ///
+    /// - (3006,0010)[*]/FrameOfReferenceUid: selects all the Frame Of Reference UIDs in the Referenced Frame Of Reference Sequence.
     ///
     /// - (3006,0010)[0]/(0020,0052): selects the Frame Of Reference UID in the first Referenced Frame Of Reference Sequence item.
     ///

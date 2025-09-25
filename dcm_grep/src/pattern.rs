@@ -1,5 +1,7 @@
 use crate::Error;
-use dicom_core::Tag;
+use dicom_core::dictionary::TagRange;
+use dicom_core::{DataDictionary, Tag};
+use dicom_dictionary_std::StandardDataDictionary;
 use regex::Regex;
 use std::str::FromStr;
 use std::sync::LazyLock;
@@ -56,9 +58,9 @@ impl FromStr for SearchPattern {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // let re = Regex::new(PATTERN_DICOM_TAG).unwrap();
+        let dict = StandardDataDictionary;
 
-        if let Some(caps) = RE_DICOM_TAG.captures(s) {
+        let tag = if let Some(caps) = RE_DICOM_TAG.captures(s) {
             let group = u16::from_str_radix(&caps[1], 16).map_err(|e| {
                 error!("Unable to convert hex value to u16: {e:#?}");
                 Error::InvalidGroupFormat
@@ -67,38 +69,55 @@ impl FromStr for SearchPattern {
                 error!("Unable to convert hex value to u16: {e:#?}");
                 Error::InvalidElementFormat
             })?;
-
-            let start = s.find('[');
-            let end = s.rfind(']');
-            let mut selectors = Vec::new();
-
-            if start.is_some() && end.is_none() {
-                error!("Found '[' in the pearch PATTERN but not ']'");
-                return Err(Error::InvalidSearchPatternFormat);
-            }
-            if start.is_none() && end.is_some() {
-                error!("Found ']' in the pearch PATTERN but not '['");
-                return Err(Error::InvalidSearchPatternFormat);
-            }
-
-            if let (Some(start), Some(end)) = (start, end) {
-                let sub = &s[start + 1..end];
-                for t in sub.split(',') {
-                    let selector = Selector::from_str(t).map_err(|e| {
-                        error!("Invalid selector: {e:#?}");
-                        Error::InvalidSearchPatternFormat
-                    })?;
-                    selectors.push(selector);
-                }
-            }
-
-            Ok(SearchPattern {
-                tag: Tag(group, element),
-                selectors,
-            })
+            Ok(Tag(group, element))
         } else {
-            Err(Error::InvalidTagFormat)
+            // Find a tag by name
+            let entry = match s.find('[') {
+                None => dict.by_name(s).ok_or(Error::InvalidTagFormat),
+                Some(i) => {
+                    let name = &s[0..i];
+                    dict.by_name(name).ok_or(Error::InvalidTagFormat)
+                }
+            };
+            let is_err = entry.is_err();
+            if is_err {
+                return Err(entry.unwrap_err());
+            }
+            let entry = entry.unwrap();
+            match entry.tag {
+                TagRange::Single(tag) => Ok(tag),
+                TagRange::Group100(_) => Err(Error::InvalidTagFormat),
+                TagRange::Element100(_) => Err(Error::InvalidTagFormat),
+                TagRange::GroupLength => Err(Error::InvalidTagFormat),
+                TagRange::PrivateCreator => Err(Error::InvalidTagFormat),
+            }
+        }?;
+
+        let start = s.find('[');
+        let end = s.rfind(']');
+        let mut selectors = Vec::new();
+
+        if start.is_some() && end.is_none() {
+            error!("Found '[' in the pearch PATTERN but not ']'");
+            return Err(Error::InvalidSearchPatternFormat);
         }
+        if start.is_none() && end.is_some() {
+            error!("Found ']' in the pearch PATTERN but not '['");
+            return Err(Error::InvalidSearchPatternFormat);
+        }
+
+        if let (Some(start), Some(end)) = (start, end) {
+            let sub = &s[start + 1..end];
+            for t in sub.split(',') {
+                let selector = Selector::from_str(t).map_err(|e| {
+                    error!("Invalid selector: {e:#?}");
+                    Error::InvalidSearchPatternFormat
+                })?;
+                selectors.push(selector);
+            }
+        }
+
+        Ok(SearchPattern { tag, selectors })
     }
 }
 
@@ -220,6 +239,30 @@ mod tests {
         assert!(matches!(
             SearchPattern::from_str("(0008,0060)1]"),
             Err(Error::InvalidSearchPatternFormat)
+        ));
+    }
+
+    #[test]
+    fn test_search_pattern_valid_tag_name() {
+        let pattern = SearchPattern::from_str("Modality").unwrap();
+        assert_eq!(pattern.tag, Tag(0x0008, 0x0060));
+        assert!(pattern.selectors.is_empty());
+    }
+
+    #[test]
+    fn test_search_pattern_tag_name_with_selector() {
+        let pattern = SearchPattern::from_str("Modality[1,2-3]").unwrap();
+        assert_eq!(pattern.tag, Tag(0x0008, 0x0060));
+        assert_eq!(pattern.selectors.len(), 2);
+        assert!(matches!(pattern.selectors[0], Selector::Index(1)));
+        assert!(matches!(pattern.selectors[1], Selector::Range(2, 3)));
+    }
+
+    #[test]
+    fn test_search_pattern_invalid_tag_name() {
+        assert!(matches!(
+            SearchPattern::from_str("NonExistentTag"),
+            Err(Error::InvalidTagFormat)
         ));
     }
 }
