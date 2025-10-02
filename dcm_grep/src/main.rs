@@ -120,7 +120,11 @@ fn main() {
 
     if args.show_path {
         for result in meta_results {
-            println!("{}: {}", result.path, result.value);
+            println!(
+                "{}: {}",
+                result.tag.to_dict_fmt_str(&dict, fmt_type),
+                result.value
+            );
         }
         for result in results {
             println!(

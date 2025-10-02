@@ -77,4 +77,13 @@ mod tests {
         let tag = Tag(0x0010, 0x0010); // Patient Name tag
         assert_eq!(tag.to_dict_fmt_str(&dict, FmtType::Tag), "(0010,0010)");
     }
+    #[test]
+    fn meta_fmt_by_name() {
+        let dict = StandardDataDictionary;
+        let tag = Tag(0x0002, 0x0010); // Patient Name tag
+        assert_eq!(
+            tag.to_dict_fmt_str(&dict, FmtType::Name),
+            "TransferSyntaxUID"
+        );
+    }
 }

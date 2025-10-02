@@ -1,8 +1,8 @@
 use crate::Error;
 use crate::pattern::{SearchPattern, SearchPatterns, Selector};
-use dicom_core::PrimitiveValue;
 use dicom_core::header::Header;
 use dicom_core::value::Value;
+use dicom_core::{PrimitiveValue, Tag};
 use dicom_object::mem::InMemElement;
 use dicom_object::{FileMetaTable, InMemDicomObject};
 use std::str::FromStr;
@@ -45,7 +45,7 @@ pub fn grep<'a>(
 /// # Returns
 /// * `Ok(Vec<GrepMetaResult>)` - A vector of matching meta elements with their paths and primitive values
 /// * `Err(Error)` - If the pattern is invalid or contains unsupported meta values
-pub fn grep_meta(obj: &FileMetaTable, pattern: &str) -> Result<Vec<GrepMetaResult>, Error> {
+pub fn grep_meta(obj: &FileMetaTable, pattern: &str) -> Result<Vec<GrepMetaResult2>, Error> {
     let patterns = SearchPatterns::from_str(pattern).map_err(|e| {
         error!("Unable to create search patterns: {e:#?}");
         Error::InvalidState
@@ -100,8 +100,8 @@ pub fn grep_meta(obj: &FileMetaTable, pattern: &str) -> Result<Vec<GrepMetaResul
                 Err(Error::UnsupportedMetaValue)
             }
         }?;
-        v.push(GrepMetaResult {
-            path: format!("{}", element_tag),
+        v.push(GrepMetaResult2 {
+            tag: element_tag,
             value: meta_value,
         });
     }
@@ -120,10 +120,10 @@ pub struct GrepResult2<'a> {
 
 /// Represents a matched DICOM meta element from a grep search operation
 #[derive(Debug)]
-pub struct GrepMetaResult {
-    /// Path of the element value in the DICOM object.
-    /// Example: (1234,5678)[2]/(9876,5432)
-    pub path: String,
+pub struct GrepMetaResult2 {
+    /// DICOM tag.
+    /// Example: (1234,5678)
+    pub tag: Tag,
     /// DICOM element
     pub value: PrimitiveValue,
 }
@@ -1199,7 +1199,12 @@ mod tests {
                 Ok(matches) => {
                     assert_eq!(matches.len(), 1, "Expected exactly one match for {}", label);
                     let first = &matches[0];
-                    assert_eq!(first.path, pattern, "Unexpected path for {}", label);
+                    assert_eq!(
+                        first.tag.to_string(),
+                        pattern,
+                        "Unexpected path for {}",
+                        label
+                    );
                     assert_eq!(
                         first.value.to_string(),
                         expected_value,
