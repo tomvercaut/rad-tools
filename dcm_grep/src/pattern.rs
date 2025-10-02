@@ -1,12 +1,16 @@
 use crate::Error;
-use dicom_core::Tag;
+use crate::fmt::{FmtType, ToDictFmtStr};
+use dicom_core::dictionary::TagRange;
+use dicom_core::{DataDictionary, Tag};
+use dicom_dictionary_std::StandardDataDictionary;
 use regex::Regex;
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::sync::LazyLock;
 use tracing::error;
 
-#[derive(Copy, Clone, Debug, Default)]
-pub(crate) enum Selector {
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+pub enum Selector {
     #[default]
     All,
     Index(usize),
@@ -43,8 +47,18 @@ impl FromStr for Selector {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct SearchPattern {
+impl Display for Selector {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Selector::All => f.write_str("*"),
+            Selector::Index(i) => f.write_fmt(format_args!("{}", i)),
+            Selector::Range(start, end_) => f.write_fmt(format_args!("{}-{}", start, end_)),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct SearchPattern {
     pub tag: Tag,
     pub selectors: Vec<Selector>,
 }
@@ -56,9 +70,9 @@ impl FromStr for SearchPattern {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // let re = Regex::new(PATTERN_DICOM_TAG).unwrap();
+        let dict = StandardDataDictionary;
 
-        if let Some(caps) = RE_DICOM_TAG.captures(s) {
+        let tag = if let Some(caps) = RE_DICOM_TAG.captures(s) {
             let group = u16::from_str_radix(&caps[1], 16).map_err(|e| {
                 error!("Unable to convert hex value to u16: {e:#?}");
                 Error::InvalidGroupFormat
@@ -67,43 +81,107 @@ impl FromStr for SearchPattern {
                 error!("Unable to convert hex value to u16: {e:#?}");
                 Error::InvalidElementFormat
             })?;
-
-            let start = s.find('[');
-            let end = s.rfind(']');
-            let mut selectors = Vec::new();
-
-            if start.is_some() && end.is_none() {
-                error!("Found '[' in the pearch PATTERN but not ']'");
-                return Err(Error::InvalidSearchPatternFormat);
-            }
-            if start.is_none() && end.is_some() {
-                error!("Found ']' in the pearch PATTERN but not '['");
-                return Err(Error::InvalidSearchPatternFormat);
-            }
-
-            if let (Some(start), Some(end)) = (start, end) {
-                let sub = &s[start + 1..end];
-                for t in sub.split(',') {
-                    let selector = Selector::from_str(t).map_err(|e| {
-                        error!("Invalid selector: {e:#?}");
-                        Error::InvalidSearchPatternFormat
-                    })?;
-                    selectors.push(selector);
-                }
-            }
-
-            Ok(SearchPattern {
-                tag: Tag(group, element),
-                selectors,
-            })
+            Ok(Tag(group, element))
         } else {
-            Err(Error::InvalidTagFormat)
+            // Find a tag by name
+            let entry = match s.find('[') {
+                None => dict.by_name(s).ok_or(Error::InvalidTagFormat),
+                Some(i) => {
+                    let name = &s[0..i];
+                    dict.by_name(name).ok_or(Error::InvalidTagFormat)
+                }
+            };
+            let is_err = entry.is_err();
+            if is_err {
+                return Err(entry.unwrap_err());
+            }
+            let entry = entry.unwrap();
+            match entry.tag {
+                TagRange::Single(tag) => Ok(tag),
+                TagRange::Group100(_) => Err(Error::InvalidTagFormat),
+                TagRange::Element100(_) => Err(Error::InvalidTagFormat),
+                TagRange::GroupLength => Err(Error::InvalidTagFormat),
+                TagRange::PrivateCreator => Err(Error::InvalidTagFormat),
+            }
+        }?;
+
+        let start = s.find('[');
+        let end = s.rfind(']');
+        let mut selectors = Vec::new();
+
+        if start.is_some() && end.is_none() {
+            error!("Found '[' in the pearch PATTERN but not ']'");
+            return Err(Error::InvalidSearchPatternFormat);
         }
+        if start.is_none() && end.is_some() {
+            error!("Found ']' in the pearch PATTERN but not '['");
+            return Err(Error::InvalidSearchPatternFormat);
+        }
+
+        if let (Some(start), Some(end)) = (start, end) {
+            let sub = &s[start + 1..end];
+            for t in sub.split(',') {
+                let selector = Selector::from_str(t).map_err(|e| {
+                    error!("Invalid selector: {e:#?}");
+                    Error::InvalidSearchPatternFormat
+                })?;
+                selectors.push(selector);
+            }
+        }
+
+        Ok(SearchPattern { tag, selectors })
     }
 }
 
+impl ToDictFmtStr for SearchPattern {
+    fn to_dict_fmt_str<D>(&self, dict: &D, fmt_type: FmtType) -> String
+    where
+        D: DataDictionary,
+    {
+        let selector_str = if self.selectors.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "[{}]",
+                self.selectors
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )
+        };
+        format!(
+            "{}{}",
+            self.tag.to_dict_fmt_str(dict, fmt_type),
+            selector_str
+        )
+    }
+}
+
+impl ToDictFmtStr for Vec<SearchPattern> {
+    fn to_dict_fmt_str<D>(&self, dict: &D, fmt_type: FmtType) -> String
+    where
+        D: DataDictionary,
+    {
+        self.iter()
+            .map(|p| p.to_dict_fmt_str(dict, fmt_type))
+            .collect::<Vec<_>>()
+            .join("/")
+    }
+}
+
+#[derive(Debug)]
 pub(crate) struct SearchPatterns {
     pub patterns: Vec<SearchPattern>,
+}
+
+impl ToDictFmtStr for SearchPatterns {
+    fn to_dict_fmt_str<D>(&self, dict: &D, fmt_type: FmtType) -> String
+    where
+        D: DataDictionary,
+    {
+        self.patterns.to_dict_fmt_str(dict, fmt_type)
+    }
 }
 
 impl FromStr for SearchPatterns {
@@ -131,6 +209,7 @@ impl FromStr for SearchPatterns {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dicom_dictionary_std::StandardDataDictionary;
 
     #[test]
     fn test_selector_all() {
@@ -221,5 +300,74 @@ mod tests {
             SearchPattern::from_str("(0008,0060)1]"),
             Err(Error::InvalidSearchPatternFormat)
         ));
+    }
+
+    #[test]
+    fn test_search_pattern_valid_tag_name() {
+        let pattern = SearchPattern::from_str("Modality").unwrap();
+        assert_eq!(pattern.tag, Tag(0x0008, 0x0060));
+        assert!(pattern.selectors.is_empty());
+    }
+
+    #[test]
+    fn test_search_pattern_tag_name_with_selector() {
+        let pattern = SearchPattern::from_str("Modality[1,2-3]").unwrap();
+        assert_eq!(pattern.tag, Tag(0x0008, 0x0060));
+        assert_eq!(pattern.selectors.len(), 2);
+        assert!(matches!(pattern.selectors[0], Selector::Index(1)));
+        assert!(matches!(pattern.selectors[1], Selector::Range(2, 3)));
+    }
+
+    #[test]
+    fn test_search_pattern_invalid_tag_name() {
+        assert!(matches!(
+            SearchPattern::from_str("NonExistentTag"),
+            Err(Error::InvalidTagFormat)
+        ));
+    }
+
+    #[test]
+    fn test_search_pattern_to_dict_fmt_str() {
+        let dict = StandardDataDictionary;
+        let pattern = SearchPattern::from_str("Modality[1,2-3]").unwrap();
+        assert_eq!(
+            pattern.to_dict_fmt_str(&dict, FmtType::Name),
+            "Modality[1,2-3]"
+        );
+        assert_eq!(
+            pattern.to_dict_fmt_str(&dict, FmtType::Tag),
+            "(0008,0060)[1,2-3]"
+        );
+    }
+
+    #[test]
+    fn test_vec_search_pattern_to_dict_fmt_str() {
+        let dict = StandardDataDictionary;
+        let patterns = vec![
+            SearchPattern::from_str("Modality").unwrap(),
+            SearchPattern::from_str("PatientName[1]").unwrap(),
+        ];
+        assert_eq!(
+            patterns.to_dict_fmt_str(&dict, FmtType::Name),
+            "Modality/PatientName[1]"
+        );
+        assert_eq!(
+            patterns.to_dict_fmt_str(&dict, FmtType::Tag),
+            "(0008,0060)/(0010,0010)[1]"
+        );
+    }
+
+    #[test]
+    fn test_search_patterns_to_dict_fmt_str() {
+        let dict = StandardDataDictionary;
+        let patterns = SearchPatterns::from_str("Modality/PatientName[1]").unwrap();
+        assert_eq!(
+            patterns.to_dict_fmt_str(&dict, FmtType::Name),
+            "Modality/PatientName[1]"
+        );
+        assert_eq!(
+            patterns.to_dict_fmt_str(&dict, FmtType::Tag),
+            "(0008,0060)/(0010,0010)[1]"
+        );
     }
 }

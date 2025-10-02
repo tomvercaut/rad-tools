@@ -1,4 +1,6 @@
 use clap::Parser;
+use dicom_dictionary_std::StandardDataDictionary;
+use rad_tools_dcm_grep::fmt::{FmtType, ToDictFmtStr};
 use rad_tools_dcm_grep::{element_value_to_string, grep, grep_meta};
 use std::io::{self, BufRead};
 
@@ -20,6 +22,10 @@ struct Args {
     ///
     /// - (group,element)[<selector>]
     ///
+    /// - tag name
+    ///
+    /// - tag name[<selector>]
+    ///
     /// Where group and element are DICOM tag identifiers in hexadecimal.
     ///
     /// The optional [<selector>] can be specified on DICOM sequences:
@@ -36,13 +42,17 @@ struct Args {
     ///
     /// - (0008,0016): selects the SOP Class UID
     ///
+    /// - Modality: selects the Modality
+    ///
     /// - (3006,0010)[*]/(0020,0052): selects all the Frame Of Reference UIDs in the Referenced Frame Of Reference Sequence.
+    ///
+    /// - (3006,0010)[*]/FrameOfReferenceUid: selects all the Frame Of Reference UIDs in the Referenced Frame Of Reference Sequence.
     ///
     /// - (3006,0010)[0]/(0020,0052): selects the Frame Of Reference UID in the first Referenced Frame Of Reference Sequence item.
     ///
     /// - (3006,0010)[1]/(0020,0052): selects the Frame Of Reference UID in the second Referenced Frame Of Reference Sequence item.
     ///
-    /// Importantly, while matching DICOM meta elements, selectors and nested patterns should not be used as this will result in an error.!
+    /// Importantly, while matching DICOM meta elements, selectors and nested patterns should not be used as this will result in an error!
     #[clap(short = 'e', value_name = "PATTERN")]
     patterns: Vec<String>,
 
@@ -50,14 +60,22 @@ struct Args {
     #[arg(short, long, default_value_t = false)]
     recursive: bool,
 
+    /// Print the path of the matched element.
     #[arg(long, default_value_t = false)]
     show_path: bool,
 
+    /// Print the tag with their group, element represenation instead of a DICOM tag name of the matched element.
+    #[arg(long, default_value_t = false)]
+    show_tag: bool,
+
+    /// Enable logging at INFO level.
     #[arg(long, default_value_t = false)]
     verbose: bool,
+
     /// Enable logging at DEBUG level.
     #[arg(long, default_value_t = false)]
     debug: bool,
+
     /// Enable logging at TRACE level.
     #[arg(long, default_value_t = false)]
     trace: bool,
@@ -97,14 +115,26 @@ fn main() {
         results.extend(v);
     }
 
+    let fmt_type = if args.show_tag {
+        FmtType::Tag
+    } else {
+        FmtType::Name
+    };
+
+    let dict = StandardDataDictionary;
+
     if args.show_path {
         for result in meta_results {
-            println!("{}: {}", result.path, result.value);
+            println!(
+                "{}: {}",
+                result.tag.to_dict_fmt_str(&dict, fmt_type),
+                result.value
+            );
         }
         for result in results {
             println!(
                 "{}: {}",
-                result.path,
+                result.search_pattern.to_dict_fmt_str(&dict, fmt_type),
                 element_value_to_string(result.element)
             );
         }
