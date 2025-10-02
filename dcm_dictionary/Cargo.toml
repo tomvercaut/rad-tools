@@ -1,9 +1,0 @@
-[package]
-name = "rad-tools-dcm-dictionary"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-
-[dependencies]
-thiserror.workspace = true
-dicom-core.workspace = true

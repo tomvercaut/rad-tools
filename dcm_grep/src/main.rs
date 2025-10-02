@@ -52,7 +52,7 @@ struct Args {
     ///
     /// - (3006,0010)[1]/(0020,0052): selects the Frame Of Reference UID in the second Referenced Frame Of Reference Sequence item.
     ///
-    /// Importantly, while matching DICOM meta elements, selectors and nested patterns should not be used as this will result in an error.!
+    /// Importantly, while matching DICOM meta elements, selectors and nested patterns should not be used as this will result in an error!
     #[clap(short = 'e', value_name = "PATTERN")]
     patterns: Vec<String>,
 
@@ -60,17 +60,22 @@ struct Args {
     #[arg(short, long, default_value_t = false)]
     recursive: bool,
 
+    /// Print the path of the matched element.
     #[arg(long, default_value_t = false)]
     show_path: bool,
 
+    /// Print the tag with their group, element represenation instead of a DICOM tag name of the matched element.
     #[arg(long, default_value_t = false)]
     show_tag: bool,
 
+    /// Enable logging at INFO level.
     #[arg(long, default_value_t = false)]
     verbose: bool,
+
     /// Enable logging at DEBUG level.
     #[arg(long, default_value_t = false)]
     debug: bool,
+
     /// Enable logging at TRACE level.
     #[arg(long, default_value_t = false)]
     trace: bool,
