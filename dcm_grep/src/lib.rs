@@ -1,4 +1,5 @@
 mod error;
+pub mod fmt;
 mod grep;
 mod pattern;
 

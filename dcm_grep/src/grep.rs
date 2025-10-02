@@ -1,5 +1,5 @@
 use crate::Error;
-use crate::pattern::{SearchPatterns, Selector};
+use crate::pattern::{SearchPattern, SearchPatterns, Selector};
 use dicom_core::PrimitiveValue;
 use dicom_core::header::Header;
 use dicom_core::value::Value;
@@ -22,7 +22,7 @@ pub fn grep<'a>(
     obj: &'a InMemDicomObject,
     pattern: &str,
     recursive: bool,
-) -> Result<Vec<GrepResult<'a>>, Error> {
+) -> Result<Vec<GrepResult2<'a>>, Error> {
     let patterns = SearchPatterns::from_str(pattern).map_err(|e| {
         error!("Unable to create search patterns: {e:#?}");
         Error::InvalidState
@@ -118,6 +118,16 @@ pub struct GrepResult<'a> {
     pub element: &'a InMemElement,
 }
 
+/// Represents a matched DICOM element from a grep search operation
+#[derive(Debug)]
+pub struct GrepResult2<'a> {
+    /// Path of the element value in the DICOM object.
+    /// Example: (1234,5678)[2]/(9876,5432)
+    pub search_pattern: Vec<SearchPattern>,
+    /// DICOM element
+    pub element: &'a InMemElement,
+}
+
 /// Represents a matched DICOM meta element from a grep search operation
 #[derive(Debug)]
 pub struct GrepMetaResult {
@@ -161,15 +171,15 @@ fn grep_matching_elements<'a>(
     patterns: &SearchPatterns,
     ipattern: usize,
     recursive: bool,
-) -> Vec<GrepResult<'a>> {
+) -> Vec<GrepResult2<'a>> {
     let pattern = &patterns.patterns[ipattern];
     let mut vec = vec![];
-    let stag = format!("{}", pattern.tag);
+    // let stag = format!("{}", pattern.tag);
     if let Ok(element) = obj.element(pattern.tag) {
         match element.value() {
             Value::Primitive(_primitive) => {
-                vec.push(GrepResult {
-                    path: stag,
+                vec.push(GrepResult2 {
+                    search_pattern: vec![pattern.clone()],
                     element,
                 });
             }
@@ -177,8 +187,8 @@ fn grep_matching_elements<'a>(
                 let items = seq.items();
 
                 if pattern.selectors.is_empty() {
-                    vec.push(GrepResult {
-                        path: stag.clone(),
+                    vec.push(GrepResult2 {
+                        search_pattern: vec![pattern.clone()],
                         element,
                     });
                 } else {
@@ -198,8 +208,16 @@ fn grep_matching_elements<'a>(
                                     .collect::<Vec<_>>();
                                 for (index, nested_result) in nested_results.into_iter().enumerate()
                                 {
-                                    let path_prefix = format!("{stag}[{index}]");
-                                    append_result(&mut vec, path_prefix, nested_result);
+                                    // let path_prefix = format!("{stag}[{index}]");
+                                    // append_result(&mut vec, path_prefix, nested_result);
+                                    append_result2(
+                                        &mut vec,
+                                        &SearchPattern {
+                                            tag: pattern.tag,
+                                            selectors: vec![Selector::Index(index)],
+                                        },
+                                        nested_result,
+                                    );
                                 }
                             }
                             Selector::Index(index) => {
@@ -210,21 +228,37 @@ fn grep_matching_elements<'a>(
                                         ipattern + 1,
                                         recursive,
                                     );
-                                    let path_prefix = format!("{stag}[{index}]");
-                                    append_result(&mut vec, path_prefix, nested_result);
+                                    // let path_prefix = format!("{stag}[{index}]");
+                                    // append_result(&mut vec, path_prefix, nested_result);
+                                    append_result2(
+                                        &mut vec,
+                                        &SearchPattern {
+                                            tag: pattern.tag,
+                                            selectors: vec![Selector::Index(*index)],
+                                        },
+                                        nested_result,
+                                    );
                                 }
                             }
                             Selector::Range(start, end) => {
                                 for index in *start..*end {
                                     if let Some(sub_item) = items.get(index) {
-                                        let path_prefix = format!("{stag}[{index}]");
+                                        // let path_prefix = format!("{stag}[{index}]");
                                         let nested_result = grep_matching_elements(
                                             sub_item,
                                             patterns,
                                             ipattern + 1,
                                             recursive,
                                         );
-                                        append_result(&mut vec, path_prefix, nested_result);
+                                        // append_result(&mut vec, path_prefix, nested_result);
+                                        append_result2(
+                                            &mut vec,
+                                            &SearchPattern {
+                                                tag: pattern.tag,
+                                                selectors: vec![Selector::Range(*start, *end)],
+                                            },
+                                            nested_result,
+                                        );
                                     }
                                 }
                             }
@@ -236,16 +270,31 @@ fn grep_matching_elements<'a>(
                     for (index, item) in items.iter().enumerate() {
                         // When recursive, the pattern index is reset to 0, so the pattern can be discovered deeper in the tree.
                         let nested_results = grep_matching_elements(item, patterns, 0, recursive);
-                        let path_prefix = format!("{}[{index}]", &stag);
-                        append_result(&mut vec, path_prefix, nested_results);
+                        // let path_prefix = format!("{}[{index}]", &stag);
+                        // append_result(&mut vec, path_prefix, nested_results);
+                        append_result2(
+                            &mut vec,
+                            &SearchPattern {
+                                tag: pattern.tag,
+                                selectors: vec![Selector::Index(index)],
+                            },
+                            nested_results,
+                        );
                     }
                 }
             }
             Value::PixelSequence(_) => {
-                vec.push(GrepResult {
-                    path: stag,
+                // vec.push(GrepResult {
+                //     path: stag,
+                //     element,
+                // });
+                vec.push(GrepResult2 {
+                    search_pattern: vec![SearchPattern {
+                        tag: pattern.tag,
+                        selectors: vec![],
+                    }],
                     element,
-                });
+                })
             }
         }
     }
@@ -258,8 +307,16 @@ fn grep_matching_elements<'a>(
                     for (index, item) in items.iter().enumerate() {
                         // When recursive, the pattern index is reset to 0, so the pattern can be discovered deeper in the tree.
                         let nested_results = grep_matching_elements(item, patterns, 0, recursive);
-                        let path_prefix = format!("{}[{index}]", element.tag());
-                        append_result(&mut vec, path_prefix, nested_results);
+                        // let path_prefix = format!("{}[{index}]", element.tag());
+                        // append_result(&mut vec, path_prefix, nested_results);
+                        append_result2(
+                            &mut vec,
+                            &SearchPattern {
+                                tag: element.tag(),
+                                selectors: vec![Selector::Index(index)],
+                            },
+                            nested_results,
+                        );
                     }
                 }
                 _ => {
@@ -272,16 +329,41 @@ fn grep_matching_elements<'a>(
     vec
 }
 
-/// Appends nested search results to the main results vector with updated paths
+// /// Appends nested search results to the main results vector with updated paths
+// ///
+// /// # Arguments
+// /// * `vec` - The vector to append results to
+// /// * `prefix` - The path prefix to prepend to nested results
+// /// * `results` - The nested results to append
+// fn append_result<'a>(vec: &mut Vec<GrepResult<'a>>, prefix: String, results: Vec<GrepResult<'a>>) {
+//     for fr in results {
+//         let nfr = GrepResult {
+//             path: format!("{}/{}", &prefix, fr.path),
+//             element: fr.element,
+//         };
+//         vec.push(nfr);
+//     }
+// }
+
+/// Appends nested search results to the main results vector with updated search patterns.
 ///
 /// # Arguments
-/// * `vec` - The vector to append results to
-/// * `prefix` - The path prefix to prepend to nested results
+/// * `vec` - The vector to append the results to
+/// * `search_pattern` - The search pattern that will be prepend to the search pattern of each result
 /// * `results` - The nested results to append
-fn append_result<'a>(vec: &mut Vec<GrepResult<'a>>, prefix: String, results: Vec<GrepResult<'a>>) {
+fn append_result2<'a>(
+    vec: &mut Vec<GrepResult2<'a>>,
+    search_pattern: &SearchPattern,
+    results: Vec<GrepResult2<'a>>,
+) {
     for fr in results {
-        let nfr = GrepResult {
-            path: format!("{}/{}", &prefix, fr.path),
+        let mut sp = Vec::with_capacity(fr.search_pattern.len() + 1);
+        sp.push(search_pattern.clone());
+        for p in &fr.search_pattern {
+            sp.push(p.clone());
+        }
+        let nfr = GrepResult2 {
+            search_pattern: sp,
             element: fr.element,
         };
         vec.push(nfr);
@@ -401,7 +483,8 @@ mod tests {
         match grep(&obj, &SOP_CLASS_UID.to_string(), false) {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
-                assert_eq!(results[0].path, SOP_CLASS_UID.to_string());
+                // assert_eq!(results[0].path, SOP_CLASS_UID.to_string());
+                assert_eq!(results[0].search_pattern[0].tag, SOP_CLASS_UID);
                 assert_eq!(
                     element_value_to_string(results[0].element),
                     CT_IMAGE_STORAGE
@@ -412,7 +495,8 @@ mod tests {
         match grep(&obj, &PATIENT_ID.to_string(), false) {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
-                assert_eq!(results[0].path, PATIENT_ID.to_string());
+                // assert_eq!(results[0].path, PATIENT_ID.to_string());
+                assert_eq!(results[0].search_pattern[0].tag, PATIENT_ID);
                 assert_eq!(element_value_to_string(results[0].element), "123456");
             }
             Err(e) => panic!("Unable to find PATIENT_ID: {e:#?}"),
@@ -420,7 +504,8 @@ mod tests {
         match grep(&obj, &PATIENT_NAME.to_string(), false) {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
-                assert_eq!(results[0].path, PATIENT_NAME.to_string());
+                // assert_eq!(results[0].path, PATIENT_NAME.to_string());
+                assert_eq!(results[0].search_pattern[0].tag, PATIENT_NAME);
                 assert_eq!(element_value_to_string(results[0].element), "Last^First");
             }
             Err(e) => panic!("Unable to find PATIENT_NAME: {e:#?}"),
@@ -428,7 +513,8 @@ mod tests {
         match grep(&obj, &STUDY_DATE.to_string(), false) {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
-                assert_eq!(results[0].path, STUDY_DATE.to_string());
+                // assert_eq!(results[0].path, STUDY_DATE.to_string());
+                assert_eq!(results[0].search_pattern[0].tag, STUDY_DATE);
                 assert_eq!(element_value_to_string(results[0].element), "20230102");
             }
             Err(e) => panic!("Unable to find STUDY_DATE: {e:#?}"),
@@ -436,7 +522,8 @@ mod tests {
         match grep(&obj, &STUDY_TIME.to_string(), false) {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
-                assert_eq!(results[0].path, STUDY_TIME.to_string());
+                // assert_eq!(results[0].path, STUDY_TIME.to_string());
+                assert_eq!(results[0].search_pattern[0].tag, STUDY_TIME);
                 assert_eq!(element_value_to_string(results[0].element), "171657.858653");
             }
             Err(e) => panic!("Unable to find STUDY_TIME: {e:#?}"),
@@ -444,7 +531,8 @@ mod tests {
         match grep(&obj, &SERIES_DATE.to_string(), false) {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
-                assert_eq!(results[0].path, SERIES_DATE.to_string());
+                // assert_eq!(results[0].path, SERIES_DATE.to_string());
+                assert_eq!(results[0].search_pattern[0].tag, SERIES_DATE);
                 assert_eq!(element_value_to_string(results[0].element), "20230102");
             }
             Err(e) => panic!("Unable to find SERIES_DATE: {e:#?}"),
@@ -452,7 +540,8 @@ mod tests {
         match grep(&obj, &SERIES_TIME.to_string(), false) {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
-                assert_eq!(results[0].path, SERIES_TIME.to_string());
+                // assert_eq!(results[0].path, SERIES_TIME.to_string());
+                assert_eq!(results[0].search_pattern[0].tag, SERIES_TIME);
                 assert_eq!(element_value_to_string(results[0].element), "173657.158653");
             }
             Err(e) => panic!("Unable to find SERIES_TIME: {e:#?}"),
@@ -465,7 +554,11 @@ mod tests {
         match grep(&obj, &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(), false) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
-                assert_eq!(result[0].path, CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string());
+                // assert_eq!(result[0].path, CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string());
+                assert_eq!(
+                    result[0].search_pattern[0].tag,
+                    CTDI_PHANTOM_TYPE_CODE_SEQUENCE
+                );
                 assert_eq!(element_value_to_string(result[0].element), "Sequence");
             }
             Err(e) => {
@@ -486,21 +579,27 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 2);
-                assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[0]/{}",
-                        REQUEST_ATTRIBUTES_SEQUENCE, REFERENCED_STUDY_SEQUENCE
-                    )
-                );
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[0]/{}",
+                //         REQUEST_ATTRIBUTES_SEQUENCE, REFERENCED_STUDY_SEQUENCE
+                //     )
+                // );
+                assert_eq!(result[0].search_pattern[0].tag, REQUEST_ATTRIBUTES_SEQUENCE);
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(0));
+                assert_eq!(result[0].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
                 assert_eq!(element_value_to_string(result[0].element), "Sequence");
-                assert_eq!(
-                    result[1].path,
-                    format!(
-                        "{}[1]/{}",
-                        REQUEST_ATTRIBUTES_SEQUENCE, REFERENCED_STUDY_SEQUENCE
-                    )
-                );
+                // assert_eq!(
+                //     result[1].path,
+                //     format!(
+                //         "{}[1]/{}",
+                //         REQUEST_ATTRIBUTES_SEQUENCE, REFERENCED_STUDY_SEQUENCE
+                //     )
+                // );
+                assert_eq!(result[1].search_pattern[0].tag, REQUEST_ATTRIBUTES_SEQUENCE);
+                assert_eq!(result[1].search_pattern[0].selectors[0], Selector::Index(1));
+                assert_eq!(result[1].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
                 assert_eq!(element_value_to_string(result[1].element), "Sequence");
             }
             Err(e) => {
@@ -523,23 +622,35 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 2);
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[0]/{}",
+                //         &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
+                //         &CODE_VALUE.to_string()
+                //     )
+                // );
                 assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[0]/{}",
-                        &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
-                        &CODE_VALUE.to_string()
-                    )
+                    result[0].search_pattern[0].tag,
+                    CTDI_PHANTOM_TYPE_CODE_SEQUENCE
                 );
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(0));
+                assert_eq!(result[0].search_pattern[1].tag, CODE_VALUE);
                 assert_eq!(element_value_to_string(result[0].element), "123456");
+                // assert_eq!(
+                //     result[1].path,
+                //     format!(
+                //         "{}[1]/{}",
+                //         &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
+                //         &CODE_VALUE.to_string()
+                //     )
+                // );
                 assert_eq!(
-                    result[1].path,
-                    format!(
-                        "{}[1]/{}",
-                        &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
-                        &CODE_VALUE.to_string()
-                    )
+                    result[1].search_pattern[0].tag,
+                    CTDI_PHANTOM_TYPE_CODE_SEQUENCE
                 );
+                assert_eq!(result[1].search_pattern[0].selectors[0], Selector::Index(1));
+                assert_eq!(result[1].search_pattern[1].tag, CODE_VALUE);
                 assert_eq!(element_value_to_string(result[1].element), "654321");
             }
             Err(e) => {
@@ -557,23 +668,35 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 2);
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[0]/{}",
+                //         &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
+                //         &CODING_SCHEME_DESIGNATOR.to_string()
+                //     )
+                // );
                 assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[0]/{}",
-                        &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
-                        &CODING_SCHEME_DESIGNATOR.to_string()
-                    )
+                    result[0].search_pattern[0].tag,
+                    CTDI_PHANTOM_TYPE_CODE_SEQUENCE
                 );
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(0));
+                assert_eq!(result[0].search_pattern[1].tag, CODING_SCHEME_DESIGNATOR);
                 assert_eq!(element_value_to_string(result[0].element), "DCM1");
+                // assert_eq!(
+                //     result[1].path,
+                //     format!(
+                //         "{}[1]/{}",
+                //         &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
+                //         &CODING_SCHEME_DESIGNATOR.to_string()
+                //     )
+                // );
                 assert_eq!(
-                    result[1].path,
-                    format!(
-                        "{}[1]/{}",
-                        &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
-                        &CODING_SCHEME_DESIGNATOR.to_string()
-                    )
+                    result[1].search_pattern[0].tag,
+                    CTDI_PHANTOM_TYPE_CODE_SEQUENCE
                 );
+                assert_eq!(result[1].search_pattern[0].selectors[0], Selector::Index(1));
+                assert_eq!(result[1].search_pattern[1].tag, CODING_SCHEME_DESIGNATOR);
                 assert_eq!(element_value_to_string(result[1].element), "DCM2");
             }
             Err(e) => {
@@ -593,26 +716,39 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 2);
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[0]/{}",
+                //         &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
+                //         &CODE_MEANING.to_string()
+                //     )
+                // );
                 assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[0]/{}",
-                        &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
-                        &CODE_MEANING.to_string()
-                    )
+                    result[0].search_pattern[0].tag,
+                    CTDI_PHANTOM_TYPE_CODE_SEQUENCE
                 );
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(0));
+                assert_eq!(result[0].search_pattern[1].tag, CODE_MEANING);
                 assert_eq!(
                     element_value_to_string(result[0].element),
                     "Coding Meaning1"
                 );
+                // assert_eq!(
+                //     result[1].path,
+                //     format!(
+                //         "{}[1]/{}",
+                //         &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
+                //         &CODE_MEANING.to_string()
+                //     )
+                // );
                 assert_eq!(
-                    result[1].path,
-                    format!(
-                        "{}[1]/{}",
-                        &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
-                        &CODE_MEANING.to_string()
-                    )
+                    result[1].search_pattern[0].tag,
+                    CTDI_PHANTOM_TYPE_CODE_SEQUENCE
                 );
+                assert_eq!(result[1].search_pattern[0].selectors[0], Selector::Index(1));
+                assert_eq!(result[1].search_pattern[1].tag, CODE_MEANING);
+
                 assert_eq!(
                     element_value_to_string(result[1].element),
                     "Coding Meaning2"
@@ -638,14 +774,20 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[0]/{}",
+                //         &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
+                //         &CODE_VALUE.to_string()
+                //     )
+                // );
                 assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[0]/{}",
-                        &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
-                        &CODE_VALUE.to_string()
-                    )
+                    result[0].search_pattern[0].tag,
+                    CTDI_PHANTOM_TYPE_CODE_SEQUENCE
                 );
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(0));
+                assert_eq!(result[0].search_pattern[1].tag, CODE_VALUE);
                 assert_eq!(element_value_to_string(result[0].element), "123456");
             }
             Err(e) => {
@@ -665,14 +807,21 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[1]/{}",
+                //         &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
+                //         &CODE_VALUE.to_string()
+                //     )
+                // );
                 assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[1]/{}",
-                        &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
-                        &CODE_VALUE.to_string()
-                    )
+                    result[0].search_pattern[0].tag,
+                    CTDI_PHANTOM_TYPE_CODE_SEQUENCE
                 );
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(1));
+                assert_eq!(result[0].search_pattern[1].tag, CODE_VALUE);
+
                 assert_eq!(element_value_to_string(result[0].element), "654321");
             }
             Err(e) => {
@@ -692,14 +841,20 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[0]/{}",
+                //         &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
+                //         &CODING_SCHEME_DESIGNATOR.to_string()
+                //     )
+                // );
                 assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[0]/{}",
-                        &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
-                        &CODING_SCHEME_DESIGNATOR.to_string()
-                    )
+                    result[0].search_pattern[0].tag,
+                    CTDI_PHANTOM_TYPE_CODE_SEQUENCE
                 );
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(0));
+                assert_eq!(result[0].search_pattern[1].tag, CODING_SCHEME_DESIGNATOR);
                 assert_eq!(element_value_to_string(result[0].element), "DCM1");
             }
             Err(e) => {
@@ -719,14 +874,20 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[1]/{}",
+                //         &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
+                //         &CODING_SCHEME_DESIGNATOR.to_string()
+                //     )
+                // );
                 assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[1]/{}",
-                        &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
-                        &CODING_SCHEME_DESIGNATOR.to_string()
-                    )
+                    result[0].search_pattern[0].tag,
+                    CTDI_PHANTOM_TYPE_CODE_SEQUENCE
                 );
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(1));
+                assert_eq!(result[0].search_pattern[1].tag, CODING_SCHEME_DESIGNATOR);
                 assert_eq!(element_value_to_string(result[0].element), "DCM2");
             }
             Err(e) => {
@@ -746,14 +907,20 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[0]/{}",
+                //         &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
+                //         &CODE_MEANING.to_string()
+                //     )
+                // );
                 assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[0]/{}",
-                        &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
-                        &CODE_MEANING.to_string()
-                    )
+                    result[0].search_pattern[0].tag,
+                    CTDI_PHANTOM_TYPE_CODE_SEQUENCE
                 );
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(0));
+                assert_eq!(result[0].search_pattern[1].tag, CODE_MEANING);
                 assert_eq!(
                     element_value_to_string(result[0].element),
                     "Coding Meaning1"
@@ -776,14 +943,20 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[1]/{}",
+                //         &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
+                //         &CODE_MEANING.to_string()
+                //     )
+                // );
                 assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[1]/{}",
-                        &CTDI_PHANTOM_TYPE_CODE_SEQUENCE.to_string(),
-                        &CODE_MEANING.to_string()
-                    )
+                    result[0].search_pattern[0].tag,
+                    CTDI_PHANTOM_TYPE_CODE_SEQUENCE
                 );
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(1));
+                assert_eq!(result[0].search_pattern[1].tag, CODE_MEANING);
                 assert_eq!(
                     element_value_to_string(result[0].element),
                     "Coding Meaning2"
@@ -810,35 +983,50 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 3);
-                assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[0]/{}[0]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_CLASS_UID,
-                    )
-                );
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[0]/{}[0]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_CLASS_UID,
+                //     )
+                // );
+                assert_eq!(result[0].search_pattern[0].tag, REQUEST_ATTRIBUTES_SEQUENCE);
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(0));
+                assert_eq!(result[0].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(result[0].search_pattern[1].selectors[0], Selector::Index(0));
+                assert_eq!(result[0].search_pattern[2].tag, REFERENCED_SOP_CLASS_UID);
                 assert_eq!(element_value_to_string(result[0].element), "RefSopClass1");
-                assert_eq!(
-                    result[1].path,
-                    format!(
-                        "{}[1]/{}[0]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_CLASS_UID,
-                    )
-                );
+                // assert_eq!(
+                //     result[1].path,
+                //     format!(
+                //         "{}[1]/{}[0]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_CLASS_UID,
+                //     )
+                // );
+                assert_eq!(result[1].search_pattern[0].tag, REQUEST_ATTRIBUTES_SEQUENCE);
+                assert_eq!(result[1].search_pattern[0].selectors[0], Selector::Index(1));
+                assert_eq!(result[1].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(result[1].search_pattern[1].selectors[0], Selector::Index(0));
+                assert_eq!(result[1].search_pattern[2].tag, REFERENCED_SOP_CLASS_UID);
                 assert_eq!(element_value_to_string(result[1].element), "RefSopClass2");
-                assert_eq!(
-                    result[2].path,
-                    format!(
-                        "{}[1]/{}[1]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_CLASS_UID,
-                    )
-                );
+                // assert_eq!(
+                //     result[2].path,
+                //     format!(
+                //         "{}[1]/{}[1]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_CLASS_UID,
+                //     )
+                // );
+                assert_eq!(result[2].search_pattern[0].tag, REQUEST_ATTRIBUTES_SEQUENCE);
+                assert_eq!(result[2].search_pattern[0].selectors[0], Selector::Index(1));
+                assert_eq!(result[2].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(result[2].search_pattern[1].selectors[0], Selector::Index(1));
+                assert_eq!(result[2].search_pattern[2].tag, REFERENCED_SOP_CLASS_UID);
                 assert_eq!(element_value_to_string(result[2].element), "RefSopClass3");
             }
             Err(e) => {
@@ -858,41 +1046,56 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 3);
-                assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[0]/{}[0]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_INSTANCE_UID,
-                    )
-                );
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[0]/{}[0]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_INSTANCE_UID,
+                //     )
+                // );
+                assert_eq!(result[0].search_pattern[0].tag, REQUEST_ATTRIBUTES_SEQUENCE);
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(0));
+                assert_eq!(result[0].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(result[0].search_pattern[1].selectors[0], Selector::Index(0));
+                assert_eq!(result[0].search_pattern[2].tag, REFERENCED_SOP_INSTANCE_UID);
                 assert_eq!(
                     element_value_to_string(result[0].element),
                     "RefSopInstance1"
                 );
-                assert_eq!(
-                    result[1].path,
-                    format!(
-                        "{}[1]/{}[0]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_INSTANCE_UID,
-                    )
-                );
+                // assert_eq!(
+                //     result[1].path,
+                //     format!(
+                //         "{}[1]/{}[0]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_INSTANCE_UID,
+                //     )
+                // );
+                assert_eq!(result[1].search_pattern[0].tag, REQUEST_ATTRIBUTES_SEQUENCE);
+                assert_eq!(result[1].search_pattern[0].selectors[0], Selector::Index(1));
+                assert_eq!(result[1].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(result[1].search_pattern[1].selectors[0], Selector::Index(0));
+                assert_eq!(result[1].search_pattern[2].tag, REFERENCED_SOP_INSTANCE_UID);
                 assert_eq!(
                     element_value_to_string(result[1].element),
                     "RefSopInstance2"
                 );
-                assert_eq!(
-                    result[2].path,
-                    format!(
-                        "{}[1]/{}[1]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_INSTANCE_UID,
-                    )
-                );
+                // assert_eq!(
+                //     result[2].path,
+                //     format!(
+                //         "{}[1]/{}[1]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_INSTANCE_UID,
+                //     )
+                // );
+                assert_eq!(result[2].search_pattern[0].tag, REQUEST_ATTRIBUTES_SEQUENCE);
+                assert_eq!(result[2].search_pattern[0].selectors[0], Selector::Index(1));
+                assert_eq!(result[2].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(result[2].search_pattern[1].selectors[0], Selector::Index(1));
+                assert_eq!(result[2].search_pattern[2].tag, REFERENCED_SOP_INSTANCE_UID);
                 assert_eq!(
                     element_value_to_string(result[2].element),
                     "RefSopInstance3"
@@ -917,15 +1120,20 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
-                assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[0]/{}[0]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_CLASS_UID,
-                    )
-                );
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[0]/{}[0]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_CLASS_UID,
+                //     )
+                // );
+                assert_eq!(result[0].search_pattern[0].tag, REQUEST_ATTRIBUTES_SEQUENCE);
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(0));
+                assert_eq!(result[0].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(result[0].search_pattern[1].selectors[0], Selector::Index(0));
+                assert_eq!(result[0].search_pattern[2].tag, REFERENCED_SOP_CLASS_UID);
                 assert_eq!(element_value_to_string(result[0].element), "RefSopClass1");
             }
             Err(e) => {
@@ -943,15 +1151,20 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
-                assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[1]/{}[0]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_CLASS_UID,
-                    )
-                );
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[1]/{}[0]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_CLASS_UID,
+                //     )
+                // );
+                assert_eq!(result[0].search_pattern[0].tag, REQUEST_ATTRIBUTES_SEQUENCE);
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(1));
+                assert_eq!(result[0].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(result[0].search_pattern[1].selectors[0], Selector::Index(0));
+                assert_eq!(result[0].search_pattern[2].tag, REFERENCED_SOP_CLASS_UID);
                 assert_eq!(element_value_to_string(result[0].element), "RefSopClass2");
             }
             Err(e) => {
@@ -969,15 +1182,20 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
-                assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[1]/{}[1]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_CLASS_UID,
-                    )
-                );
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[1]/{}[1]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_CLASS_UID,
+                //     )
+                // );
+                assert_eq!(result[0].search_pattern[0].tag, REQUEST_ATTRIBUTES_SEQUENCE);
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(1));
+                assert_eq!(result[0].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(result[0].search_pattern[1].selectors[0], Selector::Index(1));
+                assert_eq!(result[0].search_pattern[2].tag, REFERENCED_SOP_CLASS_UID);
                 assert_eq!(element_value_to_string(result[0].element), "RefSopClass3");
             }
             Err(e) => {
@@ -998,15 +1216,20 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
-                assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[0]/{}[0]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_INSTANCE_UID,
-                    )
-                );
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[0]/{}[0]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_INSTANCE_UID,
+                //     )
+                // );
+                assert_eq!(result[0].search_pattern[0].tag, REQUEST_ATTRIBUTES_SEQUENCE);
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(0));
+                assert_eq!(result[0].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(result[0].search_pattern[1].selectors[0], Selector::Index(0));
+                assert_eq!(result[0].search_pattern[2].tag, REFERENCED_SOP_INSTANCE_UID);
                 assert_eq!(
                     element_value_to_string(result[0].element),
                     "RefSopInstance1"
@@ -1028,15 +1251,20 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
-                assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[1]/{}[0]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_INSTANCE_UID,
-                    )
-                );
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[1]/{}[0]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_INSTANCE_UID,
+                //     )
+                // );
+                assert_eq!(result[0].search_pattern[0].tag, REQUEST_ATTRIBUTES_SEQUENCE);
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(1));
+                assert_eq!(result[0].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(result[0].search_pattern[1].selectors[0], Selector::Index(0));
+                assert_eq!(result[0].search_pattern[2].tag, REFERENCED_SOP_INSTANCE_UID);
                 assert_eq!(
                     element_value_to_string(result[0].element),
                     "RefSopInstance2"
@@ -1058,15 +1286,20 @@ mod tests {
         ) {
             Ok(result) => {
                 assert_eq!(result.len(), 1);
-                assert_eq!(
-                    result[0].path,
-                    format!(
-                        "{}[1]/{}[1]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_INSTANCE_UID,
-                    )
-                );
+                // assert_eq!(
+                //     result[0].path,
+                //     format!(
+                //         "{}[1]/{}[1]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_INSTANCE_UID,
+                //     )
+                // );
+                assert_eq!(result[0].search_pattern[0].tag, REQUEST_ATTRIBUTES_SEQUENCE);
+                assert_eq!(result[0].search_pattern[0].selectors[0], Selector::Index(1));
+                assert_eq!(result[0].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(result[0].search_pattern[1].selectors[0], Selector::Index(1));
+                assert_eq!(result[0].search_pattern[2].tag, REFERENCED_SOP_INSTANCE_UID);
                 assert_eq!(
                     element_value_to_string(result[0].element),
                     "RefSopInstance3"
@@ -1084,35 +1317,77 @@ mod tests {
         match grep(&obj, &REFERENCED_SOP_CLASS_UID.to_string(), true) {
             Ok(results) => {
                 assert_eq!(results.len(), 3);
+                // assert_eq!(
+                //     results[0].path,
+                //     format!(
+                //         "{}[0]/{}[0]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_CLASS_UID
+                //     )
+                // );
                 assert_eq!(
-                    results[0].path,
-                    format!(
-                        "{}[0]/{}[0]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_CLASS_UID
-                    )
+                    results[0].search_pattern[0].tag,
+                    REQUEST_ATTRIBUTES_SEQUENCE
                 );
+                assert_eq!(
+                    results[0].search_pattern[0].selectors[0],
+                    Selector::Index(0)
+                );
+                assert_eq!(results[0].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(
+                    results[0].search_pattern[1].selectors[0],
+                    Selector::Index(0)
+                );
+                assert_eq!(results[0].search_pattern[2].tag, REFERENCED_SOP_CLASS_UID);
                 assert_eq!(element_value_to_string(results[0].element), "RefSopClass1");
+                // assert_eq!(
+                //     results[1].path,
+                //     format!(
+                //         "{}[1]/{}[0]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_CLASS_UID
+                //     )
+                // );
                 assert_eq!(
-                    results[1].path,
-                    format!(
-                        "{}[1]/{}[0]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_CLASS_UID
-                    )
+                    results[1].search_pattern[0].tag,
+                    REQUEST_ATTRIBUTES_SEQUENCE
                 );
+                assert_eq!(
+                    results[1].search_pattern[0].selectors[0],
+                    Selector::Index(1)
+                );
+                assert_eq!(results[1].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(
+                    results[1].search_pattern[1].selectors[0],
+                    Selector::Index(0)
+                );
+                assert_eq!(results[1].search_pattern[2].tag, REFERENCED_SOP_CLASS_UID);
                 assert_eq!(element_value_to_string(results[1].element), "RefSopClass2");
+                // assert_eq!(
+                //     results[2].path,
+                //     format!(
+                //         "{}[1]/{}[1]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_CLASS_UID
+                //     )
+                // );
                 assert_eq!(
-                    results[2].path,
-                    format!(
-                        "{}[1]/{}[1]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_CLASS_UID
-                    )
+                    results[2].search_pattern[0].tag,
+                    REQUEST_ATTRIBUTES_SEQUENCE
                 );
+                assert_eq!(
+                    results[2].search_pattern[0].selectors[0],
+                    Selector::Index(1)
+                );
+                assert_eq!(results[2].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(
+                    results[2].search_pattern[1].selectors[0],
+                    Selector::Index(1)
+                );
+                assert_eq!(results[2].search_pattern[2].tag, REFERENCED_SOP_CLASS_UID);
                 assert_eq!(element_value_to_string(results[2].element), "RefSopClass3");
             }
             Err(e) => panic!("Unable to recursively find ReferencedSopClassUIDs: {e:#?}"),
@@ -1121,40 +1396,91 @@ mod tests {
         match grep(&obj, &REFERENCED_SOP_INSTANCE_UID.to_string(), true) {
             Ok(results) => {
                 assert_eq!(results.len(), 3);
+                // assert_eq!(
+                //     results[0].path,
+                //     format!(
+                //         "{}[0]/{}[0]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_INSTANCE_UID
+                //     )
+                // );
                 assert_eq!(
-                    results[0].path,
-                    format!(
-                        "{}[0]/{}[0]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_INSTANCE_UID
-                    )
+                    results[0].search_pattern[0].tag,
+                    REQUEST_ATTRIBUTES_SEQUENCE
+                );
+                assert_eq!(
+                    results[0].search_pattern[0].selectors[0],
+                    Selector::Index(0)
+                );
+                assert_eq!(results[0].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(
+                    results[0].search_pattern[1].selectors[0],
+                    Selector::Index(0)
+                );
+                assert_eq!(
+                    results[0].search_pattern[2].tag,
+                    REFERENCED_SOP_INSTANCE_UID
                 );
                 assert_eq!(
                     element_value_to_string(results[0].element),
                     "RefSopInstance1"
                 );
+                // assert_eq!(
+                //     results[1].path,
+                //     format!(
+                //         "{}[1]/{}[0]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_INSTANCE_UID
+                //     )
+                // );
                 assert_eq!(
-                    results[1].path,
-                    format!(
-                        "{}[1]/{}[0]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_INSTANCE_UID
-                    )
+                    results[1].search_pattern[0].tag,
+                    REQUEST_ATTRIBUTES_SEQUENCE
+                );
+                assert_eq!(
+                    results[1].search_pattern[0].selectors[0],
+                    Selector::Index(1)
+                );
+                assert_eq!(results[1].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(
+                    results[1].search_pattern[1].selectors[0],
+                    Selector::Index(0)
+                );
+                assert_eq!(
+                    results[1].search_pattern[2].tag,
+                    REFERENCED_SOP_INSTANCE_UID
                 );
                 assert_eq!(
                     element_value_to_string(results[1].element),
                     "RefSopInstance2"
                 );
+                // assert_eq!(
+                //     results[2].path,
+                //     format!(
+                //         "{}[1]/{}[1]/{}",
+                //         &REQUEST_ATTRIBUTES_SEQUENCE,
+                //         &REFERENCED_STUDY_SEQUENCE,
+                //         &REFERENCED_SOP_INSTANCE_UID
+                //     )
+                // );
                 assert_eq!(
-                    results[2].path,
-                    format!(
-                        "{}[1]/{}[1]/{}",
-                        &REQUEST_ATTRIBUTES_SEQUENCE,
-                        &REFERENCED_STUDY_SEQUENCE,
-                        &REFERENCED_SOP_INSTANCE_UID
-                    )
+                    results[2].search_pattern[0].tag,
+                    REQUEST_ATTRIBUTES_SEQUENCE
+                );
+                assert_eq!(
+                    results[2].search_pattern[0].selectors[0],
+                    Selector::Index(1)
+                );
+                assert_eq!(results[2].search_pattern[1].tag, REFERENCED_STUDY_SEQUENCE);
+                assert_eq!(
+                    results[2].search_pattern[1].selectors[0],
+                    Selector::Index(1)
+                );
+                assert_eq!(
+                    results[2].search_pattern[2].tag,
+                    REFERENCED_SOP_INSTANCE_UID
                 );
                 assert_eq!(
                     element_value_to_string(results[2].element),

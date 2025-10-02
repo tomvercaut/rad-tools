@@ -1,14 +1,16 @@
 use crate::Error;
+use crate::fmt::{FmtType, ToDictFmtStr};
 use dicom_core::dictionary::TagRange;
 use dicom_core::{DataDictionary, Tag};
 use dicom_dictionary_std::StandardDataDictionary;
 use regex::Regex;
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::sync::LazyLock;
 use tracing::error;
 
-#[derive(Copy, Clone, Debug, Default)]
-pub(crate) enum Selector {
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+pub enum Selector {
     #[default]
     All,
     Index(usize),
@@ -45,8 +47,18 @@ impl FromStr for Selector {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct SearchPattern {
+impl Display for Selector {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Selector::All => f.write_str("*"),
+            Selector::Index(i) => f.write_fmt(format_args!("{}", i)),
+            Selector::Range(start, end_) => f.write_fmt(format_args!("{}-{}", start, end_)),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct SearchPattern {
     pub tag: Tag,
     pub selectors: Vec<Selector>,
 }
@@ -121,8 +133,55 @@ impl FromStr for SearchPattern {
     }
 }
 
+impl ToDictFmtStr for SearchPattern {
+    fn to_dict_fmt_str<D>(&self, dict: &D, fmt_type: FmtType) -> String
+    where
+        D: DataDictionary,
+    {
+        let selector_str = if self.selectors.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "[{}]",
+                self.selectors
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            )
+        };
+        format!(
+            "{}{}",
+            self.tag.to_dict_fmt_str(dict, fmt_type),
+            selector_str
+        )
+    }
+}
+
+impl ToDictFmtStr for Vec<SearchPattern> {
+    fn to_dict_fmt_str<D>(&self, dict: &D, fmt_type: FmtType) -> String
+    where
+        D: DataDictionary,
+    {
+        self.iter()
+            .map(|p| p.to_dict_fmt_str(dict, fmt_type))
+            .collect::<Vec<_>>()
+            .join("/")
+    }
+}
+
+#[derive(Debug)]
 pub(crate) struct SearchPatterns {
     pub patterns: Vec<SearchPattern>,
+}
+
+impl ToDictFmtStr for SearchPatterns {
+    fn to_dict_fmt_str<D>(&self, dict: &D, fmt_type: FmtType) -> String
+    where
+        D: DataDictionary,
+    {
+        self.patterns.to_dict_fmt_str(dict, fmt_type)
+    }
 }
 
 impl FromStr for SearchPatterns {
@@ -150,6 +209,7 @@ impl FromStr for SearchPatterns {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use dicom_dictionary_std::StandardDataDictionary;
 
     #[test]
     fn test_selector_all() {
@@ -264,5 +324,50 @@ mod tests {
             SearchPattern::from_str("NonExistentTag"),
             Err(Error::InvalidTagFormat)
         ));
+    }
+
+    #[test]
+    fn test_search_pattern_to_dict_fmt_str() {
+        let dict = StandardDataDictionary;
+        let pattern = SearchPattern::from_str("Modality[1,2-3]").unwrap();
+        assert_eq!(
+            pattern.to_dict_fmt_str(&dict, FmtType::Name),
+            "Modality[1,2-3]"
+        );
+        assert_eq!(
+            pattern.to_dict_fmt_str(&dict, FmtType::Tag),
+            "(0008,0060)[1,2-3]"
+        );
+    }
+
+    #[test]
+    fn test_vec_search_pattern_to_dict_fmt_str() {
+        let dict = StandardDataDictionary;
+        let patterns = vec![
+            SearchPattern::from_str("Modality").unwrap(),
+            SearchPattern::from_str("PatientName[1]").unwrap(),
+        ];
+        assert_eq!(
+            patterns.to_dict_fmt_str(&dict, FmtType::Name),
+            "Modality/PatientName[1]"
+        );
+        assert_eq!(
+            patterns.to_dict_fmt_str(&dict, FmtType::Tag),
+            "(0008,0060)/(0010,0010)[1]"
+        );
+    }
+
+    #[test]
+    fn test_search_patterns_to_dict_fmt_str() {
+        let dict = StandardDataDictionary;
+        let patterns = SearchPatterns::from_str("Modality/PatientName[1]").unwrap();
+        assert_eq!(
+            patterns.to_dict_fmt_str(&dict, FmtType::Name),
+            "Modality/PatientName[1]"
+        );
+        assert_eq!(
+            patterns.to_dict_fmt_str(&dict, FmtType::Tag),
+            "(0008,0060)/(0010,0010)[1]"
+        );
     }
 }

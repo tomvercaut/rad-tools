@@ -1,4 +1,6 @@
 use clap::Parser;
+use dicom_dictionary_std::StandardDataDictionary;
+use rad_tools_dcm_grep::fmt::{FmtType, ToDictFmtStr};
 use rad_tools_dcm_grep::{element_value_to_string, grep, grep_meta};
 use std::io::{self, BufRead};
 
@@ -62,6 +64,9 @@ struct Args {
     show_path: bool,
 
     #[arg(long, default_value_t = false)]
+    show_tag: bool,
+
+    #[arg(long, default_value_t = false)]
     verbose: bool,
     /// Enable logging at DEBUG level.
     #[arg(long, default_value_t = false)]
@@ -105,6 +110,14 @@ fn main() {
         results.extend(v);
     }
 
+    let fmt_type = if args.show_tag {
+        FmtType::Tag
+    } else {
+        FmtType::Name
+    };
+
+    let dict = StandardDataDictionary;
+
     if args.show_path {
         for result in meta_results {
             println!("{}: {}", result.path, result.value);
@@ -112,7 +125,7 @@ fn main() {
         for result in results {
             println!(
                 "{}: {}",
-                result.path,
+                result.search_pattern.to_dict_fmt_str(&dict, fmt_type),
                 element_value_to_string(result.element)
             );
         }
