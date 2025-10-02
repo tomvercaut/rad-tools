@@ -22,7 +22,7 @@ pub fn grep<'a>(
     obj: &'a InMemDicomObject,
     pattern: &str,
     recursive: bool,
-) -> Result<Vec<GrepResult2<'a>>, Error> {
+) -> Result<Vec<GrepResult<'a>>, Error> {
     let patterns = SearchPatterns::from_str(pattern).map_err(|e| {
         error!("Unable to create search patterns: {e:#?}");
         Error::InvalidState
@@ -45,7 +45,7 @@ pub fn grep<'a>(
 /// # Returns
 /// * `Ok(Vec<GrepMetaResult>)` - A vector of matching meta elements with their paths and primitive values
 /// * `Err(Error)` - If the pattern is invalid or contains unsupported meta values
-pub fn grep_meta(obj: &FileMetaTable, pattern: &str) -> Result<Vec<GrepMetaResult2>, Error> {
+pub fn grep_meta(obj: &FileMetaTable, pattern: &str) -> Result<Vec<GrepMetaResult>, Error> {
     let patterns = SearchPatterns::from_str(pattern).map_err(|e| {
         error!("Unable to create search patterns: {e:#?}");
         Error::InvalidState
@@ -100,7 +100,7 @@ pub fn grep_meta(obj: &FileMetaTable, pattern: &str) -> Result<Vec<GrepMetaResul
                 Err(Error::UnsupportedMetaValue)
             }
         }?;
-        v.push(GrepMetaResult2 {
+        v.push(GrepMetaResult {
             tag: element_tag,
             value: meta_value,
         });
@@ -110,7 +110,7 @@ pub fn grep_meta(obj: &FileMetaTable, pattern: &str) -> Result<Vec<GrepMetaResul
 
 /// Represents a matched DICOM element from a grep search operation
 #[derive(Debug)]
-pub struct GrepResult2<'a> {
+pub struct GrepResult<'a> {
     /// Path of the element value in the DICOM object.
     /// Example: (1234,5678)[2]/(9876,5432)
     pub search_pattern: Vec<SearchPattern>,
@@ -120,7 +120,7 @@ pub struct GrepResult2<'a> {
 
 /// Represents a matched DICOM meta element from a grep search operation
 #[derive(Debug)]
-pub struct GrepMetaResult2 {
+pub struct GrepMetaResult {
     /// DICOM tag.
     /// Example: (1234,5678)
     pub tag: Tag,
@@ -161,13 +161,13 @@ fn grep_matching_elements<'a>(
     patterns: &SearchPatterns,
     ipattern: usize,
     recursive: bool,
-) -> Vec<GrepResult2<'a>> {
+) -> Vec<GrepResult<'a>> {
     let pattern = &patterns.patterns[ipattern];
     let mut vec = vec![];
     if let Ok(element) = obj.element(pattern.tag) {
         match element.value() {
             Value::Primitive(_primitive) => {
-                vec.push(GrepResult2 {
+                vec.push(GrepResult {
                     search_pattern: vec![pattern.clone()],
                     element,
                 });
@@ -176,7 +176,7 @@ fn grep_matching_elements<'a>(
                 let items = seq.items();
 
                 if pattern.selectors.is_empty() {
-                    vec.push(GrepResult2 {
+                    vec.push(GrepResult {
                         search_pattern: vec![pattern.clone()],
                         element,
                     });
@@ -264,7 +264,7 @@ fn grep_matching_elements<'a>(
                     }
                 }
             }
-            Value::PixelSequence(_) => vec.push(GrepResult2 {
+            Value::PixelSequence(_) => vec.push(GrepResult {
                 search_pattern: vec![SearchPattern {
                     tag: pattern.tag,
                     selectors: vec![],
@@ -309,9 +309,9 @@ fn grep_matching_elements<'a>(
 /// * `search_pattern` - The search pattern that will be prepend to the search pattern of each result
 /// * `results` - The nested results to append
 fn append_result2<'a>(
-    vec: &mut Vec<GrepResult2<'a>>,
+    vec: &mut Vec<GrepResult<'a>>,
     search_pattern: &SearchPattern,
-    results: Vec<GrepResult2<'a>>,
+    results: Vec<GrepResult<'a>>,
 ) {
     for fr in results {
         let mut sp = Vec::with_capacity(fr.search_pattern.len() + 1);
@@ -319,7 +319,7 @@ fn append_result2<'a>(
         for p in &fr.search_pattern {
             sp.push(p.clone());
         }
-        let nfr = GrepResult2 {
+        let nfr = GrepResult {
             search_pattern: sp,
             element: fr.element,
         };
