@@ -232,8 +232,7 @@ fn remove_file_retry_on_busy<P: AsRef<Path>>(
             }
         }
     }
-    Err(Error::IO(std::io::Error::new(
-        ErrorKind::Other,
+    Err(Error::IO(std::io::Error::other(
         "Unable to remove file after {} attempts",
     )))
 }
@@ -251,10 +250,10 @@ fn remove_file_retry_on_busy<P: AsRef<Path>>(
 /// * `true` if the service should stop (received state is not `Running`)
 /// * `false` if no state was received or if the received state is `Running`
 fn should_stop(rx: &Receiver<ServiceState>) -> bool {
-    if let Ok(state) = rx.try_recv() {
-        if state != ServiceState::Running {
-            return true;
-        }
+    if let Ok(state) = rx.try_recv()
+        && state != ServiceState::Running
+    {
+        return true;
     }
     false
 }
@@ -484,7 +483,7 @@ fn extract_dicom_metadata<P: AsRef<Path>>(file_path: P) -> Result<SortingData> {
             Ok(s) => Some(s.trim().to_string()),
             Err(e) => {
                 error!("Failed to extract Date of Birth: {}.\nTrying to extract part of the patient ID.", e);
-                if let Ok(Some(pid)) = patient_id.as_ref() {
+                if let Ok(Some(pid)) = patient_id.as_ref() && pid.len() >= 6 {
                     let t = format!("00{}", &pid[0..6]);
                     return Some(remove_null_chars(&t));
                 }
@@ -630,10 +629,10 @@ fn copy_dicom_data(data: DicomData, config: &Config) -> Result<CopiedData> {
 
     // Create the necessary directories if they do not already exist
     debug!("Creating output directory: {}", output_path.display());
-    if let Err(e) = std::fs::create_dir_all(&output_path) {
-        if e.kind() != ErrorKind::AlreadyExists {
-            return Err(e.into());
-        }
+    if let Err(e) = std::fs::create_dir_all(&output_path)
+        && e.kind() != ErrorKind::AlreadyExists
+    {
+        return Err(e.into());
     }
 
     // Construct the final file path in the output directory
