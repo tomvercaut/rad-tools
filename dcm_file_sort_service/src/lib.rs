@@ -326,8 +326,9 @@ fn get_sorting_data(
                 let current_time = FileTime::now();
                 if current_time.seconds() - mtime.seconds() < config.other.mtime_delay_secs {
                     trace!(
-                        "Skipping file: {} (last modified less than 10 seconds ago)",
-                        path.display()
+                        "Skipping file: {} (last modified less than {} seconds ago)",
+                        path.display(),
+                        config.other.mtime_delay_secs
                     );
                     continue;
                 }

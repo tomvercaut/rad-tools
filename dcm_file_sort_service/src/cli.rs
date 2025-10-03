@@ -28,7 +28,7 @@ pub struct Cli {
 }
 
 #[derive(Args, Debug, Clone)]
-#[group(required = false, multiple = false)]
+#[group(required = false, multiple = true)]
 pub struct ManualArgs {
     /// Directory where the DICOM data are read from.
     #[arg(short, long)]
