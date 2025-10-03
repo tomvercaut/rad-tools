@@ -318,7 +318,15 @@ fn get_sorting_data(
                 if !path.is_file() {
                     continue;
                 }
-                let mtime = last_modified_time(path)?;
+                let mtime = last_modified_time(path);
+                if mtime.is_err() {
+                    trace!(
+                        "Skipping file: {} (last modified time not available)",
+                        path.display()
+                    );
+                    continue;
+                }
+                let mtime = mtime?;
                 let current_time = FileTime::now();
                 if current_time.seconds() - mtime.seconds() < config.other.mtime_delay_secs {
                     trace!(
