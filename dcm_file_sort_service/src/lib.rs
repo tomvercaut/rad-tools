@@ -38,6 +38,8 @@ pub enum Error {
     UnknownFilename,
     #[error("Unable to create config from Cli")]
     ConfigFromCli,
+    #[error("Unable to get last modified time from file / path")]
+    LastModifiedTime,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -316,13 +318,7 @@ fn get_sorting_data(
                 if !path.is_file() {
                     continue;
                 }
-                let meta = std::fs::metadata(path);
-                if meta.is_err() {
-                    trace!("Failed to get metadata for file: {}", path.display());
-                    continue;
-                }
-                let meta = meta?;
-                let mtime = FileTime::from_last_modification_time(&meta);
+                let mtime = last_modified_time(path)?;
                 let current_time = FileTime::now();
                 if current_time.seconds() - mtime.seconds() < config.other.mtime_delay_secs {
                     trace!(
@@ -354,6 +350,37 @@ fn get_sorting_data(
         }
     }
     Ok((dicom_dataset, unknown_dataset, stopped))
+}
+
+/// Gets the last modification time of a file.
+///
+/// This function retrieves the last modification timestamp of the specified file path.
+/// If the file's metadata cannot be accessed, it returns an error.
+///
+/// # Arguments
+/// * `path` - A path reference to the file whose modification time is being queried.
+///
+/// # Returns
+/// * `Ok(FileTime)` - The last modification time of the file as a `FileTime` value.
+/// * `Err(Error)` - If the file metadata cannot be accessed or read.
+///
+/// # Errors
+/// Returns `Error::LastModifiedTime` if:
+/// * The file does not exist
+/// * The process lacks permissions to read the file metadata
+/// * Other system-level errors occur while accessing the file
+fn last_modified_time<P>(path: P) -> Result<FileTime>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref();
+    let meta = std::fs::metadata(path);
+    if meta.is_err() {
+        trace!("Failed to get metadata for file: {:#?}", path);
+        return Err(Error::LastModifiedTime);
+    }
+    let meta = meta?;
+    Ok(FileTime::from_last_modification_time(&meta))
 }
 
 ///
