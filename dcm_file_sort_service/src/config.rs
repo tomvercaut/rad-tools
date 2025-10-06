@@ -72,6 +72,8 @@ pub struct Other {
     pub remove_attempts: usize,
     /// Number of seconds between the last modified time and the current time before a file is consided deletable.
     pub mtime_delay_secs: i64,
+    /// Limit the number of attempts to generate a unique filename in the output directory.
+    pub limit_unique_filenames: usize,
 }
 
 impl Default for Other {
@@ -82,6 +84,7 @@ impl Default for Other {
             copy_attempts: 100,
             remove_attempts: 10,
             mtime_delay_secs: 10,
+            limit_unique_filenames: 1000,
         }
     }
 }

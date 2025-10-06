@@ -1,3 +1,4 @@
+use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
 /// Trait for types that can provide a unique file path.
@@ -29,6 +30,7 @@ pub enum DefaultUniquePathError {
 /// # Example
 ///
 /// ```
+/// use std::ffi::{OsStr};
 /// use std::fs::File;
 /// use std::io::Write;
 /// use std::path::PathBuf;
@@ -42,8 +44,8 @@ pub enum DefaultUniquePathError {
 ///
 ///        let generator = DefaultUniquePathGenerator {
 ///            dir: path.clone(),
-///            name: "test".to_string(),
-///            extension: Some("txt".to_string()),
+///            name: OsStr::new("test"),
+///            extension: Some(OsStr::new("txt")),
 ///            limit: 1
 ///        };
 ///
@@ -70,21 +72,21 @@ pub enum DefaultUniquePathError {
 /// If "/tmp/test.txt" exists, it will try "/tmp/test_0.txt", "/tmp/test_1.txt", etc.
 /// until either a unique path is found or the limit is reached.
 #[derive(Clone, Debug)]
-pub struct DefaultUniquePathGenerator {
+pub struct DefaultUniquePathGenerator<'a> {
     /// The directory in which to generate the unique file path.
     pub dir: PathBuf,
     /// Base name of the file without extension.
     /// When generating unique paths, numbers will be appended to this name if needed.
-    pub name: String,
+    pub name: &'a OsStr,
     /// Optional file extension without the leading dot.
     /// If not provided, the file will be created without an extension.
-    pub extension: Option<String>,
+    pub extension: Option<&'a OsStr>,
     /// Maximum number of attempts to generate a unique path by appending numbers.
     /// If this limit is reached without finding a unique path, an error will be returned.
     pub limit: usize,
 }
 
-impl UniquePathGenerator for DefaultUniquePathGenerator {
+impl<'a> UniquePathGenerator for DefaultUniquePathGenerator<'a> {
     type UniquePathError = DefaultUniquePathError;
 
     fn get_unique_path(&self) -> Result<PathBuf, Self::UniquePathError> {
@@ -92,27 +94,39 @@ impl UniquePathGenerator for DefaultUniquePathGenerator {
         if !path.is_dir() {
             return Err(DefaultUniquePathError::DirNotExists);
         }
-        let tpath = match self.extension {
-            None => path.join(&self.name),
-            Some(_) => path.join(format!(
-                "{}.{}",
-                self.name,
-                self.extension.as_ref().unwrap()
-            )),
+        let os_ext = match self.extension.as_ref() {
+            None => OsString::new(),
+            Some(ext) => {
+                if ext.is_empty() {
+                    OsString::new()
+                } else {
+                    let mut tos = OsString::from(".");
+                    tos.push(ext);
+                    tos
+                }
+            }
+        };
+        let tpath = match self.extension.as_ref() {
+            None => path.join(self.name),
+            Some(_) => {
+                let mut tos = OsString::from(self.name);
+                tos.push(&os_ext);
+                path.join(tos)
+            }
         };
         if !tpath.exists() {
             return Ok(tpath);
         }
         let mut i = 0;
         while i < self.limit {
-            let tpath = match self.extension {
-                None => path.join(format!("{}_{}", self.name, i)),
-                Some(_) => path.join(format!(
-                    "{}_{}.{}",
-                    self.name,
-                    i,
-                    self.extension.as_ref().unwrap()
-                )),
+            let mut tos = OsString::from(self.name);
+            tos.push(format!("_{}", i));
+            let tpath = match self.extension.as_ref() {
+                None => path.join(tos),
+                Some(_) => {
+                    tos.push(&os_ext);
+                    path.join(tos)
+                }
             };
             if !tpath.exists() {
                 return Ok(tpath);

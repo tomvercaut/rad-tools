@@ -4,11 +4,15 @@ pub mod service;
 
 pub use cli::Cli;
 pub use config::Config;
+use std::ffi::{OsStr, OsString};
 use std::io::ErrorKind;
 
 use crate::Error::InvalidDateOfBirth;
 use dicom_object::{ReadError, open_file};
 use filetime::FileTime;
+use rad_tools_common::fs::{
+    DefaultUniquePathError, DefaultUniquePathGenerator, UniquePathGenerator,
+};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
@@ -34,12 +38,16 @@ pub enum Error {
     InvalidDateOfBirth,
     #[error("Unable to parse integer from string")]
     ParseIntError(#[from] std::num::ParseIntError),
+    #[error("Unable to determine the parent of a file or directory")]
+    UnknownParent,
     #[error("Unable to determine filename")]
     UnknownFilename,
     #[error("Unable to create config from Cli")]
     ConfigFromCli,
     #[error("Unable to get last modified time from file / path")]
     LastModifiedTime,
+    #[error("Unable to create unique file path")]
+    DefaultUniqueUniqueFilePath(#[from] DefaultUniquePathError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -635,9 +643,22 @@ fn copy_dicom_data(data: DicomData, config: &Config) -> Result<CopiedData> {
         return Err(e.into());
     }
 
+    // Build a unique filename
+    let mut name = OsString::from(&data.modality);
+    name.push(".");
+    name.push(&data.sop_instance_uid);
+
+    let extension = OsStr::new("dcm");
+
+    let generator = DefaultUniquePathGenerator {
+        dir: output_path,
+        name: name.as_os_str(),
+        extension: Some(extension),
+        limit: config.other.limit_unique_filenames,
+    };
+
     // Construct the final file path in the output directory
-    let dest_file_path =
-        output_path.join(format!("{}.{}.dcm", &data.modality, &data.sop_instance_uid));
+    let dest_file_path = generator.get_unique_path()?;
 
     debug!(
         "Copying file: {} -> {}",
@@ -670,12 +691,15 @@ fn copy_dicom_data(data: DicomData, config: &Config) -> Result<CopiedData> {
 /// * Logs debug information about the file copy operation, including source and destination paths.
 fn copy_unkown_data(data: UnknownData, config: &Config) -> Result<CopiedData> {
     // Construct the final file path in the output directory
-    let filename = data.path.file_name();
-    if filename.is_none() {
-        return Err(Error::UnknownFilename);
-    }
-    let filename = filename.unwrap();
-    let dest_file_path = config.paths.unknown_dir.join(filename);
+    let file_stem = data.path.file_stem().ok_or(Error::UnknownFilename)?;
+    let extension = data.path.extension();
+    let generator = DefaultUniquePathGenerator {
+        dir: config.paths.unknown_dir.clone(),
+        name: file_stem,
+        extension,
+        limit: config.other.limit_unique_filenames,
+    };
+    let dest_file_path = generator.get_unique_path()?;
 
     debug!(
         "Copying file: {} -> {}",
