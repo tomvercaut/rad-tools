@@ -44,7 +44,7 @@ pub enum Error {
     UnknownFilename,
     #[error("Unable to create config from Cli")]
     ConfigFromCli,
-    #[error("Unable to get last modified time from file / path")]
+    #[error("Unable to get the last modified time from a file / path")]
     LastModifiedTime,
     #[error("Unable to create unique file path")]
     DefaultUniqueUniqueFilePath(#[from] DefaultUniquePathError),
@@ -174,7 +174,7 @@ pub fn run_service(config: &Config, rx: Receiver<ServiceState>) -> Result<()> {
         }
         if let Err(e) = remove_empty_sub_dirs(&config.paths.input_dir) {
             error!(
-                "Error trying to remove empty subdirectory [{}]: {}",
+                "Error while trying to remove empty subdirectory [{}]: {}",
                 &config.paths.input_dir.display(),
                 e
             );
@@ -273,7 +273,7 @@ fn should_stop(rx: &Receiver<ServiceState>) -> bool {
 /// file to determine if it is a DICOM file. It attempts to extract metadata and collects
 /// it as `DicomData`.
 /// Files missing the essential DICOM fields will be logged with a warning and categorized as
-/// unkown data (`SortingData::Unknown`).
+/// unknown data (`SortingData::Unknown`).
 /// The function monitors a Channel receiver to ensure it halts processing if the service
 /// state is no longer `ServiceState::Running`.
 ///
@@ -316,7 +316,7 @@ fn get_sorting_data(
             Ok(entry) => {
                 trace!("Processing file: {}", entry.path().display());
                 if should_stop(rx) {
-                    info!("Stopping processing cycle");
+                    info!("Stopping the processing cycle");
                     stopped = true;
                     break;
                 }
@@ -391,7 +391,7 @@ where
     let path = path.as_ref();
     let meta = std::fs::metadata(path);
     if meta.is_err() {
-        trace!("Failed to get metadata for file: {:#?}", path);
+        trace!("Failed to get metadata for a file: {:#?}", path);
         return Err(Error::LastModifiedTime);
     }
     let meta = meta?;
@@ -616,7 +616,7 @@ fn copy_dicom_data(data: DicomData, config: &Config) -> Result<CopiedData> {
     let patient_id = &data.patient_id;
     let source_path = &data.path;
 
-    // Ensure date of birth is in valid format (YYYYMMDD). In case of invalid format, return an error.
+    // Ensure the date of birth is in valid format (YYYYMMDD). In case of invalid format, return an error.
     if dob.len() != 8 {
         error!("Invalid date of birth format: {}", dob);
         return Err(InvalidDateOfBirth);
@@ -811,7 +811,7 @@ mod tests {
         let input_file = config.paths.input_dir.join("test.dcm");
 
         create_test_dicom_file(patient_id, date_of_birth, &input_file)
-            .expect("Unable to create test DICOM file.");
+            .expect("Unable to create a test DICOM file.");
 
         let sorting_data = DicomData {
             sop_instance_uid: "9.3.12.2.1107.5.1.7.130037.30000025021708505036500000024"
@@ -857,7 +857,7 @@ mod tests {
         let input_file = config.paths.input_dir.join("test.dcm");
 
         create_test_dicom_file(patient_id, invalid_date_of_birth, &input_file)
-            .expect("Unable to create test DICOM file.");
+            .expect("Unable to create a test DICOM file.");
 
         let sorting_data = DicomData {
             sop_instance_uid: "9.3.12.2.1107.5.1.7.130037.30000025021708505036500000024"

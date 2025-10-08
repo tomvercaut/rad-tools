@@ -5,7 +5,7 @@ use clap::Parser;
 /// An application to sort DICOM data from an input directory into an output directory.
 ///
 /// An application to sort DICOM data from an input directory into an output directory.
-/// The data is sorted based on the date of birth and the patient ID (format: <output dir>/<MMDD>/<patient ID>.
+/// The data is sorted based on the date of birth and the patient ID (format: <output dir>/<MMDD>/<patient ID>).
 /// The name of the DICOM file is based on the modality and the (unique) SOP instance UID.
 #[derive(Parser, Debug, Clone)]
 #[command(
@@ -16,7 +16,7 @@ use clap::Parser;
 An application to sort DICOM data from an input directory into an output directory.
 
 An application to sort DICOM data from an input directory into an output directory.
-The data is sorted based on the date of birth and the patient ID (format: <output dir>/<MMDD>/<patient ID>.
+The data is sorted based on the date of birth and the patient ID (format: <output dir>/<MMDD>/<patient ID>).
 The name of the DICOM file is based on the modality and the (unique) SOP instance UID."
 )]
 pub struct Cli {

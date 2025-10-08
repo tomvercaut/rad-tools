@@ -25,7 +25,7 @@ fn main() {
         let tx = tx.clone();
         ctrlc::set_handler(move || {
             tx.send(rad_tools_dcm_file_sort_service::ServiceState::RequestToStop)
-                .expect("Failed to send request to stop signal");
+                .expect("Failed to send a request to stop signal");
         })
         .expect("Error setting Ctrl-C handler");
     }

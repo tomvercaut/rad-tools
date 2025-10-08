@@ -5,7 +5,7 @@ fn main() {
 
 #[cfg(not(windows))]
 fn main() {
-    panic!("This service is only intented to run on Windows");
+    panic!("This service is only intended to run on Windows");
 }
 
 #[cfg(windows)]
