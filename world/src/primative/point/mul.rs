@@ -141,7 +141,7 @@ mod tests {
 
     #[test]
     fn test_point2d_mul() {
-        // Test integer addition
+        // Test integer multiplication
         let p1 = Point2D(1u8, 2u8);
         let p2 = Point2D(3u8, 4u8);
         assert_eq!(p1 * p2, Point2D(3u8, 8u8));
@@ -150,7 +150,7 @@ mod tests {
         let p2 = Point2D(3i32, 4i32);
         assert_eq!(p1 * p2, Point2D(6i32, 8i32));
 
-        // Test integer point mul_assign
+        // Test integer point mul
         let p1 = Point2D(2i32, 3i32);
         assert_eq!(p1 * 3, Point2D(6i32, 9i32));
 
