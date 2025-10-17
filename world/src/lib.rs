@@ -1,5 +1,6 @@
 mod grid;
 pub mod interp;
+pub mod primative;
 mod tm;
 
 pub use grid::{Grid, GridError, GridResult};
