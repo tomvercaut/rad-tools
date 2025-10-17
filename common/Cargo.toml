@@ -1,0 +1,12 @@
+[package]
+name = "rad-tools-common"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+tracing.workspace = true
+dicom-object.workspace = true
+dicom-dictionary-std.workspace = true
+dicom-encoding.workspace = true
+dicom-transfer-syntax-registry.workspace = true
