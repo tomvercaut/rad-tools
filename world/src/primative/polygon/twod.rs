@@ -2,13 +2,20 @@ use crate::primative::point::Point2D;
 use crate::primative::rect::Rect2D;
 use crate::geom_traits::{Area, BoundingBox};
 
+/// Represents a 2D polygon with cached bounding box and area calculations.
+/// The polygon is defined by a sequence of vertices stored in counterclockwise order.
 #[derive(Clone, Debug, Default)]
 pub struct Polygon2D<T> {
-
+    /// Vertices of the polygon stored in counterclockwise order.
+    /// Must contain at least 3 points to form a valid polygon.
     points: Vec<Point2D<T>>,
 
+    /// Cached axis-aligned bounding box that fully contains the polygon.
+    /// Updated when the polygon is created.
     bbox: Rect2D<T>,
 
+    /// Cached area of the polygon.
+    /// Always stored as a positive value regardless of vertex winding order.
     area: f64,
 }
 
