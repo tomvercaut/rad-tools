@@ -1,6 +1,8 @@
+use crate::geom_traits::Reverse;
+use crate::geom_traits::{Area, BoundingBox};
+use crate::primative::direction::RotationDirection;
 use crate::primative::point::Point2D;
 use crate::primative::rect::Rect2D;
-use crate::geom_traits::{Area, BoundingBox};
 
 /// Represents a 2D polygon with cached bounding box and area calculations.
 /// The polygon is defined by a sequence of vertices stored in counterclockwise order.
@@ -17,6 +19,9 @@ pub struct Polygon2D<T> {
     /// Cached area of the polygon.
     /// Always stored as a positive value regardless of vertex winding order.
     area: f64,
+
+    /// The direction / order of the points in the polygon.
+    direction: RotationDirection,
 }
 
 macro_rules! impl_polygon2d {
@@ -29,10 +34,11 @@ macro_rules! impl_polygon2d {
                 let area_2d = Area2D { points: &points };
                 let area = area_2d.area();
 
-                let mut points = points;
-                if area < 0.0 {
-                    points.reverse();
-                }
+                let direction = if area < 0.0 {
+                    RotationDirection::Clockwise
+                } else {
+                    RotationDirection::CounterClockwise
+                };
 
                 let bbox = Bbox2D { points: &points };
                 let bbox = bbox.bounding_box();
@@ -41,6 +47,7 @@ macro_rules! impl_polygon2d {
                     points,
                     bbox,
                     area: area.abs(),
+                    direction,
                 })
             }
             
@@ -50,6 +57,10 @@ macro_rules! impl_polygon2d {
             
             pub fn len(&self) -> usize {
                 self.points.len()
+            }
+
+            pub fn direction(&self) -> RotationDirection {
+                self.direction
             }
         }
          
@@ -68,7 +79,24 @@ macro_rules! impl_polygon2d {
                 self.bbox
             }
          }
-         
+
+         impl Reverse for Polygon2D<$t> {
+            fn reverse(&self) -> Self {
+                let mut points = self.points.clone();
+                points.reverse();
+                Self {
+                    points,
+                    bbox: self.bbox,
+                    area: self.area,
+                    direction: self.direction.reverse(),
+                }
+            }
+
+            fn reverse_mut(&mut self) {
+                self.points.reverse();
+                self.direction.reverse_mut();
+            }
+         }
      };
     ($($t:ty),*) => {
         $(impl_polygon2d!($t);)*
@@ -204,6 +232,50 @@ mod tests {
         let bbox = polygon.bounding_box();
         assert_eq!(bbox.min, Point2D(1.0, 1.0));
         assert_eq!(bbox.max, Point2D(3.0, 3.0));
+    }
+
+    #[test]
+    fn test_reverse() {
+        let points = vec![
+            Point2D(0.0, 0.0),
+            Point2D(1.0, 0.0),
+            Point2D(1.0, 1.0),
+        ];
+        let polygon = Polygon2D::<f64>::new(points.clone()).unwrap();
+        let reversed = polygon.reverse();
+
+        // Check points are in reverse order
+        for (i, point) in points.iter().rev().enumerate() {
+            assert_eq!(&reversed.points()[i], point);
+        }
+
+        // Area and bbox should remain the same
+        assert_eq!(reversed.area(), polygon.area());
+        assert_eq!(reversed.bounding_box(), polygon.bounding_box());
+
+        // Direction should be reversed
+        assert_eq!(reversed.direction(), polygon.direction().reverse());
+    }
+
+    #[test]
+    fn test_reverse_mut() {
+        let points = vec![
+            Point2D(0.0, 0.0),
+            Point2D(1.0, 0.0),
+            Point2D(1.0, 1.0),
+        ];
+        let mut polygon = Polygon2D::<f64>::new(points.clone()).unwrap();
+        let original_direction = polygon.direction();
+
+        polygon.reverse_mut();
+
+        // Check points are in reverse order
+        for (i, point) in points.iter().rev().enumerate() {
+            assert_eq!(&polygon.points()[i], point);
+        }
+
+        // Direction should be reversed
+        assert_eq!(polygon.direction(), original_direction.reverse());
     }
 }
 

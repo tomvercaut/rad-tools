@@ -41,3 +41,11 @@ pub trait Area {
     /// Returns the area of the object
     fn area(&self) -> Self::AreaType;
 }
+
+/// Trait for types that can be reversed, changing the order or direction of their elements
+pub trait Reverse {
+    /// Returns a new instance with reversed elements/direction
+    fn reverse(&self) -> Self;
+    /// Reverses the elements/direction in place
+    fn reverse_mut(&mut self);
+}

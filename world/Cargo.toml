@@ -8,3 +8,4 @@ authors.workspace = true
 nalgebra = "0.33"
 thiserror.workspace = true
 num-traits = "0.2"
+tracing.workspace = true
