@@ -1,10 +1,13 @@
 use crate::geom_traits::{Depth, Width, Height};
 use crate::primative::point::{Point2D, Point3D};
 
+#[derive(Copy, Clone, Debug, Default, Hash)]
 pub struct Rect2D<T> {
     pub min: Point2D<T>,
     pub max: Point2D<T>,
 }
+
+#[derive(Copy, Clone, Debug, Default, Hash)]
 pub struct Rect3D<T> {
     pub min: Point3D<T>,
     pub max: Point3D<T>,

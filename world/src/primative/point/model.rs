@@ -2,14 +2,14 @@
 ///
 /// The type parameter T can be any numeric type (integer or floating point)
 /// that supports the required traits for comparison and hashing
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Point2D<T>(pub T, pub T);
 
 /// A 3-dimensional point represented by x, y and z coordinates of type T
 ///
 /// The type parameter T can be any numeric type (integer or floating point)
 /// that supports the required traits for comparison and hashing
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Point3D<T>(pub T, pub T, pub T);
 
 macro_rules! from_2d {
