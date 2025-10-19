@@ -1,4 +1,4 @@
-use crate::primative::Error;
+use crate::primitive::Error;
 use std::str::FromStr;
 use tracing::error;
 use crate::geom_traits::Reverse;

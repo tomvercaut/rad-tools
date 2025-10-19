@@ -1,5 +1,5 @@
 use crate::geom_traits::{Depth, Height, Width};
-use crate::primative::point::{Point2D, Point3D};
+use crate::primitive::point::{Point2D, Point3D};
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Hash)]
 pub struct Rect2D<T> {

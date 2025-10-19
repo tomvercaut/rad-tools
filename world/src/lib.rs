@@ -1,7 +1,7 @@
 mod geom_traits;
 mod grid;
 pub mod interp;
-pub mod primative;
+pub mod primitive;
 mod tm;
 
 pub use grid::{Grid, GridError, GridResult};

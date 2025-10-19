@@ -1,8 +1,8 @@
 use crate::geom_traits::Reverse;
 use crate::geom_traits::{Area, BoundingBox};
-use crate::primative::direction::RotationDirection;
-use crate::primative::point::Point2D;
-use crate::primative::rect::Rect2D;
+use crate::primitive::direction::RotationDirection;
+use crate::primitive::point::Point2D;
+use crate::primitive::rect::Rect2D;
 
 /// Represents a 2D polygon with cached bounding box and area calculations.
 /// The polygon is defined by a sequence of vertices stored in counterclockwise order.
@@ -27,9 +27,9 @@ pub struct Polygon2D<T> {
 macro_rules! impl_polygon2d {
      ($t:ty) => {
         impl Polygon2D<$t> {
-            pub fn new(points: Vec<Point2D<$t>>) -> crate::primative::Result<Self> {
+            pub fn new(points: Vec<Point2D<$t>>) -> crate::primitive::Result<Self> {
                 if points.len() < 3 {
-                    return Err(crate::primative::Error::PolygonRequiresAtLeast3Points);
+                    return Err(crate::primitive::Error::PolygonRequiresAtLeast3Points);
                 }
                 let area_2d = Area2D { points: &points };
                 let area = area_2d.area();

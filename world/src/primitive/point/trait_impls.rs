@@ -1,5 +1,5 @@
 use crate::geom_traits::DistanceTo;
-use crate::primative::point::{Point2D, Point3D};
+use crate::primitive::point::{Point2D, Point3D};
 
 macro_rules! impl_distance_to {
     ($t:ty) => {

@@ -1,4 +1,4 @@
-use crate::primative::point::{Point2D, Point3D};
+use crate::primitive::point::{Point2D, Point3D};
 
 #[derive(Copy, Clone, Debug, Default, Hash)]
 pub struct Line2D<T> {

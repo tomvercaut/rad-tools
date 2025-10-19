@@ -1,4 +1,4 @@
-use crate::primative::point::{Point2D, Point3D};
+use crate::primitive::point::{Point2D, Point3D};
 
 macro_rules! add_2d {
     ($t1:ty, $output:ty) => {
