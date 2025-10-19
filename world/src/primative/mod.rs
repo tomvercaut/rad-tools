@@ -1,8 +1,8 @@
-pub mod edge;
+mod direction;
 mod error;
+pub mod line;
 pub mod point;
 pub mod polygon;
 pub mod rect;
-mod direction;
 
 pub use error::{Error, Result};
