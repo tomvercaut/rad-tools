@@ -49,3 +49,8 @@ pub trait Reverse {
     /// Reverses the elements/direction in place
     fn reverse_mut(&mut self);
 }
+
+pub trait Intersection<T> {
+    type IntersectionResultType;
+    fn intersect(&self, other: &T) -> Self::IntersectionResultType;
+}
