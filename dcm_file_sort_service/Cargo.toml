@@ -20,6 +20,8 @@ serde_json.workspace = true
 ctrlc.workspace = true
 toml.workspace = true
 filetime.workspace = true
+chrono.workspace = true
+assert_cmd.workspace = true
 rad-tools-core = { path = "../core" }
 rad-tools-common = {path = "../common"}
 

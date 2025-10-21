@@ -4,16 +4,15 @@ pub mod service;
 
 pub use cli::Cli;
 pub use config::Config;
-use std::ffi::{OsStr, OsString};
-use std::io::ErrorKind;
-
-use crate::Error::InvalidDateOfBirth;
+use dicom_core::chrono::{Datelike, NaiveDate};
 use dicom_object::{ReadError, open_file};
 use filetime::FileTime;
 use rad_tools_common::fs::{
     DefaultUniquePathError, DefaultUniquePathGenerator, UniquePathGenerator,
 };
 use serde::{Deserialize, Serialize};
+use std::ffi::{OsStr, OsString};
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
 use tracing::{debug, error, info, trace, warn};
@@ -34,6 +33,16 @@ pub enum Error {
     DicomRead(#[from] ReadError),
     #[error("Walk directory error: {0}")]
     WalkDir(#[from] walkdir::Error),
+    #[error("Invalid date format: unable to determine year")]
+    InvalidDateFormatYear,
+    #[error("Invalid date format: unable to determine a valid month")]
+    InvalidDateFormatMonth,
+    #[error("Invalid date format: unable to determine a valid day")]
+    InvalidDateFormatDay,
+    #[error("Invalid calendar date")]
+    InvalidDateCalendar,
+    #[error("Invalid date")]
+    InvalidDate,
     #[error("Invalid date of birth format")]
     InvalidDateOfBirth,
     #[error("Unable to parse integer from string")]
@@ -62,7 +71,7 @@ pub struct DicomData {
     /// Patient ID
     pub patient_id: String,
     /// Date of birth
-    pub date_of_birth: String,
+    pub date_of_birth: NaiveDate,
     /// DICOM file to be sorted
     pub path: PathBuf,
 }
@@ -436,7 +445,7 @@ fn remove_null_chars(s: &str) -> String {
 
 ///
 /// Extracts metadata from a DICOM file, specifically the Patient ID and Date of Birth.
-/// If the birthday doesn't exist and the patient ID is 8 characters or longer, the 3, 4, 5 and 7th character are used as a substitue.
+/// If the birthday doesn't exist and the patient ID is 8 characters or longer, the 3, 4, 5, and 7th character are used as a substitue.
 ///
 /// # Arguments
 /// * `file_path` - A path to the DICOM file to be processed.
@@ -484,21 +493,37 @@ fn extract_dicom_metadata<P: AsRef<Path>>(file_path: P) -> Result<SortingData> {
     // .map(|elem| remove_null_chars(elem.string().unwrap().trim()));
 
     // Not required by DICOM
-    let date_of_birth = dicom_file
+    let mut date_of_birth = dicom_file
         .element_by_name("PatientBirthDate")
         .ok()
         .and_then(|elem| match elem.string() {
-            Ok(s) => Some(s.trim().to_string()),
-            Err(e) => {
-                error!("Failed to extract Date of Birth: {}.\nTrying to extract part of the patient ID.", e);
-                if let Ok(Some(pid)) = patient_id.as_ref() && pid.len() >= 6 {
-                    let t = format!("00{}", &pid[0..6]);
-                    return Some(remove_null_chars(&t));
-                }
-                None
-            }
+            Ok(s) => parse_date(s.trim()).ok(),
+            Err(_) => None,
         });
 
+    // Extract the date of birth from the patient ID
+    // This may not work in every case because there is no general consensus for this.
+    let no_dob = date_of_birth.is_none();
+    if no_dob
+        && let Ok(Some(pid)) = patient_id.as_ref()
+        && pid.len() >= 6
+    {
+        let t = format!("00{}", &pid[0..6]);
+        if let Ok(date) = parse_date(&t) {
+            date_of_birth = Some(date);
+        }
+    }
+
+    debug!(
+        "Extracting metadata from file: {:#?}\nSopInstanceUid: {:#?}\nPatientId: {:#?}\nModality: {:#?}\nDateOfBirth: {:#?}",
+        &file_path.as_ref(),
+        sop_instance_uid
+            .as_ref()
+            .unwrap_or(&Some("Error".to_string())),
+        &patient_id,
+        &modality,
+        &date_of_birth
+    );
     match (sop_instance_uid, patient_id, modality, date_of_birth) {
         (
             Ok(Some(sop_instance_uid)),
@@ -518,7 +543,7 @@ fn extract_dicom_metadata<P: AsRef<Path>>(file_path: P) -> Result<SortingData> {
                 sop_instance_uid: sop_instance_uid.to_string(),
                 modality: modality.to_string(),
                 patient_id: patient_id.to_string(),
-                date_of_birth: date_of_birth.to_string(),
+                date_of_birth,
                 path: file_path.as_ref().to_path_buf(),
             }))
         }
@@ -531,6 +556,47 @@ fn extract_dicom_metadata<P: AsRef<Path>>(file_path: P) -> Result<SortingData> {
                 path: file_path.as_ref().to_path_buf(),
             }))
         }
+    }
+}
+
+/// Parses a date string in YYYYMMDD format and validates it as a valid calendar date.
+///
+/// This function takes an 8-character string representing a date and attempts to convert
+/// it into a `NaiveDate` object while performing various validation checks.
+///
+/// # Arguments
+/// * `s` - A string slice that should contain exactly 8 characters in YYYYMMDD format
+///
+/// # Returns
+/// * `Ok(NaiveDate)` - If the string is successfully parsed into a valid date
+/// * `Err(Error)` - If the string is invalid or represents an impossible date
+///
+/// # Errors
+/// * Returns `Error::InvalidDate` if the input string is not exactly 8 characters
+/// * Returns `Error::InvalidDateFormatYear` if the year portion cannot be parsed
+/// * Returns `Error::InvalidDateFormatMonth` if the month is not between 1 and 12
+/// * Returns `Error::InvalidDateFormatDay` if the day is not between 1 and 31
+/// * Returns `Error::InvalidDateCalendar` if the combination of year, month, and day is not a valid calendar date
+pub fn parse_date(s: &str) -> Result<NaiveDate> {
+    if s.len() != 8 {
+        return Err(Error::InvalidDate);
+    }
+
+    let year = match s[0..4].parse::<i32>() {
+        Ok(year) => Ok(year),
+        Err(_) => Err(Error::InvalidDateFormatYear),
+    }?;
+    let month = s[4..6].parse::<i32>()?;
+    let day = s[6..].parse::<i32>()?;
+    if month <= 0 || month > 12 {
+        return Err(Error::InvalidDateFormatMonth);
+    }
+    if day <= 0 || day > 31 {
+        return Err(Error::InvalidDateFormatDay);
+    }
+    match NaiveDate::from_ymd_opt(year, month as u32, day as u32) {
+        None => Err(Error::InvalidDateCalendar),
+        Some(date) => Ok(date),
     }
 }
 
@@ -616,19 +682,18 @@ fn copy_dicom_data(data: DicomData, config: &Config) -> Result<CopiedData> {
     let patient_id = &data.patient_id;
     let source_path = &data.path;
 
-    // Ensure the date of birth is in valid format (YYYYMMDD). In case of invalid format, return an error.
-    if dob.len() != 8 {
-        error!("Invalid date of birth format: {}", dob);
-        return Err(InvalidDateOfBirth);
-    }
+    let month = if dob.month() < 10 {
+        format!("0{}", dob.month())
+    } else {
+        format!("{}", dob.month())
+    };
+    let day = if dob.day() < 10 {
+        format!("0{}", dob.day())
+    } else {
+        format!("{}", dob.day())
+    };
+    let month_day = format!("{}{}", month, day);
 
-    let month_day = &dob[4..]; // Extract MMDD part
-    let month = month_day[0..2].parse::<i32>()?;
-    let day = month_day[2..].parse::<i32>()?;
-    if month <= 0 || month > 12 || day <= 0 || day > 31 {
-        error!("Invalid date of birth format: {}", dob);
-        return Err(InvalidDateOfBirth);
-    }
     let output_path =
         config
             .paths
@@ -801,6 +866,17 @@ mod tests {
         config
     }
 
+    fn get_sorting_data(patient_id: &str, input_file: &Path) -> DicomData {
+        DicomData {
+            sop_instance_uid: "9.3.12.2.1107.5.1.7.130037.30000025021708505036500000024"
+                .to_string(),
+            modality: "CT".to_string(),
+            patient_id: patient_id.to_string(),
+            date_of_birth: NaiveDate::from_ymd_opt(1985, 6, 15).unwrap(),
+            path: input_file.into(),
+        }
+    }
+
     #[test]
     fn test_copy_dicom_data_success() {
         let temp_dir = tempfile::tempdir().unwrap();
@@ -813,14 +889,7 @@ mod tests {
         create_test_dicom_file(patient_id, date_of_birth, &input_file)
             .expect("Unable to create a test DICOM file.");
 
-        let sorting_data = DicomData {
-            sop_instance_uid: "9.3.12.2.1107.5.1.7.130037.30000025021708505036500000024"
-                .to_string(),
-            modality: "CT".to_string(),
-            patient_id: patient_id.to_string(),
-            date_of_birth: date_of_birth.to_string(),
-            path: input_file.clone(),
-        };
+        let sorting_data = get_sorting_data(patient_id, &input_file);
 
         let output_file_name = format!(
             "{}.{}.dcm",
@@ -849,57 +918,56 @@ mod tests {
     }
 
     #[test]
-    fn test_copy_dicom_data_invalid_date_of_birth_format() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config = get_test_config(&temp_dir);
-        let patient_id = "12345";
-        let invalid_date_of_birth = "1985";
-        let input_file = config.paths.input_dir.join("test.dcm");
-
-        create_test_dicom_file(patient_id, invalid_date_of_birth, &input_file)
-            .expect("Unable to create a test DICOM file.");
-
-        let sorting_data = DicomData {
-            sop_instance_uid: "9.3.12.2.1107.5.1.7.130037.30000025021708505036500000024"
-                .to_string(),
-            modality: "CT".to_string(),
-            patient_id: patient_id.to_string(),
-            date_of_birth: invalid_date_of_birth.to_string(),
-            path: input_file.clone(),
-        };
-
-        // Call the function
-        let result = copy_dicom_data(sorting_data, &config);
-
-        // Validate that the function returns an error
-        assert!(result.is_err());
-
-        // Validate that the file was not copied
-        assert!(is_dir_empty(&config.paths.output_dir));
-        std::fs::remove_dir_all(config.paths.input_dir.parent().unwrap()).unwrap()
-    }
-
-    #[test]
     fn test_copy_dicom_data_missing_source_file() {
         let temp_dir = tempfile::tempdir().unwrap();
         let config = get_test_config(&temp_dir);
         let patient_id = "12345";
-        let date_of_birth = "19850615";
         let input_file = config.paths.input_dir.join("test.dcm");
 
-        let sorting_data = DicomData {
-            sop_instance_uid: "9.3.12.2.1107.5.1.7.130037.30000025021708505036500000024"
-                .to_string(),
-            modality: "CT".to_string(),
-            patient_id: patient_id.to_string(),
-            date_of_birth: date_of_birth.to_string(),
-            path: input_file.clone(),
-        };
+        let sorting_data = get_sorting_data(patient_id, &input_file);
 
         // Call the function
         let result = copy_dicom_data(sorting_data, &config);
 
         // Validate that the function returns an error
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_date_valid() {
+        let result = parse_date("20230901").unwrap();
+        assert_eq!(result.year(), 2023);
+        assert_eq!(result.month(), 9);
+        assert_eq!(result.day(), 1);
+    }
+
+    #[test]
+    fn test_parse_date_invalid_year() {
+        let result = parse_date("abcd0901");
+        assert!(matches!(result, Err(Error::InvalidDateFormatYear)));
+    }
+
+    #[test]
+    fn test_parse_date_invalid_month() {
+        let result = parse_date("20231301");
+        assert!(matches!(result, Err(Error::InvalidDateFormatMonth)));
+    }
+
+    #[test]
+    fn test_parse_date_invalid_day() {
+        let result = parse_date("20230932");
+        assert!(matches!(result, Err(Error::InvalidDateFormatDay)));
+    }
+
+    #[test]
+    fn test_parse_date_invalid_length() {
+        let result = parse_date("2023090");
+        assert!(matches!(result, Err(Error::InvalidDate)));
+    }
+
+    #[test]
+    fn test_parse_date_invalid_calendar_date() {
+        let result = parse_date("20230931");
+        assert!(matches!(result, Err(Error::InvalidDateCalendar)));
     }
 }
