@@ -640,7 +640,7 @@ fn copy_with_retry_on_busy<P: AsRef<Path>>(
                 });
             }
             Err(e) => {
-                if e.kind() != ErrorKind::ResourceBusy {
+                if e.kind() != ErrorKind::ResourceBusy && !is_file_in_use_by_other_process(&e) {
                     error!(
                         "Failed to copy file: {} -> {}: {}",
                         input.as_ref().display(),
@@ -789,6 +789,34 @@ fn is_dir_empty<P: AsRef<Path>>(dir: P) -> bool {
         return entries.count() == 0;
     }
     false
+}
+
+/// Determines if an I/O error indicates that a file is currently in use by another process.
+///
+/// This function checks whether a given I/O error represents a "file in use" condition,
+/// which is platform-specific. On Windows, this is indicated by the raw OS error code 32.
+/// On other platforms, this function always returns `false` as the implementation does not
+/// currently handle non-Windows error codes.
+///
+/// # Arguments
+/// * `e` - An `std::io::Error` that occurred during a file operation
+///
+/// # Returns
+/// * `true` - If the error indicates the file is in use by another process (Windows error code 32)
+/// * `false` - If the error is not a "file in use" error, or if running on a non-Windows platform
+///
+/// # Platform-specific Behavior
+/// * **Windows**: Returns `true` when the error code is 32 (ERROR_SHARING_VIOLATION),
+///   which indicates that the file is being used by another process
+///   <https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499->
+/// * **Other platforms**: Always returns `false` as the function does not implement
+///   detection for non-Windows systems
+fn is_file_in_use_by_other_process(e: &std::io::Error) -> bool {
+    if cfg!(windows) {
+        matches!(e.raw_os_error(), Some(32))
+    } else {
+        false
+    }
 }
 
 #[cfg(test)]
