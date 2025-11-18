@@ -34,9 +34,6 @@ input_dir = {:#?}
 output_dir = {:#?}
 unknown_dir = {:#?}
 
-[log]
-level = "DEBUG"
-
 [path_generators]
 dicom = "{:#?}"
 
