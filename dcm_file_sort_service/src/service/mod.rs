@@ -1,7 +1,8 @@
-use crate::{Cli, Config};
+use crate::{Cli, Config, ENV_LOG};
 use clap::Parser;
 use std::ffi::OsString;
 use tracing::error;
+use tracing_subscriber::EnvFilter;
 
 #[cfg(windows)]
 pub const NAME: &str = "DicomFileSortService";
@@ -31,9 +32,9 @@ pub fn my_service_main(args: Vec<OsString>) {
     }
     let config = config.unwrap();
     tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_env(ENV_LOG))
         .with_thread_ids(true)
         .with_target(true)
-        .with_max_level(config.log.level)
         .init();
     if let Err(e) = internal::run_win_service(&config) {
         error!("Error while running the service: {:?}", e);

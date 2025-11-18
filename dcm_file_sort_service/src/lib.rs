@@ -5,7 +5,7 @@ pub mod service;
 use crate::path_gen::{
     DicomDirPathGeneratorFactory, SortedDirPathGenerator, SortedPathGeneratorError,
 };
-pub use cli::Cli;
+pub use cli::{Cli, ENV_LOG};
 pub use config::Config;
 #[allow(unused_imports)]
 use dicom_core::chrono::Datelike;
@@ -856,7 +856,6 @@ mod tests {
                 unknown_dir: tp.join("unknown"),
             },
             path_gens: Default::default(),
-            log: Default::default(),
             other: Default::default(),
         };
         config.create_dirs().unwrap();
@@ -874,7 +873,6 @@ mod tests {
             path_gens: PathGenerators {
                 dicom: DicomPathGeneratorType::Uzg,
             },
-            log: Default::default(),
             other: Default::default(),
         };
         config.create_dirs().unwrap();

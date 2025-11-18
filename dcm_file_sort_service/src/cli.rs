@@ -1,23 +1,47 @@
 use clap::Args;
 use clap::Parser;
 
+/// Environment variable name for the [tracing_subscriber::filter::EnvFilter].
+pub const ENV_LOG: &str = "DCM_FILE_SORT_LOG";
+
 #[allow(rustdoc::invalid_html_tags)]
 /// An application to sort DICOM data from an input directory into an output directory.
 ///
-/// An application to sort DICOM data from an input directory into an output directory.
-/// The data is sorted based on the date of birth and the patient ID (format: <output dir>/<MMDD>/<patient ID>).
+/// The way data is sorted depends on the path generator used.
+/// Currently the following path generators are supported:
+/// * dicom_default: Organizes DICOM files based on the patient ID and the date of birth.
+/// * dicom_uzg: Organizes DICOM files based on the patient ID and the date of birth.
+///
 /// The name of the DICOM file is based on the modality and the (unique) SOP instance UID.
+///
+/// Logging can be enabled by setting the environment variable DCM_FILE_SORT_LOG to:
+/// * TRACE
+/// * DEBUG
+/// * INFO
+/// * WARN
+/// * ERROR
 #[derive(Parser, Debug, Clone)]
 #[command(
     author,
     version,
     about,
-    long_about = "
+    long_about = r#"
 An application to sort DICOM data from an input directory into an output directory.
 
-An application to sort DICOM data from an input directory into an output directory.
-The data is sorted based on the date of birth and the patient ID (format: <output dir>/<MMDD>/<patient ID>).
-The name of the DICOM file is based on the modality and the (unique) SOP instance UID."
+The way data is sorted depends on the path generator used.
+Currently the following path generators are supported:
+* dicom_default: Organizes DICOM files based on the patient ID and the date of birth.
+* dicom_uzg: Organizes DICOM files based on the patient ID and the date of birth.
+
+The name of the DICOM file is based on the modality and the (unique) SOP instance UID.
+
+Logging can be enabled by setting the environment variable DCM_FILE_SORT_LOG to:
+* TRACE
+* DEBUG
+* INFO
+* WARN
+* ERROR
+"#
 )]
 pub struct Cli {
     #[command(flatten)]
@@ -42,16 +66,6 @@ pub struct ManualArgs {
     #[arg(long)]
     /// Path generator for DICOM data (accepted values: [DicomPathGeneratorType])
     pub dicom_path_gen: String,
-    #[arg(long)]
-    /// Enable logging at INFO level.
-    #[arg(long, default_value_t = false)]
-    pub verbose: bool,
-    /// Enable logging at DEBUG level.
-    #[arg(long, default_value_t = false)]
-    pub debug: bool,
-    /// Enable logging at TRACE level.
-    #[arg(long, default_value_t = false)]
-    pub trace: bool,
 }
 
 #[derive(Args, Debug, Clone)]

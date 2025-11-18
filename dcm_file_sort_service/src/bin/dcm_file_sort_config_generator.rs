@@ -2,8 +2,6 @@ use clap::Parser;
 use rad_tools_dcm_file_sort_service::Config;
 use std::io::Write;
 use std::path::PathBuf;
-use std::str::FromStr;
-use tracing::Level;
 
 use rad_tools_core::cli::in_out::{ask_question, ask_question_with_default};
 
@@ -36,8 +34,6 @@ fn main() {
         config.paths.unknown_dir = PathBuf::from(ask_question(
             "Directory for data that couldn't be processed",
         ));
-        config.log.level = Level::from_str(ask_question_with_default("Log level", "info").as_str())
-            .expect("Failed to parse log level");
         config.other.wait_time_millisec =
             ask_question_with_default("Wait time in milliseconds", "500")
                 .parse::<u64>()

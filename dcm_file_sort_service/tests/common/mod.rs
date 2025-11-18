@@ -95,6 +95,7 @@ pub fn create_test_data<P>(
 where
     P: AsRef<Path>,
 {
+    debug!("Creating test data in directory: {:#?}", p.as_ref());
     let p = p.as_ref();
     let odir = odir.as_ref();
     let mut v = vec![];
