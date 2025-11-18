@@ -41,7 +41,7 @@ pub struct Other {
     pub copy_attempts: u64,
     /// Number of times the service will try to remove a file
     pub remove_attempts: usize,
-    /// Number of seconds between the last modified time and the current time before a file is considered deletable.
+    /// Number of seconds between the last modified time and the current time before a file is considered sortable.
     pub mtime_delay_secs: i64,
     /// Limit the number of attempts to generate a unique filename in the output directory.
     pub limit_unique_filenames: usize,

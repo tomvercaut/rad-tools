@@ -60,7 +60,7 @@ pub struct ManualArgs {
     /// Directory where the DICOM data is written to.
     #[arg(short, long)]
     pub output_dir: String,
-    /// Directory where files that couldn't be processed are moved.
+    /// Directory where files that could not be processed are moved.
     #[arg(short, long)]
     pub unknown_dir: String,
     #[arg(long)]
