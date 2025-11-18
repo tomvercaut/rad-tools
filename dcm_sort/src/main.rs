@@ -4,6 +4,7 @@ use rad_tools_dcm_sort::{Data, TryFromDicomObject, to_path_buf, unique_dcm_file}
 use tracing::{debug, error, info, trace, warn};
 use walkdir::WalkDir;
 
+#[allow(rustdoc::invalid_html_tags)]
 /// A command line interface (CLI) application to sort DICOM files into a set of subdirectories.
 ///
 /// A command line interface (CLI) application to sort DICOM files into a set of subdirectories.

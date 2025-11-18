@@ -14,27 +14,28 @@ struct Args {
     #[clap(short, long, value_name = "FILE")]
     input: Option<String>,
 
+    #[allow(rustdoc::invalid_html_tags)]
     /// Use a pattern to select the DICOM elements to extract.
     ///
     /// The pattern can be one of the following:
     ///
     /// - (group,element)
     ///
-    /// - (group,element)[<selector>]
+    /// - (group,element)\[<selector>\]
     ///
     /// - tag name
     ///
-    /// - tag name[<selector>]
+    /// - tag name\[<selector>\]
     ///
     /// Where group and element are DICOM tag identifiers in hexadecimal.
     ///
-    /// The optional [<selector>] can be specified on DICOM sequences:
+    /// The optional \[<selector>\] can be specified on DICOM sequences:
     ///
-    /// - [*] suffix matches all nested elements
+    /// - \[*\] suffix matches all nested elements
     ///
-    /// - [<index>] index (zero-based)
+    /// - \[<index>\] index (zero-based)
     ///
-    /// - [<start>-<stop>] a range of indices (zero-based)
+    /// - \[<start>-<stop>\] a range of indices (zero-based)
     ///
     /// Nested DICOM elements can be found be appending a `/` to the pattern.
     ///
@@ -44,13 +45,13 @@ struct Args {
     ///
     /// - Modality: selects the Modality
     ///
-    /// - (3006,0010)[*]/(0020,0052): selects all the Frame Of Reference UIDs in the Referenced Frame Of Reference Sequence.
+    /// - (3006,0010)\[*\]/(0020,0052): selects all the Frame Of Reference UIDs in the Referenced Frame Of Reference Sequence.
     ///
-    /// - (3006,0010)[*]/FrameOfReferenceUid: selects all the Frame Of Reference UIDs in the Referenced Frame Of Reference Sequence.
+    /// - (3006,0010)\[*\]/FrameOfReferenceUid: selects all the Frame Of Reference UIDs in the Referenced Frame Of Reference Sequence.
     ///
-    /// - (3006,0010)[0]/(0020,0052): selects the Frame Of Reference UID in the first Referenced Frame Of Reference Sequence item.
+    /// - (3006,0010)\[0\]/(0020,0052): selects the Frame Of Reference UID in the first Referenced Frame Of Reference Sequence item.
     ///
-    /// - (3006,0010)[1]/(0020,0052): selects the Frame Of Reference UID in the second Referenced Frame Of Reference Sequence item.
+    /// - (3006,0010)\[1\]/(0020,0052): selects the Frame Of Reference UID in the second Referenced Frame Of Reference Sequence item.
     ///
     /// Importantly, while matching DICOM meta elements, selectors and nested patterns should not be used as this will result in an error!
     #[clap(short = 'e', value_name = "PATTERN")]
