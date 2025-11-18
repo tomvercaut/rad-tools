@@ -1,3 +1,4 @@
+use crate::path_gen::DicomPathGeneratorType;
 use crate::{Cli, Error};
 use serde::{Deserialize, Serialize};
 use serde_with::DisplayFromStr;
@@ -17,6 +18,22 @@ pub struct Paths {
     pub output_dir: PathBuf,
     /// Data that can't be processed will be moved into this directory.
     pub unknown_dir: PathBuf,
+}
+
+/// Contains configuration for path generators used to determine the directory paths
+/// for processed data. Each generator type defines specific rules for organizing files
+/// in the output directory structure.
+///
+/// # Fields
+///
+///   - "dicom": Organizes DICOM files
+///
+/// * `unknown` - Specifies the generator type for unrecognized files. Supported values:
+///   - "unknown": Handles files that cannot be processed as DICOM data
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+pub struct PathGenerators {
+    /// Path generator for DICOM data (accepted value: "dicom_default", "dicom_uzg")
+    pub dicom: DicomPathGeneratorType,
 }
 
 #[serde_as]
@@ -70,7 +87,7 @@ pub struct Other {
     pub copy_attempts: u64,
     /// Number of times the service will try to remove a file
     pub remove_attempts: usize,
-    /// Number of seconds between the last modified time and the current time before a file is consided deletable.
+    /// Number of seconds between the last modified time and the current time before a file is considered deletable.
     pub mtime_delay_secs: i64,
     /// Limit the number of attempts to generate a unique filename in the output directory.
     pub limit_unique_filenames: usize,
@@ -93,6 +110,9 @@ impl Default for Other {
 pub struct Config {
     /// Paths required for reading and writing the data
     pub paths: Paths,
+    /// Path generators
+    #[serde(rename = "path_generators", default = "PathGenerators::default")]
+    pub path_gens: PathGenerators,
     /// Logging configuration
     pub log: Log,
     /// Other config
@@ -132,6 +152,7 @@ impl TryFrom<Cli> for Config {
             config.paths.input_dir = PathBuf::from(args.input_dir);
             config.paths.output_dir = PathBuf::from(args.output_dir);
             config.paths.unknown_dir = PathBuf::from(args.unknown_dir);
+            config.path_gens.dicom = DicomPathGeneratorType::from_str(&args.dicom_path_gen)?;
             config.log.level = if args.trace {
                 Level::TRACE
             } else if args.debug {

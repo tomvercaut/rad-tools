@@ -1,10 +1,15 @@
 mod cli;
 mod config;
+pub mod path_gen;
 pub mod service;
-
+use crate::path_gen::{
+    DicomDirPathGeneratorFactory, SortedDirPathGenerator, SortedPathGeneratorError,
+};
 pub use cli::Cli;
 pub use config::Config;
-use dicom_core::chrono::{Datelike, NaiveDate};
+#[allow(unused_imports)]
+use dicom_core::chrono::Datelike;
+use dicom_core::chrono::NaiveDate;
 use dicom_object::{ReadError, open_file};
 use filetime::FileTime;
 use rad_tools_common::fs::{
@@ -55,8 +60,14 @@ pub enum Error {
     ConfigFromCli,
     #[error("Unable to get the last modified time from a file / path")]
     LastModifiedTime,
-    #[error("Unable to create unique file path")]
+    #[error("Unable to create a unique file path")]
     DefaultUniqueUniqueFilePath(#[from] DefaultUniquePathError),
+    #[error("Error while generating a file/directory path.")]
+    PathGenerator(#[from] SortedPathGeneratorError),
+    #[error("An error occurred while parsing JSON data: {0}")]
+    SerdeJsonError(#[from] serde_json::Error),
+    #[error("PathGeneratorType can't be created from String value.")]
+    InvalidFromStrToPathGeneratorType,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -71,7 +82,7 @@ pub struct DicomData {
     /// Patient ID
     pub patient_id: String,
     /// Date of birth
-    pub date_of_birth: NaiveDate,
+    pub date_of_birth: Option<NaiveDate>,
     /// DICOM file to be sorted
     pub path: PathBuf,
 }
@@ -543,7 +554,7 @@ fn extract_dicom_metadata<P: AsRef<Path>>(file_path: P) -> Result<SortingData> {
                 sop_instance_uid: sop_instance_uid.to_string(),
                 modality: modality.to_string(),
                 patient_id: patient_id.to_string(),
-                date_of_birth,
+                date_of_birth: Some(date_of_birth),
                 path: file_path.as_ref().to_path_buf(),
             }))
         }
@@ -677,28 +688,12 @@ fn copy_with_retry_on_busy<P: AsRef<Path>>(
 /// * `date_of_birth` in `SortingData` is expected to be in the format `YYYYMMDD`. Non-matching formats will result in an error.
 ///
 fn copy_dicom_data(data: DicomData, config: &Config) -> Result<CopiedData> {
-    // Extract the date of birth and patient ID from SortingData
-    let dob = &data.date_of_birth;
-    let patient_id = &data.patient_id;
     let source_path = &data.path;
 
-    let month = if dob.month() < 10 {
-        format!("0{}", dob.month())
-    } else {
-        format!("{}", dob.month())
-    };
-    let day = if dob.day() < 10 {
-        format!("0{}", dob.day())
-    } else {
-        format!("{}", dob.day())
-    };
-    let month_day = format!("{}{}", month, day);
+    let sub_dir =
+        DicomDirPathGeneratorFactory::new(config.path_gens.dicom, &data).sort_dir_path()?;
 
-    let output_path =
-        config
-            .paths
-            .output_dir
-            .join(format!("{}/{}", month_day.trim(), patient_id.trim()));
+    let output_path = config.paths.output_dir.join(sub_dir);
 
     // Create the necessary directories if they do not already exist
     debug!("Creating output directory: {}", output_path.display());
@@ -799,7 +794,8 @@ fn is_dir_empty<P: AsRef<Path>>(dir: P) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Paths;
+    use crate::config::{PathGenerators, Paths};
+    use crate::path_gen::DicomPathGeneratorType;
     use dicom_core::{DataElement, PrimitiveValue};
     use dicom_dictionary_std::tags;
     use dicom_dictionary_std::uids::CT_IMAGE_STORAGE;
@@ -859,6 +855,25 @@ mod tests {
                 output_dir: tp.join("output"),
                 unknown_dir: tp.join("unknown"),
             },
+            path_gens: Default::default(),
+            log: Default::default(),
+            other: Default::default(),
+        };
+        config.create_dirs().unwrap();
+        config
+    }
+
+    fn get_test_config_uzg(temp_dir: &TempDir) -> Config {
+        let tp = temp_dir.path();
+        let config = Config {
+            paths: Paths {
+                input_dir: tp.join("input"),
+                output_dir: tp.join("output"),
+                unknown_dir: tp.join("unknown"),
+            },
+            path_gens: PathGenerators {
+                dicom: DicomPathGeneratorType::Uzg,
+            },
             log: Default::default(),
             other: Default::default(),
         };
@@ -872,15 +887,55 @@ mod tests {
                 .to_string(),
             modality: "CT".to_string(),
             patient_id: patient_id.to_string(),
-            date_of_birth: NaiveDate::from_ymd_opt(1985, 6, 15).unwrap(),
+            date_of_birth: Some(NaiveDate::from_ymd_opt(1985, 6, 15).unwrap()),
             path: input_file.into(),
         }
     }
 
     #[test]
-    fn test_copy_dicom_data_success() {
+    fn test_copy_dicom_data_success_default_generator() {
         let temp_dir = tempfile::tempdir().unwrap();
         let config = get_test_config(&temp_dir);
+
+        let patient_id = "12345";
+        let date_of_birth = "19850615";
+        let input_file = config.paths.input_dir.join("test.dcm");
+
+        create_test_dicom_file(patient_id, date_of_birth, &input_file)
+            .expect("Unable to create a test DICOM file.");
+
+        let sorting_data = get_sorting_data(patient_id, &input_file);
+
+        let output_file_name = format!(
+            "{}.{}.dcm",
+            &sorting_data.modality, &sorting_data.sop_instance_uid
+        );
+
+        // Call the function
+        let copied_data = copy_dicom_data(sorting_data, &config).unwrap();
+
+        // Validate that the file was copied to the correct output directory
+        let expected_output_path = config
+            .paths
+            .output_dir
+            .join("patient_id")
+            .join(patient_id)
+            .join(output_file_name);
+        debug!("Expected output path: {}", expected_output_path.display());
+        debug!("Actual output path: {}", copied_data.output.display());
+        assert!(copied_data.output.exists());
+        // assert!(expected_output_path.exists());
+
+        // Validate the channel message
+        assert_eq!(copied_data.input, input_file);
+        assert_eq!(copied_data.output, expected_output_path);
+        std::fs::remove_dir_all(config.paths.input_dir.parent().unwrap()).unwrap()
+    }
+
+    #[test]
+    fn test_copy_dicom_data_success_uzg_generator() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config = get_test_config_uzg(&temp_dir);
 
         let patient_id = "12345";
         let date_of_birth = "19850615";

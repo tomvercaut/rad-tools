@@ -39,6 +39,10 @@ pub struct ManualArgs {
     /// Directory where files that couldn't be processed are moved.
     #[arg(short, long)]
     pub unknown_dir: String,
+    #[arg(long)]
+    /// Path generator for DICOM data (accepted values: [DicomPathGeneratorType])
+    pub dicom_path_gen: String,
+    #[arg(long)]
     /// Enable logging at INFO level.
     #[arg(long, default_value_t = false)]
     pub verbose: bool,

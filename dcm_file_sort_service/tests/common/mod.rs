@@ -6,6 +6,7 @@ use dicom_dictionary_std::uids::{
     CT_IMAGE_STORAGE, RT_DOSE_STORAGE, RT_PLAN_STORAGE, RT_STRUCTURE_SET_STORAGE,
 };
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
+use rad_tools_dcm_file_sort_service::path_gen::DicomPathGeneratorType;
 use std::env::temp_dir;
 use std::fmt::Display;
 use std::path::Path;
@@ -89,6 +90,7 @@ pub fn create_test_data<P>(
     create_ss: bool,
     create_plan: bool,
     create_dose: bool,
+    generator_type: DicomPathGeneratorType,
 ) -> Vec<TestData>
 where
     P: AsRef<Path>,
@@ -107,13 +109,27 @@ where
         if create_cts {
             for i in 0..5 {
                 let result_path = if i == 0 {
-                    odir.join(format!("0{}0{}", j + 1, j + 1))
-                        .join(&patient_id)
-                        .join(format!("CT.{}.dcm", &ct_sop_instance_uid))
+                    match generator_type {
+                        DicomPathGeneratorType::Default => odir
+                            .join("patient_id")
+                            .join(&patient_id)
+                            .join(format!("CT.{}.dcm", &ct_sop_instance_uid)),
+                        DicomPathGeneratorType::Uzg => odir
+                            .join(format!("0{}0{}", j + 1, j + 1))
+                            .join(&patient_id)
+                            .join(format!("CT.{}.dcm", &ct_sop_instance_uid)),
+                    }
                 } else {
-                    odir.join(format!("0{}0{}", j + 1, j + 1))
-                        .join(&patient_id)
-                        .join(format!("CT.{}_{}.dcm", &ct_sop_instance_uid, i - 1))
+                    match generator_type {
+                        DicomPathGeneratorType::Default => odir
+                            .join("patient_id")
+                            .join(&patient_id)
+                            .join(format!("CT.{}_{}.dcm", &ct_sop_instance_uid, i - 1)),
+                        DicomPathGeneratorType::Uzg => odir
+                            .join(format!("0{}0{}", j + 1, j + 1))
+                            .join(&patient_id)
+                            .join(format!("CT.{}_{}.dcm", &ct_sop_instance_uid, i - 1)),
+                    }
                 };
                 v.push(TestData {
                     sop_instance_uid: ct_sop_instance_uid.clone(),
@@ -129,13 +145,27 @@ where
         if create_ss {
             for i in 0..3 {
                 let result_path = if i == 0 {
-                    odir.join(format!("0{}0{}", j + 1, j + 1))
-                        .join(&patient_id)
-                        .join(format!("RTSTRUCT.{}.dcm", &ss_sop_instance_uid))
+                    match generator_type {
+                        DicomPathGeneratorType::Default => odir
+                            .join("patient_id")
+                            .join(&patient_id)
+                            .join(format!("RTSTRUCT.{}.dcm", &ss_sop_instance_uid)),
+                        DicomPathGeneratorType::Uzg => odir
+                            .join(format!("0{}0{}", j + 1, j + 1))
+                            .join(&patient_id)
+                            .join(format!("RTSTRUCT.{}.dcm", &ss_sop_instance_uid)),
+                    }
                 } else {
-                    odir.join(format!("0{}0{}", j + 1, j + 1))
-                        .join(&patient_id)
-                        .join(format!("RTSTRUCT.{}_{}.dcm", &ss_sop_instance_uid, i - 1))
+                    match generator_type {
+                        DicomPathGeneratorType::Default => odir
+                            .join("patient_id")
+                            .join(&patient_id)
+                            .join(format!("RTSTRUCT.{}_{}.dcm", &ss_sop_instance_uid, i - 1)),
+                        DicomPathGeneratorType::Uzg => odir
+                            .join(format!("0{}0{}", j + 1, j + 1))
+                            .join(&patient_id)
+                            .join(format!("RTSTRUCT.{}_{}.dcm", &ss_sop_instance_uid, i - 1)),
+                    }
                 };
                 v.push(TestData {
                     sop_instance_uid: ss_sop_instance_uid.clone(),
@@ -151,13 +181,27 @@ where
         if create_plan {
             for i in 0..2 {
                 let result_path = if i == 0 {
-                    odir.join(format!("0{}0{}", j + 1, j + 1))
-                        .join(&patient_id)
-                        .join(format!("RTPLAN.{}.dcm", &plan_sop_instance_uid))
+                    match generator_type {
+                        DicomPathGeneratorType::Default => odir
+                            .join("patient_id")
+                            .join(&patient_id)
+                            .join(format!("RTPLAN.{}.dcm", &plan_sop_instance_uid)),
+                        DicomPathGeneratorType::Uzg => odir
+                            .join(format!("0{}0{}", j + 1, j + 1))
+                            .join(&patient_id)
+                            .join(format!("RTPLAN.{}.dcm", &plan_sop_instance_uid)),
+                    }
                 } else {
-                    odir.join(format!("0{}0{}", j + 1, j + 1))
-                        .join(&patient_id)
-                        .join(format!("RTPLAN.{}_{}.dcm", &plan_sop_instance_uid, i - 1))
+                    match generator_type {
+                        DicomPathGeneratorType::Default => odir
+                            .join("patient_id")
+                            .join(&patient_id)
+                            .join(format!("RTPLAN.{}_{}.dcm", &plan_sop_instance_uid, i - 1)),
+                        DicomPathGeneratorType::Uzg => odir
+                            .join(format!("0{}0{}", j + 1, j + 1))
+                            .join(&patient_id)
+                            .join(format!("RTPLAN.{}_{}.dcm", &plan_sop_instance_uid, i - 1)),
+                    }
                 };
                 v.push(TestData {
                     sop_instance_uid: plan_sop_instance_uid.clone(),
@@ -173,13 +217,27 @@ where
         if create_dose {
             for i in 0..3 {
                 let result_path = if i == 0 {
-                    odir.join(format!("0{}0{}", j + 1, j + 1))
-                        .join(&patient_id)
-                        .join(format!("RTDOSE.{}.dcm", &dose_sop_instance_uid))
+                    match generator_type {
+                        DicomPathGeneratorType::Default => odir
+                            .join("patient_id")
+                            .join(&patient_id)
+                            .join(format!("RTDOSE.{}.dcm", &dose_sop_instance_uid)),
+                        DicomPathGeneratorType::Uzg => odir
+                            .join(format!("0{}0{}", j + 1, j + 1))
+                            .join(&patient_id)
+                            .join(format!("RTDOSE.{}.dcm", &dose_sop_instance_uid)),
+                    }
                 } else {
-                    odir.join(format!("0{}0{}", j + 1, j + 1))
-                        .join(&patient_id)
-                        .join(format!("RTDOSE.{}_{}.dcm", &dose_sop_instance_uid, i - 1))
+                    match generator_type {
+                        DicomPathGeneratorType::Default => odir
+                            .join("patient_id")
+                            .join(&patient_id)
+                            .join(format!("RTDOSE.{}_{}.dcm", &dose_sop_instance_uid, i - 1)),
+                        DicomPathGeneratorType::Uzg => odir
+                            .join(format!("0{}0{}", j + 1, j + 1))
+                            .join(&patient_id)
+                            .join(format!("RTDOSE.{}_{}.dcm", &dose_sop_instance_uid, i - 1)),
+                    }
                 };
                 v.push(TestData {
                     sop_instance_uid: dose_sop_instance_uid.clone(),

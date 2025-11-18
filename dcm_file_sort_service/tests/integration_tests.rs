@@ -1,4 +1,5 @@
 use crate::common::{dcm_file_sort_app, has_no_files};
+use rad_tools_dcm_file_sort_service::path_gen::DicomPathGeneratorType;
 use std::process::{Command, Stdio};
 use tracing::{debug, error};
 
@@ -25,11 +26,12 @@ fn integration_test() {
     std::fs::create_dir_all(&odir).expect("Failed to create the \"output\" directory");
     std::fs::create_dir_all(&udir).expect("Failed to create the \"unknown\" directory");
 
-    let expected = common::create_test_data(&idir, &odir, true, true, true, true);
-
-    // Configure the application
-    let sconfig = format!(
-        r#"
+    let gtypes = [DicomPathGeneratorType::Default, DicomPathGeneratorType::Uzg];
+    let sconfigs = gtypes
+        .iter()
+        .map(|gtype| {
+            format!(
+                r#"
 [paths]
 input_dir = {:#?}
 output_dir = {:#?}
@@ -37,6 +39,9 @@ unknown_dir = {:#?}
 
 [log]
 level = "DEBUG"
+
+[path_generators]
+dicom = "{:#?}"
 
 [other]
 wait_time_millisec = 1
@@ -46,46 +51,53 @@ remove_attempts = 10
 mtime_delay_secs = 10
 limit_unique_filenames = 10
 "#,
-        &idir, &odir, &udir
-    );
-    let config_path = test_dir.join("config.toml");
-    std::fs::write(&config_path, sconfig).expect("Failed to write the config file");
+                &idir, &odir, &udir, gtype
+            )
+            .to_string()
+        })
+        .collect::<Vec<String>>();
 
-    // Spawn the application
-    let app = dcm_file_sort_app();
-    debug!("Starting the application in a separate thread: {:#?}", &app);
-    // The process is killed after the data has been processed.
-    #[allow(clippy::zombie_processes)]
-    let mut process = Command::new(app)
-        .arg("--config")
-        .arg(&config_path)
-        .stdin(Stdio::piped())
-        .spawn()
-        .unwrap();
+    for (gtype, sconfig) in gtypes.iter().zip(sconfigs.iter()) {
+        let expected = common::create_test_data(&idir, &odir, true, true, true, true, *gtype);
+        let config_path = test_dir.join("config.toml");
+        std::fs::write(&config_path, sconfig).expect("Failed to write the config file");
 
-    debug!("Waiting for the application to finish");
-    let max = 200;
-    let mut i = 0;
-    while !has_no_files(&idir) {
-        std::thread::sleep(std::time::Duration::from_millis(500));
-        i += 1;
-        if i > max {
-            error!("Max retries exceeded for waiting for files to be processed");
-            break;
+        // Spawn the application
+        let app = dcm_file_sort_app();
+        debug!("Starting the application in a separate thread: {:#?}", &app);
+        // The process is killed after the data has been processed.
+        #[allow(clippy::zombie_processes)]
+        let mut process = Command::new(app)
+            .arg("--config")
+            .arg(&config_path)
+            .stdin(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        debug!("Waiting for the application to finish");
+        let max = 200;
+        let mut i = 0;
+        while !has_no_files(&idir) {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            i += 1;
+            if i > max {
+                error!("Max retries exceeded for waiting for files to be processed");
+                break;
+            }
         }
-    }
 
-    // Send a CTRL-C to the application, after which it should stop gracefully.
-    debug!("Stopping the process ...");
-    process.kill().unwrap();
-    debug!("Stopped the process");
+        // Send a CTRL-C to the application, after which it should stop gracefully.
+        debug!("Stopping the process ...");
+        process.kill().unwrap();
+        debug!("Stopped the process");
 
-    for td in &expected {
-        debug!("Checking test data: {:#?}", &td);
-        assert!(
-            td.result_path.exists(),
-            "{}",
-            format!("File not found: {:#?}", &td.result_path)
-        );
+        for td in &expected {
+            debug!("Checking test data: {:#?}", &td);
+            assert!(
+                td.result_path.exists(),
+                "{}",
+                format!("File not found: {:#?}", &td.result_path)
+            );
+        }
     }
 }
