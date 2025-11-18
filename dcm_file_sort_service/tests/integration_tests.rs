@@ -18,13 +18,10 @@ fn integration_test() {
         std::fs::create_dir_all(&test_dir).expect("Failed to create test directory");
     }
 
+    let delete_results = true;
     let idir = test_dir.join("input");
     let odir = test_dir.join("output");
     let udir = test_dir.join("unknown");
-
-    std::fs::create_dir_all(&idir).expect("Failed to create the \"input\" directory");
-    std::fs::create_dir_all(&odir).expect("Failed to create the \"output\" directory");
-    std::fs::create_dir_all(&udir).expect("Failed to create the \"unknown\" directory");
 
     let gtypes = [DicomPathGeneratorType::Default, DicomPathGeneratorType::Uzg];
     let sconfigs = gtypes
@@ -58,6 +55,11 @@ limit_unique_filenames = 10
         .collect::<Vec<String>>();
 
     for (gtype, sconfig) in gtypes.iter().zip(sconfigs.iter()) {
+        debug!("Running test with generator type: {:#?}", gtype);
+        std::fs::create_dir_all(&idir).expect("Failed to create the \"input\" directory");
+        std::fs::create_dir_all(&odir).expect("Failed to create the \"output\" directory");
+        std::fs::create_dir_all(&udir).expect("Failed to create the \"unknown\" directory");
+
         let expected = common::create_test_data(&idir, &odir, true, true, true, true, *gtype);
         let config_path = test_dir.join("config.toml");
         std::fs::write(&config_path, sconfig).expect("Failed to write the config file");
@@ -98,6 +100,14 @@ limit_unique_filenames = 10
                 "{}",
                 format!("File not found: {:#?}", &td.result_path)
             );
+        }
+
+        if delete_results {
+            debug!("Removing test data ...");
+            std::fs::remove_dir_all(&idir).expect("Failed to remove the \"input\" directory");
+            std::fs::remove_dir_all(&odir).expect("Failed to remove the \"output\" directory");
+            std::fs::remove_dir_all(&udir).expect("Failed to remove the \"unknown\" directory");
+            std::fs::remove_file(&config_path).expect("Failed to remove the \"config.toml\" file");
         }
     }
 }
