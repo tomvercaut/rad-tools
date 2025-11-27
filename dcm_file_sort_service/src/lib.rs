@@ -60,6 +60,8 @@ pub enum Error {
     ConfigFromCli,
     #[error("Unable to get the last modified time from a file / path")]
     LastModifiedTime,
+    #[error("Unable to get the creation time from a file / path")]
+    CreationTime,
     #[error("Unable to create a unique file path")]
     DefaultUniqueUniqueFilePath(#[from] DefaultUniquePathError),
     #[error("Error while generating a file/directory path.")]
@@ -354,13 +356,16 @@ fn get_sorting_data(
                     continue;
                 }
                 let mtime = mtime?;
-                let current_time = FileTime::now();
-                if current_time.seconds() - mtime.seconds() < config.other.mtime_delay_secs {
+                let ctime = creation_time(path);
+                if ctime.is_err() {
                     trace!(
-                        "Skipping file: {} (last modified less than {} seconds ago)",
-                        path.display(),
-                        config.other.mtime_delay_secs
+                        "Skipping file: {} (file metadata is not available)",
+                        path.display()
                     );
+                    continue;
+                }
+                let ctime = ctime?;
+                if is_recent(mtime, ctime, config.other.mtime_delay_secs) {
                     continue;
                 }
                 match extract_dicom_metadata(path) {
@@ -385,6 +390,70 @@ fn get_sorting_data(
         }
     }
     Ok((dicom_dataset, unknown_dataset, stopped))
+}
+
+/// Determines if a file has been recently modified or created based on time thresholds.
+///
+/// This function checks whether a file should be considered "recent" by comparing its
+/// modification time and optionally its creation time against a specified interval.
+/// A file is considered recent if either:
+/// * Its last modification time is within the specified interval from the current time, or
+/// * Its creation time (if available) is within the specified interval from the current time
+///
+/// This is useful for file processing systems that need to avoid processing files that
+/// are still being written or modified.
+///
+/// # Arguments
+/// * `mtime` - The last modification time of the file as a `FileTime` value
+/// * `ctime` - An optional creation time of the file. If `None`, only modification time is checked
+/// * `interval` - The time interval in seconds. Files modified or created within this many
+///   seconds from the current time are considered recent
+///
+/// # Returns
+/// * `true` - If the file's modification time or creation time (when available) falls within
+///   the specified interval from the current time
+/// * `false` - If both the modification time and creation time (when available) are older
+///   than the specified interval, or if creation time is not available and modification time
+///   is older than the interval
+///
+/// # Examples
+/// ```rust,ignore
+/// use filetime::FileTime;
+///
+/// let mtime = FileTime::now();
+/// let ctime = Some(FileTime::now());
+///
+/// // File modified just now is considered recent within a 10-second interval
+/// assert!(is_recent(mtime, ctime, 10));
+/// ```
+#[must_use]
+pub(crate) fn is_recent(mtime: FileTime, ctime: Option<FileTime>, interval: i64) -> bool {
+    let current_time = FileTime::now();
+    let current_time_secs = current_time.seconds();
+    let delta = current_time_secs - mtime.seconds();
+    debug!("current time: {} seconds", current_time.seconds());
+    debug!("modified time: {} seconds", mtime.seconds());
+    if delta < interval {
+        trace!(
+            "Recently modified : last modified less than {} seconds ago",
+            delta
+        );
+        return true;
+    }
+    match ctime {
+        None => false,
+        Some(ctime) => {
+            if current_time_secs - ctime.seconds() < interval {
+                trace!(
+                    "Recently created: creation time less than {} seconds ago",
+                    interval
+                );
+                true
+            } else {
+                false
+            }
+        }
+    }
 }
 
 /// Gets the last modification time of a file.
@@ -416,6 +485,40 @@ where
     }
     let meta = meta?;
     Ok(FileTime::from_last_modification_time(&meta))
+}
+
+/// Gets the creation time of a file.
+///
+/// This function retrieves the creation timestamp of the specified file path.
+/// If the file's metadata cannot be accessed, it returns an error. Note that
+/// on some platforms (like Unix/Linux), creation time may not be available,
+/// in which case this function returns `Ok(None)`.
+///
+/// # Arguments
+/// * `path` - A path reference to the file whose creation time is being queried.
+///
+/// # Returns
+/// * `Ok(Some(FileTime))` - The creation time of the file as a `FileTime` value if available.
+/// * `Ok(None)` - If the creation time is not available on the current platform.
+/// * `Err(Error)` - If the file metadata cannot be accessed or read.
+///
+/// # Errors
+/// Returns `Error::CreationTime` if:
+/// * The file does not exist
+/// * The process lacks permissions to read the file metadata
+/// * Other system-level errors occur while accessing the file
+fn creation_time<P>(path: P) -> Result<Option<FileTime>>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref();
+    let meta = std::fs::metadata(path);
+    if meta.is_err() {
+        trace!("Failed to get metadata for a file: {:#?}", path);
+        return Err(Error::CreationTime);
+    }
+    let meta = meta?;
+    Ok(FileTime::from_creation_time(&meta))
 }
 
 ///
@@ -828,7 +931,20 @@ mod tests {
     use dicom_dictionary_std::tags;
     use dicom_dictionary_std::uids::CT_IMAGE_STORAGE;
     use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
+    use std::time::{Duration, SystemTime};
     use tempfile::TempDir;
+    use tracing_subscriber::EnvFilter;
+
+    #[allow(dead_code)]
+    fn init_logger() {
+        tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::from_default_env())
+            .with_thread_ids(true)
+            .with_target(true)
+            .with_file(true)
+            .with_line_number(true)
+            .init();
+    }
 
     fn create_test_dicom_file(
         patient_id: &str,
@@ -1050,5 +1166,88 @@ mod tests {
     fn test_parse_date_invalid_calendar_date() {
         let result = parse_date("20230931");
         assert!(matches!(result, Err(Error::InvalidDateCalendar)));
+    }
+
+    #[test]
+    fn test_is_recent_mtime_within_interval() {
+        let sys_time = SystemTime::now();
+        let mtime =
+            FileTime::from_system_time(sys_time.checked_sub(Duration::from_secs(5)).unwrap());
+        let ctime = None;
+        let interval = 10;
+
+        assert!(is_recent(mtime, ctime, interval));
+    }
+
+    #[test]
+    fn test_is_recent_mtime_outside_interval() {
+        let sys_time = SystemTime::now();
+        let mtime =
+            FileTime::from_system_time(sys_time.checked_sub(Duration::from_secs(15)).unwrap());
+        let ctime = None;
+        let interval = 10;
+
+        assert!(!is_recent(mtime, ctime, interval));
+    }
+
+    #[test]
+    fn test_is_recent_ctime_within_interval() {
+        let sys_time = SystemTime::now();
+        let mtime =
+            FileTime::from_system_time(sys_time.checked_sub(Duration::from_secs(15)).unwrap());
+        let ctime = Some(FileTime::from_system_time(
+            sys_time.checked_sub(Duration::from_secs(5)).unwrap(),
+        ));
+        let interval = 10;
+
+        assert!(is_recent(mtime, ctime, interval));
+    }
+
+    #[test]
+    fn test_is_recent_ctime_outside_interval() {
+        let sys_time = SystemTime::now();
+        let mtime =
+            FileTime::from_system_time(sys_time.checked_sub(Duration::from_secs(15)).unwrap());
+        let ctime = Some(FileTime::from_system_time(
+            sys_time.checked_sub(Duration::from_secs(20)).unwrap(),
+        ));
+        let interval = 10;
+
+        assert!(!is_recent(mtime, ctime, interval));
+    }
+
+    #[test]
+    fn test_is_recent_ctime_none_mtime_within_interval() {
+        let sys_time = SystemTime::now();
+        let mtime =
+            FileTime::from_system_time(sys_time.checked_sub(Duration::from_secs(3)).unwrap());
+        let ctime = None;
+        let interval = 10;
+
+        assert!(is_recent(mtime, ctime, interval));
+    }
+
+    #[test]
+    fn test_is_recent_ctime_none_mtime_outside_interval() {
+        let sys_time = SystemTime::now();
+        let mtime =
+            FileTime::from_system_time(sys_time.checked_sub(Duration::from_secs(25)).unwrap());
+        let ctime = None;
+        let interval = 10;
+
+        assert!(!is_recent(mtime, ctime, interval));
+    }
+
+    #[test]
+    fn test_is_recent_both_outside_interval() {
+        let sys_time = SystemTime::now();
+        sys_time.checked_sub(Duration::from_secs(20)).unwrap();
+        let mtime =
+            FileTime::from_system_time(sys_time.checked_sub(Duration::from_secs(20)).unwrap());
+        let ctime =
+            FileTime::from_system_time(sys_time.checked_sub(Duration::from_secs(25)).unwrap());
+        let interval = 10;
+
+        assert!(!is_recent(mtime, Some(ctime), interval));
     }
 }
