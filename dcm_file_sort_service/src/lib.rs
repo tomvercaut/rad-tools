@@ -415,17 +415,6 @@ fn get_sorting_data(
 /// * `false` - If both the modification time and creation time (when available) are older
 ///   than the specified interval, or if creation time is not available and modification time
 ///   is older than the interval
-///
-/// # Examples
-/// ```rust,ignore
-/// use filetime::FileTime;
-///
-/// let mtime = FileTime::now();
-/// let ctime = Some(FileTime::now());
-///
-/// // File modified just now is considered recent within a 10-second interval
-/// assert!(is_recent(mtime, ctime, 10));
-/// ```
 #[must_use]
 pub(crate) fn is_recent(mtime: FileTime, ctime: Option<FileTime>, interval: i64) -> bool {
     let current_time = FileTime::now();
