@@ -77,9 +77,8 @@ impl Display for TestData {
 }
 
 pub fn dcm_file_sort_app() -> std::ffi::OsString {
-    assert_cmd::Command::cargo_bin("dcm_file_sort")
-        .unwrap()
-        .get_program()
+    assert_cmd::cargo_bin!("dcm_file_sort")
+        .as_os_str()
         .to_os_string()
 }
 
