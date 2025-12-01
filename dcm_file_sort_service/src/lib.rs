@@ -130,6 +130,26 @@ impl std::fmt::Display for CopiedData {
     }
 }
 
+/// Represents metadata about file timestamps.
+///
+/// The [FileMetaTime] struct is used to store and handle the timestamp information
+/// of a file, including its last modified time and, optionally, its creation time.
+///
+/// # Fields
+///
+/// * `mtime` - A [FileTime] instance representing the last modified time of the file.
+///   This field is mandatory and holds the most recent modification timestamp.
+///
+/// * `ctime` - An optional [FileTime] instance representing the creation time of the file.
+///   This field is optional, as not all filesystems or platforms provide creation time metadata.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct FileMetaTime {
+    /// Last modified time of the file
+    pub mtime: FileTime,
+    /// Creation time of the file
+    pub ctime: Option<FileTime>,
+}
+
 /// Runs the DICOM file sorting service in a continuous loop until a stop signal is received.
 ///
 /// This function implements the main service loop that:
@@ -347,25 +367,16 @@ fn get_sorting_data(
                 if !path.is_file() {
                     continue;
                 }
-                let mtime = last_modified_time(path);
-                if mtime.is_err() {
+                let r = creation_and_last_modified_time(path);
+                if r.is_err() {
                     trace!(
-                        "Skipping file: {} (last modified time not available)",
+                        "Skipping file: {} unable to get required file metadata (creation time is optional, modification time is required)",
                         path.display()
                     );
                     continue;
                 }
-                let mtime = mtime?;
-                let ctime = creation_time(path);
-                if ctime.is_err() {
-                    trace!(
-                        "Skipping file: {} (file metadata is not available)",
-                        path.display()
-                    );
-                    continue;
-                }
-                let ctime = ctime?;
-                if is_recent(mtime, ctime, config.other.mtime_delay_secs) {
+                let meta = r?;
+                if is_recent(meta.mtime, meta.ctime, config.other.mtime_delay_secs) {
                     continue;
                 }
                 match extract_dicom_metadata(path) {
@@ -390,6 +401,17 @@ fn get_sorting_data(
         }
     }
     Ok((dicom_dataset, unknown_dataset, stopped))
+}
+
+/// Get the creation and last modified time of a file.
+fn creation_and_last_modified_time<P>(path: P) -> Result<FileMetaTime>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref();
+    let mtime = last_modified_time(path)?;
+    let ctime = creation_time(path)?;
+    Ok(FileMetaTime { mtime, ctime })
 }
 
 /// Determines if a file has been recently modified or created based on time thresholds.
