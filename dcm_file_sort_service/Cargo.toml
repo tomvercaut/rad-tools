@@ -31,6 +31,8 @@ tempfile.workspace = true
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.8.0"
 
+[features]
+dcm_file_sort_service_experimental = []
 
 [[bin]]
 name = "dcm_file_sort"
@@ -43,3 +45,4 @@ path = "./src/bin/dcm_file_sort_config_generator.rs"
 [[bin]]
 name = "dcm_file_sort_service"
 path = "./src/bin/dcm_file_sort_service.rs"
+required-features = ["dcm_file_sort_service_experimental"]
