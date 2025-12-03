@@ -45,6 +45,12 @@ pub struct Other {
     pub mtime_delay_secs: i64,
     /// Limit the number of attempts to generate a unique filename in the output directory.
     pub limit_unique_filenames: usize,
+    /// Limit the number of files being added for processing. If the limit is reached, the files are first moved into their new directories before searching for more files.
+    /// This prevents:
+    /// - Searching / iterating through a large number of files
+    /// - Avoids allocating memory to store all the DICOM-related metadata for all those files
+    /// - Eligable data will be moved faster as a result
+    pub limit_max_processed_files: usize,
 }
 
 impl Default for Other {
@@ -56,6 +62,7 @@ impl Default for Other {
             remove_attempts: 10,
             mtime_delay_secs: 10,
             limit_unique_filenames: 1000,
+            limit_max_processed_files: 1000,
         }
     }
 }

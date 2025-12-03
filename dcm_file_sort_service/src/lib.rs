@@ -352,8 +352,13 @@ fn get_sorting_data(
     let mut dicom_dataset = vec![];
     let mut unknown_dataset = vec![];
     let mut stopped = false;
-    // for entry in WalkDir::new(&input_dir).into_iter().filter_map(|r| r.ok()) {
     for entry in WalkDir::new(&config.paths.input_dir) {
+        if config.other.limit_max_processed_files > 0
+            && (dicom_dataset.len() + unknown_dataset.len())
+                >= config.other.limit_max_processed_files
+        {
+            break;
+        }
         match entry {
             Ok(entry) => {
                 trace!("Processing file: {}", entry.path().display());
@@ -442,8 +447,8 @@ pub(crate) fn is_recent(mtime: FileTime, ctime: Option<FileTime>, interval: i64)
     let current_time = FileTime::now();
     let current_time_secs = current_time.seconds();
     let delta = current_time_secs - mtime.seconds();
-    debug!("current time: {} seconds", current_time.seconds());
-    debug!("modified time: {} seconds", mtime.seconds());
+    // debug!("current time: {} seconds", current_time.seconds());
+    // debug!("modified time: {} seconds", mtime.seconds());
     if delta < interval {
         trace!(
             "Recently modified : last modified less than {} seconds ago",

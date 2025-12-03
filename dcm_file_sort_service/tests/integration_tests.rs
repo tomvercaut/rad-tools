@@ -44,6 +44,7 @@ copy_attempts = 10
 remove_attempts = 10
 mtime_delay_secs = 10
 limit_unique_filenames = 10
+limit_max_processed_files = 100
 "#,
                 &idir, &odir, &udir, gtype
             )
