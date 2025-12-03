@@ -44,28 +44,8 @@ Logging can be enabled by setting the environment variable DCM_FILE_SORT_LOG to:
 "#
 )]
 pub struct Cli {
-    #[command(flatten)]
-    pub manual_args: Option<ManualArgs>,
-
-    #[arg(short, long, group = "conf", conflicts_with = "ManualArgs")]
-    pub config: Option<String>,
-}
-
-#[derive(Args, Debug, Clone)]
-#[group(required = false, multiple = true)]
-pub struct ManualArgs {
-    /// Directory where the DICOM data are read from.
     #[arg(short, long)]
-    pub input_dir: String,
-    /// Directory where the DICOM data is written to.
-    #[arg(short, long)]
-    pub output_dir: String,
-    /// Directory where files that could not be processed are moved.
-    #[arg(short, long)]
-    pub unknown_dir: String,
-    #[arg(long)]
-    /// Path generator for DICOM data (accepted values: [DicomPathGeneratorType])
-    pub dicom_path_gen: String,
+    pub config: String,
 }
 
 #[derive(Args, Debug, Clone)]

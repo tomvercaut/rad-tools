@@ -2,7 +2,6 @@ use crate::path_gen::DicomPathGeneratorType;
 use crate::{Cli, Error};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::str::FromStr;
 
 /// Directories where the data is read from and written to.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
@@ -44,6 +43,7 @@ pub struct Other {
     /// Number of seconds between the last modified time and the current time before a file is considered sortable.
     pub mtime_delay_secs: i64,
     /// Limit the number of attempts to generate a unique filename in the output directory.
+    /// If the creation time is available on the filesystem, this will also be taken into account.
     pub limit_unique_filenames: usize,
     /// Limit the number of files being added for processing. If the limit is reached, the files are first moved into their new directories before searching for more files.
     /// This prevents:
@@ -106,21 +106,10 @@ impl TryFrom<Cli> for Config {
     type Error = Error;
 
     fn try_from(cli: Cli) -> Result<Self, Self::Error> {
-        if let Some(args) = cli.manual_args {
-            let mut config = Config::default();
-            config.paths.input_dir = PathBuf::from(args.input_dir);
-            config.paths.output_dir = PathBuf::from(args.output_dir);
-            config.paths.unknown_dir = PathBuf::from(args.unknown_dir);
-            config.path_gens.dicom = DicomPathGeneratorType::from_str(&args.dicom_path_gen)?;
-            Ok(config)
-        } else if let Some(config_path) = cli.config {
-            let config_content =
-                std::fs::read_to_string(config_path).expect("Failed to read the config file");
-            let config: Config =
-                toml::from_str(&config_content).expect("Failed to parse the config file");
-            Ok(config)
-        } else {
-            Err(Error::ConfigFromCli)
-        }
+        let config_content =
+            std::fs::read_to_string(cli.config).expect("Failed to read the config file");
+        let config: Config =
+            toml::from_str(&config_content).expect("Failed to parse the config file");
+        Ok(config)
     }
 }

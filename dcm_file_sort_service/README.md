@@ -19,7 +19,7 @@ The application supports:
 
 ## Usage
 
-The application can be run in two modes: using a configuration file (recommended for consistency) or with manual command-line arguments.
+The application can be run using a configuration file.
 
 ### Using a Configuration File
 
@@ -54,62 +54,20 @@ copy_attempts = 100
 remove_attempts = 10
 
 # Seconds between last modified time and current time before a file is considered sortable
+# If the creation time is available on the filesystem, this will also be taken into account.
 mtime_delay_secs = 10
 
 # Maximum number of attempts to generate a unique filename in the output directory
 limit_unique_filenames = 1000
+
+# Limit the number of files being added for processing. If the limit is reached, the files are first moved into their new directories before searching for more files.
+limit_max_processed_files = 1000
 ```
 
 Then run the service with the configuration file:
 
 ```bash
 dcm_file_sort --config config.toml
-```
-
-## Using command line arguments
-
-```bash
-.\target\debug\dcm_file_sort --help
-An application to sort DICOM data from an input directory into an output directory.
-
-The way data is sorted depends on the path generator used.
-Currently the following path generators are supported:
-* dicom_default: Organizes DICOM files based on the patient ID and the date of birth.
-* dicom_uzg: Organizes DICOM files based on the patient ID and the date of birth.
-
-The name of the DICOM file is based on the modality and the (unique) SOP instance UID.
-
-Logging can be enabled by setting the environment variable DCM_FILE_SORT_LOG to:
-* TRACE
-* DEBUG
-* INFO
-* WARN
-* ERROR
-
-
-Usage: dcm_file_sort [OPTIONS] --input-dir <INPUT_DIR> --output-dir <OUTPUT_DIR> --unknown-dir <UNKNOWN_DIR> --dicom-path-gen <DICOM_PATH_GEN>
-
-Options:
-  -i, --input-dir <INPUT_DIR>
-          Directory where the DICOM data are read from
-
-  -o, --output-dir <OUTPUT_DIR>
-          Directory where the DICOM data is written to
-
-  -u, --unknown-dir <UNKNOWN_DIR>
-          Directory where files that could not be processed are moved
-
-      --dicom-path-gen <DICOM_PATH_GEN>
-          Path generator for DICOM data (accepted values: [DicomPathGeneratorType])
-
-  -c, --config <CONFIG>
-          
-
-  -h, --help
-          Print help (see a summary with '-h')
-
-  -V, --version
-          Print version
 ```
 
 ## Logging
