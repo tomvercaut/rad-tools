@@ -1,7 +1,12 @@
+#[cfg(windows)]
 use crate::{Cli, Config, ENV_LOG};
+#[cfg(windows)]
 use clap::Parser;
+#[cfg(windows)]
 use std::ffi::OsString;
+#[cfg(windows)]
 use tracing::error;
+#[cfg(windows)]
 use tracing_subscriber::EnvFilter;
 
 #[cfg(windows)]
