@@ -15,7 +15,6 @@ dicom-object.workspace = true
 dicom-dictionary-std.workspace = true
 dicom-transfer-syntax-registry.workspace = true
 serde.workspace = true
-serde_with.workspace = true
 serde_json.workspace = true
 ctrlc.workspace = true
 toml.workspace = true
