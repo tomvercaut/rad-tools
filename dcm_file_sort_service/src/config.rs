@@ -1,12 +1,7 @@
+use crate::path_gen::DicomPathGeneratorType;
 use crate::{Cli, Error};
 use serde::{Deserialize, Serialize};
-use serde_with::DisplayFromStr;
-use serde_with::serde_as;
-use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
-use std::str::FromStr;
-use tracing::Level;
-use tracing::metadata::ParseLevelError;
 
 /// Directories where the data is read from and written to.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
@@ -19,45 +14,20 @@ pub struct Paths {
     pub unknown_dir: PathBuf,
 }
 
-#[serde_as]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct Log {
-    #[serde_as(as = "DisplayFromStr")]
-    pub level: Level,
-}
-
-// use serde::ser::{SerializeStruct, Serializer};
-//
-// impl Serialize for Log {
-//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//     where
-//         S: Serializer,
-//     {
-//         let mut state = serializer.serialize_struct("Log", 1)?;
-//         state.serialize_field("level", &self.level.to_string())?;
-//         state.end()
-//     }
-// }
-
-impl Default for Log {
-    fn default() -> Self {
-        Self { level: Level::WARN }
-    }
-}
-
-impl Display for Log {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.level)
-    }
-}
-
-impl FromStr for Log {
-    type Err = ParseLevelError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = Level::from_str(s)?;
-        Ok(Self { level: s })
-    }
+/// Contains configuration for path generators used to determine the directory paths
+/// for processed data. Each generator type defines specific rules for organizing files
+/// in the output directory structure.
+///
+/// # Fields
+///
+///   - "dicom": Organizes DICOM files
+///
+/// * `unknown` - Specifies the generator type for unrecognized files. Supported values:
+///   - "unknown": Handles files that cannot be processed as DICOM data
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+pub struct PathGenerators {
+    /// Path generator for DICOM data (accepted value: "dicom_default", "dicom_uzg")
+    pub dicom: DicomPathGeneratorType,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -70,8 +40,17 @@ pub struct Other {
     pub copy_attempts: u64,
     /// Number of times the service will try to remove a file
     pub remove_attempts: usize,
-    /// Number of seconds between the last modified time and the current time before a file is consided deletable.
+    /// Number of seconds between the last modified time and the current time before a file is considered sortable.
     pub mtime_delay_secs: i64,
+    /// Limit the number of attempts to generate a unique filename in the output directory.
+    /// If the creation time is available on the filesystem, this will also be taken into account.
+    pub limit_unique_filenames: usize,
+    /// Limit the number of files being added for processing. If the limit is reached, the files are first moved into their new directories before searching for more files.
+    /// This prevents:
+    /// - Searching / iterating through a large number of files
+    /// - Avoids allocating memory to store all the DICOM-related metadata for all those files
+    /// - Eligable data will be moved faster as a result
+    pub limit_max_processed_files: usize,
 }
 
 impl Default for Other {
@@ -82,6 +61,8 @@ impl Default for Other {
             copy_attempts: 100,
             remove_attempts: 10,
             mtime_delay_secs: 10,
+            limit_unique_filenames: 1000,
+            limit_max_processed_files: 1000,
         }
     }
 }
@@ -90,8 +71,9 @@ impl Default for Other {
 pub struct Config {
     /// Paths required for reading and writing the data
     pub paths: Paths,
-    /// Logging configuration
-    pub log: Log,
+    /// Path generators
+    #[serde(rename = "path_generators", default = "PathGenerators::default")]
+    pub path_gens: PathGenerators,
     /// Other config
     pub other: Other,
 }
@@ -124,69 +106,10 @@ impl TryFrom<Cli> for Config {
     type Error = Error;
 
     fn try_from(cli: Cli) -> Result<Self, Self::Error> {
-        if let Some(args) = cli.manual_args {
-            let mut config = Config::default();
-            config.paths.input_dir = PathBuf::from(args.input_dir);
-            config.paths.output_dir = PathBuf::from(args.output_dir);
-            config.paths.unknown_dir = PathBuf::from(args.unknown_dir);
-            config.log.level = if args.trace {
-                Level::TRACE
-            } else if args.debug {
-                Level::DEBUG
-            } else if args.verbose {
-                Level::INFO
-            } else {
-                Level::WARN
-            };
-            Ok(config)
-        } else if let Some(config_path) = cli.config {
-            let config_content =
-                std::fs::read_to_string(config_path).expect("Failed to read the config file");
-            let config: Config =
-                toml::from_str(&config_content).expect("Failed to parse the config file");
-            Ok(config)
-        } else {
-            Err(Error::ConfigFromCli)
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_log_serialize() {
-        let log = Log { level: Level::INFO };
-        let serialized = serde_json::to_string(&log).expect("Serialization failed");
-        assert_eq!(serialized, r#"{"level":"INFO"}"#);
-    }
-
-    #[test]
-    fn test_log_deserialize() {
-        let serialized = r#"{"level":"INFO"}"#;
-        let deserialized: Log = serde_json::from_str(serialized).expect("Deserialization failed");
-        assert_eq!(deserialized.level, Level::INFO);
-    }
-
-    #[test]
-    fn test_log_default_serialization() {
-        let log = Log::default();
-        let serialized = serde_json::to_string(&log).expect("Serialization failed");
-        assert_eq!(serialized, r#"{"level":"WARN"}"#);
-    }
-
-    #[test]
-    fn test_log_default_deserialization() {
-        let serialized = r#"{"level":"WARN"}"#;
-        let deserialized: Log = serde_json::from_str(serialized).expect("Deserialization failed");
-        assert_eq!(deserialized.level, Level::WARN);
-    }
-
-    #[test]
-    fn test_log_invalid_deserialization() {
-        let serialized = r#"{"level":"INVALID_LEVEL"}"#;
-        let deserialization_result: Result<Log, _> = serde_json::from_str(serialized);
-        assert!(deserialization_result.is_err());
+        let config_content =
+            std::fs::read_to_string(cli.config).expect("Failed to read the config file");
+        let config: Config =
+            toml::from_str(&config_content).expect("Failed to parse the config file");
+        Ok(config)
     }
 }
