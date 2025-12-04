@@ -1,14 +1,23 @@
 mod cli;
 mod config;
-
-pub use cli::Cli;
+pub mod path_gen;
+pub mod service;
+use crate::path_gen::{
+    DicomDirPathGeneratorFactory, SortedDirPathGenerator, SortedPathGeneratorError,
+};
+pub use cli::{Cli, ENV_LOG};
 pub use config::Config;
-use std::io::ErrorKind;
-
-use crate::Error::InvalidDateOfBirth;
+#[allow(unused_imports)]
+use dicom_core::chrono::Datelike;
+use dicom_core::chrono::NaiveDate;
 use dicom_object::{ReadError, open_file};
 use filetime::FileTime;
+use rad_tools_common::fs::{
+    DefaultUniquePathError, DefaultUniquePathGenerator, UniquePathGenerator,
+};
 use serde::{Deserialize, Serialize};
+use std::ffi::{OsStr, OsString};
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Receiver;
 use tracing::{debug, error, info, trace, warn};
@@ -29,14 +38,38 @@ pub enum Error {
     DicomRead(#[from] ReadError),
     #[error("Walk directory error: {0}")]
     WalkDir(#[from] walkdir::Error),
+    #[error("Invalid date format: unable to determine year")]
+    InvalidDateFormatYear,
+    #[error("Invalid date format: unable to determine a valid month")]
+    InvalidDateFormatMonth,
+    #[error("Invalid date format: unable to determine a valid day")]
+    InvalidDateFormatDay,
+    #[error("Invalid calendar date")]
+    InvalidDateCalendar,
+    #[error("Invalid date")]
+    InvalidDate,
     #[error("Invalid date of birth format")]
     InvalidDateOfBirth,
     #[error("Unable to parse integer from string")]
     ParseIntError(#[from] std::num::ParseIntError),
+    #[error("Unable to determine the parent of a file or directory")]
+    UnknownParent,
     #[error("Unable to determine filename")]
     UnknownFilename,
     #[error("Unable to create config from Cli")]
     ConfigFromCli,
+    #[error("Unable to get the last modified time from a file / path")]
+    LastModifiedTime,
+    #[error("Unable to get the creation time from a file / path")]
+    CreationTime,
+    #[error("Unable to create a unique file path")]
+    DefaultUniqueUniqueFilePath(#[from] DefaultUniquePathError),
+    #[error("Error while generating a file/directory path.")]
+    PathGenerator(#[from] SortedPathGeneratorError),
+    #[error("An error occurred while parsing JSON data: {0}")]
+    SerdeJsonError(#[from] serde_json::Error),
+    #[error("PathGeneratorType can't be created from String value.")]
+    InvalidFromStrToPathGeneratorType,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -51,7 +84,7 @@ pub struct DicomData {
     /// Patient ID
     pub patient_id: String,
     /// Date of birth
-    pub date_of_birth: String,
+    pub date_of_birth: Option<NaiveDate>,
     /// DICOM file to be sorted
     pub path: PathBuf,
 }
@@ -97,6 +130,26 @@ impl std::fmt::Display for CopiedData {
     }
 }
 
+/// Represents metadata about file timestamps.
+///
+/// The [FileMetaTime] struct is used to store and handle the timestamp information
+/// of a file, including its last modified time and, optionally, its creation time.
+///
+/// # Fields
+///
+/// * `mtime` - A [FileTime] instance representing the last modified time of the file.
+///   This field is mandatory and holds the most recent modification timestamp.
+///
+/// * `ctime` - An optional [FileTime] instance representing the creation time of the file.
+///   This field is optional, as not all filesystems or platforms provide creation time metadata.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct FileMetaTime {
+    /// Last modified time of the file
+    pub mtime: FileTime,
+    /// Creation time of the file
+    pub ctime: Option<FileTime>,
+}
+
 /// Runs the DICOM file sorting service in a continuous loop until a stop signal is received.
 ///
 /// This function implements the main service loop that:
@@ -123,7 +176,7 @@ impl std::fmt::Display for CopiedData {
 /// * Directory operations (creating, removing)
 /// * DICOM metadata extraction
 /// * Invalid date formats
-pub fn run_service(config: &Config, rx: &Receiver<ServiceState>) -> Result<()> {
+pub fn run_service(config: &Config, rx: Receiver<ServiceState>) -> Result<()> {
     let handle_copied_data = |r: Result<CopiedData>| -> Result<()> {
         match r {
             Ok(copied_data) => remove_file_retry_on_busy(
@@ -138,7 +191,7 @@ pub fn run_service(config: &Config, rx: &Receiver<ServiceState>) -> Result<()> {
         }
     };
     'outer: loop {
-        let r = get_sorting_data(config, rx);
+        let r = get_sorting_data(config, &rx);
         if let Err(e) = r {
             error!("Error sorting all the data: {}", e);
             return Err(e);
@@ -149,26 +202,26 @@ pub fn run_service(config: &Config, rx: &Receiver<ServiceState>) -> Result<()> {
         }
         // Process the DICOM data
         for dd in vdd {
-            if should_stop(rx) {
+            if should_stop(&rx) {
                 break 'outer;
             }
             handle_copied_data(copy_dicom_data(dd, config))?;
         }
         // Process the unkown data
         for ud in unknowns {
-            if should_stop(rx) {
+            if should_stop(&rx) {
                 break 'outer;
             }
             handle_copied_data(copy_unkown_data(ud, config))?;
         }
         if let Err(e) = remove_empty_sub_dirs(&config.paths.input_dir) {
             error!(
-                "Error trying to remove empty subdirectory [{}]: {}",
+                "Error while trying to remove empty subdirectory [{}]: {}",
                 &config.paths.input_dir.display(),
                 e
             );
         }
-        if should_stop(rx) {
+        if should_stop(&rx) {
             break 'outer;
         }
         std::thread::sleep(std::time::Duration::from_millis(
@@ -229,8 +282,7 @@ fn remove_file_retry_on_busy<P: AsRef<Path>>(
             }
         }
     }
-    Err(Error::IO(std::io::Error::new(
-        ErrorKind::Other,
+    Err(Error::IO(std::io::Error::other(
         "Unable to remove file after {} attempts",
     )))
 }
@@ -248,10 +300,10 @@ fn remove_file_retry_on_busy<P: AsRef<Path>>(
 /// * `true` if the service should stop (received state is not `Running`)
 /// * `false` if no state was received or if the received state is `Running`
 fn should_stop(rx: &Receiver<ServiceState>) -> bool {
-    if let Ok(state) = rx.try_recv() {
-        if state != ServiceState::Running {
-            return true;
-        }
+    if let Ok(state) = rx.try_recv()
+        && state != ServiceState::Running
+    {
+        return true;
     }
     false
 }
@@ -263,7 +315,7 @@ fn should_stop(rx: &Receiver<ServiceState>) -> bool {
 /// file to determine if it is a DICOM file. It attempts to extract metadata and collects
 /// it as `DicomData`.
 /// Files missing the essential DICOM fields will be logged with a warning and categorized as
-/// unkown data (`SortingData::Unknown`).
+/// unknown data (`SortingData::Unknown`).
 /// The function monitors a Channel receiver to ensure it halts processing if the service
 /// state is no longer `ServiceState::Running`.
 ///
@@ -300,13 +352,18 @@ fn get_sorting_data(
     let mut dicom_dataset = vec![];
     let mut unknown_dataset = vec![];
     let mut stopped = false;
-    // for entry in WalkDir::new(&input_dir).into_iter().filter_map(|r| r.ok()) {
     for entry in WalkDir::new(&config.paths.input_dir) {
+        if config.other.limit_max_processed_files > 0
+            && (dicom_dataset.len() + unknown_dataset.len())
+                >= config.other.limit_max_processed_files
+        {
+            break;
+        }
         match entry {
             Ok(entry) => {
                 trace!("Processing file: {}", entry.path().display());
                 if should_stop(rx) {
-                    info!("Stopping processing cycle");
+                    info!("Stopping the processing cycle");
                     stopped = true;
                     break;
                 }
@@ -315,20 +372,16 @@ fn get_sorting_data(
                 if !path.is_file() {
                     continue;
                 }
-                let meta = std::fs::metadata(path);
-                if meta.is_err() {
-                    trace!("Failed to get metadata for file: {}", path.display());
+                let r = creation_and_last_modified_time(path);
+                if r.is_err() {
+                    trace!(
+                        "Skipping file: {} unable to get required file metadata (creation time is optional, modification time is required)",
+                        path.display()
+                    );
                     continue;
                 }
-                let meta = meta?;
-                let mtime = FileTime::from_last_modification_time(&meta);
-                let current_time = FileTime::now();
-                if current_time.seconds() - mtime.seconds() < config.other.mtime_delay_secs {
-                    trace!(
-                        "Skipping file: {} (last modified less than {} seconds ago)",
-                        path.display(),
-                        config.other.mtime_delay_secs
-                    );
+                let meta = r?;
+                if is_recent(meta.mtime, meta.ctime, config.other.mtime_delay_secs) {
                     continue;
                 }
                 match extract_dicom_metadata(path) {
@@ -353,6 +406,135 @@ fn get_sorting_data(
         }
     }
     Ok((dicom_dataset, unknown_dataset, stopped))
+}
+
+/// Get the creation and last modified time of a file.
+fn creation_and_last_modified_time<P>(path: P) -> Result<FileMetaTime>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref();
+    let mtime = last_modified_time(path)?;
+    let ctime = creation_time(path)?;
+    Ok(FileMetaTime { mtime, ctime })
+}
+
+/// Determines if a file has been recently modified or created based on time thresholds.
+///
+/// This function checks whether a file should be considered "recent" by comparing its
+/// modification time and optionally its creation time against a specified interval.
+/// A file is considered recent if either:
+/// * Its last modification time is within the specified interval from the current time, or
+/// * Its creation time (if available) is within the specified interval from the current time
+///
+/// This is useful for file processing systems that need to avoid processing files that
+/// are still being written or modified.
+///
+/// # Arguments
+/// * `mtime` - The last modification time of the file as a `FileTime` value
+/// * `ctime` - An optional creation time of the file. If `None`, only modification time is checked
+/// * `interval` - The time interval in seconds. Files modified or created within this many
+///   seconds from the current time are considered recent
+///
+/// # Returns
+/// * `true` - If the file's modification time or creation time (when available) falls within
+///   the specified interval from the current time
+/// * `false` - If both the modification time and creation time (when available) are older
+///   than the specified interval, or if creation time is not available and modification time
+///   is older than the interval
+#[must_use]
+pub(crate) fn is_recent(mtime: FileTime, ctime: Option<FileTime>, interval: i64) -> bool {
+    let current_time = FileTime::now();
+    let current_time_secs = current_time.seconds();
+    let delta = current_time_secs - mtime.seconds();
+    // debug!("current time: {} seconds", current_time.seconds());
+    // debug!("modified time: {} seconds", mtime.seconds());
+    if delta < interval {
+        trace!(
+            "Recently modified : last modified less than {} seconds ago",
+            delta
+        );
+        return true;
+    }
+    match ctime {
+        None => false,
+        Some(ctime) => {
+            if current_time_secs - ctime.seconds() < interval {
+                trace!(
+                    "Recently created: creation time less than {} seconds ago",
+                    interval
+                );
+                true
+            } else {
+                false
+            }
+        }
+    }
+}
+
+/// Gets the last modification time of a file.
+///
+/// This function retrieves the last modification timestamp of the specified file path.
+/// If the file's metadata cannot be accessed, it returns an error.
+///
+/// # Arguments
+/// * `path` - A path reference to the file whose modification time is being queried.
+///
+/// # Returns
+/// * `Ok(FileTime)` - The last modification time of the file as a `FileTime` value.
+/// * `Err(Error)` - If the file metadata cannot be accessed or read.
+///
+/// # Errors
+/// Returns `Error::LastModifiedTime` if:
+/// * The file does not exist
+/// * The process lacks permissions to read the file metadata
+/// * Other system-level errors occur while accessing the file
+fn last_modified_time<P>(path: P) -> Result<FileTime>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref();
+    let meta = std::fs::metadata(path);
+    if meta.is_err() {
+        trace!("Failed to get metadata for a file: {:#?}", path);
+        return Err(Error::LastModifiedTime);
+    }
+    let meta = meta?;
+    Ok(FileTime::from_last_modification_time(&meta))
+}
+
+/// Gets the creation time of a file.
+///
+/// This function retrieves the creation timestamp of the specified file path.
+/// If the file's metadata cannot be accessed, it returns an error. Note that
+/// on some platforms (like Unix/Linux), creation time may not be available,
+/// in which case this function returns `Ok(None)`.
+///
+/// # Arguments
+/// * `path` - A path reference to the file whose creation time is being queried.
+///
+/// # Returns
+/// * `Ok(Some(FileTime))` - The creation time of the file as a `FileTime` value if available.
+/// * `Ok(None)` - If the creation time is not available on the current platform.
+/// * `Err(Error)` - If the file metadata cannot be accessed or read.
+///
+/// # Errors
+/// Returns `Error::CreationTime` if:
+/// * The file does not exist
+/// * The process lacks permissions to read the file metadata
+/// * Other system-level errors occur while accessing the file
+fn creation_time<P>(path: P) -> Result<Option<FileTime>>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref();
+    let meta = std::fs::metadata(path);
+    if meta.is_err() {
+        trace!("Failed to get metadata for a file: {:#?}", path);
+        return Err(Error::CreationTime);
+    }
+    let meta = meta?;
+    Ok(FileTime::from_creation_time(&meta))
 }
 
 ///
@@ -393,7 +575,7 @@ fn remove_null_chars(s: &str) -> String {
 
 ///
 /// Extracts metadata from a DICOM file, specifically the Patient ID and Date of Birth.
-/// If the birthday doesn't exist and the patient ID is 8 characters or longer, the 3, 4, 5 and 7th character are used as a substitue.
+/// If the birthday doesn't exist and the patient ID is 8 characters or longer, the 3, 4, 5, and 7th character are used as a substitue.
 ///
 /// # Arguments
 /// * `file_path` - A path to the DICOM file to be processed.
@@ -441,21 +623,37 @@ fn extract_dicom_metadata<P: AsRef<Path>>(file_path: P) -> Result<SortingData> {
     // .map(|elem| remove_null_chars(elem.string().unwrap().trim()));
 
     // Not required by DICOM
-    let date_of_birth = dicom_file
+    let mut date_of_birth = dicom_file
         .element_by_name("PatientBirthDate")
         .ok()
         .and_then(|elem| match elem.string() {
-            Ok(s) => Some(s.trim().to_string()),
-            Err(e) => {
-                error!("Failed to extract Date of Birth: {}.\nTrying to extract part of the patient ID.", e);
-                if let Ok(Some(pid)) = patient_id.as_ref() {
-                    let t = format!("00{}", &pid[0..6]);
-                    return Some(remove_null_chars(&t));
-                }
-                None
-            }
+            Ok(s) => parse_date(s.trim()).ok(),
+            Err(_) => None,
         });
 
+    // Extract the date of birth from the patient ID
+    // This may not work in every case because there is no general consensus for this.
+    let no_dob = date_of_birth.is_none();
+    if no_dob
+        && let Ok(Some(pid)) = patient_id.as_ref()
+        && pid.len() >= 6
+    {
+        let t = format!("00{}", &pid[0..6]);
+        if let Ok(date) = parse_date(&t) {
+            date_of_birth = Some(date);
+        }
+    }
+
+    debug!(
+        "Extracting metadata from file: {:#?}\nSopInstanceUid: {:#?}\nPatientId: {:#?}\nModality: {:#?}\nDateOfBirth: {:#?}",
+        &file_path.as_ref(),
+        sop_instance_uid
+            .as_ref()
+            .unwrap_or(&Some("Error".to_string())),
+        &patient_id,
+        &modality,
+        &date_of_birth
+    );
     match (sop_instance_uid, patient_id, modality, date_of_birth) {
         (
             Ok(Some(sop_instance_uid)),
@@ -475,7 +673,7 @@ fn extract_dicom_metadata<P: AsRef<Path>>(file_path: P) -> Result<SortingData> {
                 sop_instance_uid: sop_instance_uid.to_string(),
                 modality: modality.to_string(),
                 patient_id: patient_id.to_string(),
-                date_of_birth: date_of_birth.to_string(),
+                date_of_birth: Some(date_of_birth),
                 path: file_path.as_ref().to_path_buf(),
             }))
         }
@@ -488,6 +686,47 @@ fn extract_dicom_metadata<P: AsRef<Path>>(file_path: P) -> Result<SortingData> {
                 path: file_path.as_ref().to_path_buf(),
             }))
         }
+    }
+}
+
+/// Parses a date string in YYYYMMDD format and validates it as a valid calendar date.
+///
+/// This function takes an 8-character string representing a date and attempts to convert
+/// it into a `NaiveDate` object while performing various validation checks.
+///
+/// # Arguments
+/// * `s` - A string slice that should contain exactly 8 characters in YYYYMMDD format
+///
+/// # Returns
+/// * `Ok(NaiveDate)` - If the string is successfully parsed into a valid date
+/// * `Err(Error)` - If the string is invalid or represents an impossible date
+///
+/// # Errors
+/// * Returns `Error::InvalidDate` if the input string is not exactly 8 characters
+/// * Returns `Error::InvalidDateFormatYear` if the year portion cannot be parsed
+/// * Returns `Error::InvalidDateFormatMonth` if the month is not between 1 and 12
+/// * Returns `Error::InvalidDateFormatDay` if the day is not between 1 and 31
+/// * Returns `Error::InvalidDateCalendar` if the combination of year, month, and day is not a valid calendar date
+pub fn parse_date(s: &str) -> Result<NaiveDate> {
+    if s.len() != 8 {
+        return Err(Error::InvalidDate);
+    }
+
+    let year = match s[0..4].parse::<i32>() {
+        Ok(year) => Ok(year),
+        Err(_) => Err(Error::InvalidDateFormatYear),
+    }?;
+    let month = s[4..6].parse::<i32>()?;
+    let day = s[6..].parse::<i32>()?;
+    if month <= 0 || month > 12 {
+        return Err(Error::InvalidDateFormatMonth);
+    }
+    if day <= 0 || day > 31 {
+        return Err(Error::InvalidDateFormatDay);
+    }
+    match NaiveDate::from_ymd_opt(year, month as u32, day as u32) {
+        None => Err(Error::InvalidDateCalendar),
+        Some(date) => Ok(date),
     }
 }
 
@@ -520,7 +759,7 @@ fn copy_with_retry_on_busy<P: AsRef<Path>>(
                 });
             }
             Err(e) => {
-                if e.kind() != ErrorKind::ResourceBusy {
+                if e.kind() != ErrorKind::ResourceBusy && !is_file_in_use_by_other_process(&e) {
                     error!(
                         "Failed to copy file: {} -> {}: {}",
                         input.as_ref().display(),
@@ -568,41 +807,37 @@ fn copy_with_retry_on_busy<P: AsRef<Path>>(
 /// * `date_of_birth` in `SortingData` is expected to be in the format `YYYYMMDD`. Non-matching formats will result in an error.
 ///
 fn copy_dicom_data(data: DicomData, config: &Config) -> Result<CopiedData> {
-    // Extract the date of birth and patient ID from SortingData
-    let dob = &data.date_of_birth;
-    let patient_id = &data.patient_id;
     let source_path = &data.path;
 
-    // Ensure date of birth is in valid format (YYYYMMDD). In case of invalid format, return an error.
-    if dob.len() != 8 {
-        error!("Invalid date of birth format: {}", dob);
-        return Err(InvalidDateOfBirth);
-    }
+    let sub_dir =
+        DicomDirPathGeneratorFactory::new(config.path_gens.dicom, &data).sort_dir_path()?;
 
-    let month_day = &dob[4..]; // Extract MMDD part
-    let month = month_day[0..2].parse::<i32>()?;
-    let day = month_day[2..].parse::<i32>()?;
-    if month <= 0 || month > 12 || day <= 0 || day > 31 {
-        error!("Invalid date of birth format: {}", dob);
-        return Err(InvalidDateOfBirth);
-    }
-    let output_path =
-        config
-            .paths
-            .output_dir
-            .join(format!("{}/{}", month_day.trim(), patient_id.trim()));
+    let output_path = config.paths.output_dir.join(sub_dir);
 
     // Create the necessary directories if they do not already exist
     debug!("Creating output directory: {}", output_path.display());
-    if let Err(e) = std::fs::create_dir_all(&output_path) {
-        if e.kind() != ErrorKind::AlreadyExists {
-            return Err(e.into());
-        }
+    if let Err(e) = std::fs::create_dir_all(&output_path)
+        && e.kind() != ErrorKind::AlreadyExists
+    {
+        return Err(e.into());
     }
 
+    // Build a unique filename
+    let mut name = OsString::from(&data.modality);
+    name.push(".");
+    name.push(&data.sop_instance_uid);
+
+    let extension = OsStr::new("dcm");
+
+    let generator = DefaultUniquePathGenerator {
+        dir: output_path,
+        name: name.as_os_str(),
+        extension: Some(extension),
+        limit: config.other.limit_unique_filenames,
+    };
+
     // Construct the final file path in the output directory
-    let dest_file_path =
-        output_path.join(format!("{}.{}.dcm", &data.modality, &data.sop_instance_uid));
+    let dest_file_path = generator.get_unique_path()?;
 
     debug!(
         "Copying file: {} -> {}",
@@ -635,12 +870,15 @@ fn copy_dicom_data(data: DicomData, config: &Config) -> Result<CopiedData> {
 /// * Logs debug information about the file copy operation, including source and destination paths.
 fn copy_unkown_data(data: UnknownData, config: &Config) -> Result<CopiedData> {
     // Construct the final file path in the output directory
-    let filename = data.path.file_name();
-    if filename.is_none() {
-        return Err(Error::UnknownFilename);
-    }
-    let filename = filename.unwrap();
-    let dest_file_path = config.paths.unknown_dir.join(filename);
+    let file_stem = data.path.file_stem().ok_or(Error::UnknownFilename)?;
+    let extension = data.path.extension();
+    let generator = DefaultUniquePathGenerator {
+        dir: config.paths.unknown_dir.clone(),
+        name: file_stem,
+        extension,
+        limit: config.other.limit_unique_filenames,
+    };
+    let dest_file_path = generator.get_unique_path()?;
 
     debug!(
         "Copying file: {} -> {}",
@@ -672,15 +910,57 @@ fn is_dir_empty<P: AsRef<Path>>(dir: P) -> bool {
     false
 }
 
+/// Determines if an I/O error indicates that a file is currently in use by another process.
+///
+/// This function checks whether a given I/O error represents a "file in use" condition,
+/// which is platform-specific. On Windows, this is indicated by the raw OS error code 32.
+/// On other platforms, this function always returns `false` as the implementation does not
+/// currently handle non-Windows error codes.
+///
+/// # Arguments
+/// * `e` - An `std::io::Error` that occurred during a file operation
+///
+/// # Returns
+/// * `true` - If the error indicates the file is in use by another process (Windows error code 32)
+/// * `false` - If the error is not a "file in use" error, or if running on a non-Windows platform
+///
+/// # Platform-specific Behavior
+/// * **Windows**: Returns `true` when the error code is 32 (ERROR_SHARING_VIOLATION),
+///   which indicates that the file is being used by another process
+///   <https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499->
+/// * **Other platforms**: Always returns `false` as the function does not implement
+///   detection for non-Windows systems
+fn is_file_in_use_by_other_process(e: &std::io::Error) -> bool {
+    if cfg!(windows) {
+        matches!(e.raw_os_error(), Some(32))
+    } else {
+        false
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Paths;
+    use crate::config::{PathGenerators, Paths};
+    use crate::path_gen::DicomPathGeneratorType;
     use dicom_core::{DataElement, PrimitiveValue};
     use dicom_dictionary_std::tags;
     use dicom_dictionary_std::uids::CT_IMAGE_STORAGE;
     use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
+    use std::time::{Duration, SystemTime};
     use tempfile::TempDir;
+    use tracing_subscriber::EnvFilter;
+
+    #[allow(dead_code)]
+    fn init_logger() {
+        tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::from_default_env())
+            .with_thread_ids(true)
+            .with_target(true)
+            .with_file(true)
+            .with_line_number(true)
+            .init();
+    }
 
     fn create_test_dicom_file(
         patient_id: &str,
@@ -735,15 +1015,43 @@ mod tests {
                 output_dir: tp.join("output"),
                 unknown_dir: tp.join("unknown"),
             },
-            log: Default::default(),
+            path_gens: Default::default(),
             other: Default::default(),
         };
         config.create_dirs().unwrap();
         config
     }
 
+    fn get_test_config_uzg(temp_dir: &TempDir) -> Config {
+        let tp = temp_dir.path();
+        let config = Config {
+            paths: Paths {
+                input_dir: tp.join("input"),
+                output_dir: tp.join("output"),
+                unknown_dir: tp.join("unknown"),
+            },
+            path_gens: PathGenerators {
+                dicom: DicomPathGeneratorType::Uzg,
+            },
+            other: Default::default(),
+        };
+        config.create_dirs().unwrap();
+        config
+    }
+
+    fn get_sorting_data(patient_id: &str, input_file: &Path) -> DicomData {
+        DicomData {
+            sop_instance_uid: "9.3.12.2.1107.5.1.7.130037.30000025021708505036500000024"
+                .to_string(),
+            modality: "CT".to_string(),
+            patient_id: patient_id.to_string(),
+            date_of_birth: Some(NaiveDate::from_ymd_opt(1985, 6, 15).unwrap()),
+            path: input_file.into(),
+        }
+    }
+
     #[test]
-    fn test_copy_dicom_data_success() {
+    fn test_copy_dicom_data_success_default_generator() {
         let temp_dir = tempfile::tempdir().unwrap();
         let config = get_test_config(&temp_dir);
 
@@ -752,16 +1060,49 @@ mod tests {
         let input_file = config.paths.input_dir.join("test.dcm");
 
         create_test_dicom_file(patient_id, date_of_birth, &input_file)
-            .expect("Unable to create test DICOM file.");
+            .expect("Unable to create a test DICOM file.");
 
-        let sorting_data = DicomData {
-            sop_instance_uid: "9.3.12.2.1107.5.1.7.130037.30000025021708505036500000024"
-                .to_string(),
-            modality: "CT".to_string(),
-            patient_id: patient_id.to_string(),
-            date_of_birth: date_of_birth.to_string(),
-            path: input_file.clone(),
-        };
+        let sorting_data = get_sorting_data(patient_id, &input_file);
+
+        let output_file_name = format!(
+            "{}.{}.dcm",
+            &sorting_data.modality, &sorting_data.sop_instance_uid
+        );
+
+        // Call the function
+        let copied_data = copy_dicom_data(sorting_data, &config).unwrap();
+
+        // Validate that the file was copied to the correct output directory
+        let expected_output_path = config
+            .paths
+            .output_dir
+            .join("patient_id")
+            .join(patient_id)
+            .join(output_file_name);
+        debug!("Expected output path: {}", expected_output_path.display());
+        debug!("Actual output path: {}", copied_data.output.display());
+        assert!(copied_data.output.exists());
+        // assert!(expected_output_path.exists());
+
+        // Validate the channel message
+        assert_eq!(copied_data.input, input_file);
+        assert_eq!(copied_data.output, expected_output_path);
+        std::fs::remove_dir_all(config.paths.input_dir.parent().unwrap()).unwrap()
+    }
+
+    #[test]
+    fn test_copy_dicom_data_success_uzg_generator() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config = get_test_config_uzg(&temp_dir);
+
+        let patient_id = "12345";
+        let date_of_birth = "19850615";
+        let input_file = config.paths.input_dir.join("test.dcm");
+
+        create_test_dicom_file(patient_id, date_of_birth, &input_file)
+            .expect("Unable to create a test DICOM file.");
+
+        let sorting_data = get_sorting_data(patient_id, &input_file);
 
         let output_file_name = format!(
             "{}.{}.dcm",
@@ -790,57 +1131,139 @@ mod tests {
     }
 
     #[test]
-    fn test_copy_dicom_data_invalid_date_of_birth_format() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config = get_test_config(&temp_dir);
-        let patient_id = "12345";
-        let invalid_date_of_birth = "1985";
-        let input_file = config.paths.input_dir.join("test.dcm");
-
-        create_test_dicom_file(patient_id, invalid_date_of_birth, &input_file)
-            .expect("Unable to create test DICOM file.");
-
-        let sorting_data = DicomData {
-            sop_instance_uid: "9.3.12.2.1107.5.1.7.130037.30000025021708505036500000024"
-                .to_string(),
-            modality: "CT".to_string(),
-            patient_id: patient_id.to_string(),
-            date_of_birth: invalid_date_of_birth.to_string(),
-            path: input_file.clone(),
-        };
-
-        // Call the function
-        let result = copy_dicom_data(sorting_data, &config);
-
-        // Validate that the function returns an error
-        assert!(result.is_err());
-
-        // Validate that the file was not copied
-        assert!(is_dir_empty(&config.paths.output_dir));
-        std::fs::remove_dir_all(config.paths.input_dir.parent().unwrap()).unwrap()
-    }
-
-    #[test]
     fn test_copy_dicom_data_missing_source_file() {
         let temp_dir = tempfile::tempdir().unwrap();
         let config = get_test_config(&temp_dir);
         let patient_id = "12345";
-        let date_of_birth = "19850615";
         let input_file = config.paths.input_dir.join("test.dcm");
 
-        let sorting_data = DicomData {
-            sop_instance_uid: "9.3.12.2.1107.5.1.7.130037.30000025021708505036500000024"
-                .to_string(),
-            modality: "CT".to_string(),
-            patient_id: patient_id.to_string(),
-            date_of_birth: date_of_birth.to_string(),
-            path: input_file.clone(),
-        };
+        let sorting_data = get_sorting_data(patient_id, &input_file);
 
         // Call the function
         let result = copy_dicom_data(sorting_data, &config);
 
         // Validate that the function returns an error
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_date_valid() {
+        let result = parse_date("20230901").unwrap();
+        assert_eq!(result.year(), 2023);
+        assert_eq!(result.month(), 9);
+        assert_eq!(result.day(), 1);
+    }
+
+    #[test]
+    fn test_parse_date_invalid_year() {
+        let result = parse_date("abcd0901");
+        assert!(matches!(result, Err(Error::InvalidDateFormatYear)));
+    }
+
+    #[test]
+    fn test_parse_date_invalid_month() {
+        let result = parse_date("20231301");
+        assert!(matches!(result, Err(Error::InvalidDateFormatMonth)));
+    }
+
+    #[test]
+    fn test_parse_date_invalid_day() {
+        let result = parse_date("20230932");
+        assert!(matches!(result, Err(Error::InvalidDateFormatDay)));
+    }
+
+    #[test]
+    fn test_parse_date_invalid_length() {
+        let result = parse_date("2023090");
+        assert!(matches!(result, Err(Error::InvalidDate)));
+    }
+
+    #[test]
+    fn test_parse_date_invalid_calendar_date() {
+        let result = parse_date("20230931");
+        assert!(matches!(result, Err(Error::InvalidDateCalendar)));
+    }
+
+    #[test]
+    fn test_is_recent_mtime_within_interval() {
+        let sys_time = SystemTime::now();
+        let mtime =
+            FileTime::from_system_time(sys_time.checked_sub(Duration::from_secs(5)).unwrap());
+        let ctime = None;
+        let interval = 10;
+
+        assert!(is_recent(mtime, ctime, interval));
+    }
+
+    #[test]
+    fn test_is_recent_mtime_outside_interval() {
+        let sys_time = SystemTime::now();
+        let mtime =
+            FileTime::from_system_time(sys_time.checked_sub(Duration::from_secs(15)).unwrap());
+        let ctime = None;
+        let interval = 10;
+
+        assert!(!is_recent(mtime, ctime, interval));
+    }
+
+    #[test]
+    fn test_is_recent_ctime_within_interval() {
+        let sys_time = SystemTime::now();
+        let mtime =
+            FileTime::from_system_time(sys_time.checked_sub(Duration::from_secs(15)).unwrap());
+        let ctime = Some(FileTime::from_system_time(
+            sys_time.checked_sub(Duration::from_secs(5)).unwrap(),
+        ));
+        let interval = 10;
+
+        assert!(is_recent(mtime, ctime, interval));
+    }
+
+    #[test]
+    fn test_is_recent_ctime_outside_interval() {
+        let sys_time = SystemTime::now();
+        let mtime =
+            FileTime::from_system_time(sys_time.checked_sub(Duration::from_secs(15)).unwrap());
+        let ctime = Some(FileTime::from_system_time(
+            sys_time.checked_sub(Duration::from_secs(20)).unwrap(),
+        ));
+        let interval = 10;
+
+        assert!(!is_recent(mtime, ctime, interval));
+    }
+
+    #[test]
+    fn test_is_recent_ctime_none_mtime_within_interval() {
+        let sys_time = SystemTime::now();
+        let mtime =
+            FileTime::from_system_time(sys_time.checked_sub(Duration::from_secs(3)).unwrap());
+        let ctime = None;
+        let interval = 10;
+
+        assert!(is_recent(mtime, ctime, interval));
+    }
+
+    #[test]
+    fn test_is_recent_ctime_none_mtime_outside_interval() {
+        let sys_time = SystemTime::now();
+        let mtime =
+            FileTime::from_system_time(sys_time.checked_sub(Duration::from_secs(25)).unwrap());
+        let ctime = None;
+        let interval = 10;
+
+        assert!(!is_recent(mtime, ctime, interval));
+    }
+
+    #[test]
+    fn test_is_recent_both_outside_interval() {
+        let sys_time = SystemTime::now();
+        sys_time.checked_sub(Duration::from_secs(20)).unwrap();
+        let mtime =
+            FileTime::from_system_time(sys_time.checked_sub(Duration::from_secs(20)).unwrap());
+        let ctime =
+            FileTime::from_system_time(sys_time.checked_sub(Duration::from_secs(25)).unwrap());
+        let interval = 10;
+
+        assert!(!is_recent(mtime, Some(ctime), interval));
     }
 }

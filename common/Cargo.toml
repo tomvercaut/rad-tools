@@ -6,7 +6,5 @@ authors.workspace = true
 
 [dependencies]
 tracing.workspace = true
+thiserror.workspace = true
 dicom-object.workspace = true
-dicom-dictionary-std.workspace = true
-dicom-encoding.workspace = true
-dicom-transfer-syntax-registry.workspace = true

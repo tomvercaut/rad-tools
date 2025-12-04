@@ -4,3 +4,4 @@ Cargo.lock
 .idea
 .vscode
 config.toml
+service_config.toml

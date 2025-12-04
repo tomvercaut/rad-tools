@@ -12,7 +12,7 @@ use tracing::error;
 ///
 /// # Arguments
 /// * `obj` - The DICOM object to search through
-/// * `pattern` - A string representing the search pattern in the format "tag[selector]/tag[selector]/..."
+/// * `pattern` - A string representing the search pattern in the format "tag\[selector\]/tag\[selector\]/..."
 /// * `recursive` - Whether to search recursively through nested sequences
 ///
 /// # Returns
@@ -37,10 +37,10 @@ pub fn grep<'a>(
 /// # Arguments
 /// * `obj` - The DICOM file meta table to search through
 /// * `pattern` - A string representing the search pattern in the format
-///   "tag[selector]/tag[selector]/...".
+///   "tag\[selector\]/tag\[selector\]/...".
 ///   It's important to note using selectors to query meta elements (with a group tag == 0x0002 and an element tag <= 0x0102)
 ///   is considered an invalid pattern. Based on the registry of DICOM File Meta Elements on:
-///   https://dicom.nema.org/medical/dicom/current/output/chtml/part06/chapter_7.html
+///   <https://dicom.nema.org/medical/dicom/current/output/chtml/part06/chapter_7.html>
 ///
 /// # Returns
 /// * `Ok(Vec<GrepMetaResult>)` - A vector of matching meta elements with their paths and primitive values
