@@ -1,5 +1,5 @@
 use clap::Parser;
-use rad_tools_dcm_file_sort_service::Config;
+use rad_tools_dcm_file_sort::Config;
 use std::io::Write;
 use std::path::PathBuf;
 

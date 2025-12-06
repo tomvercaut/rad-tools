@@ -2,6 +2,7 @@ mod cli;
 mod config;
 pub mod path_gen;
 pub mod service;
+use crate::Error::BinaryFilesNotIdentical;
 use crate::path_gen::{
     DicomDirPathGeneratorFactory, SortedDirPathGenerator, SortedPathGeneratorError,
 };
@@ -70,6 +71,8 @@ pub enum Error {
     SerdeJsonError(#[from] serde_json::Error),
     #[error("PathGeneratorType can't be created from String value.")]
     InvalidFromStrToPathGeneratorType,
+    #[error("Two files not identical on a binary level.")]
+    BinaryFilesNotIdentical,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -103,7 +106,6 @@ pub enum SortingData {
     Unknown(UnknownData),
 }
 
-///
 /// Represents the copy of a file from an input path to an output path.
 ///
 /// This struct is used to log and track the relocation of files during processing.
@@ -113,6 +115,37 @@ pub enum SortingData {
 /// * `output` - The destination file path where the file is copied to.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub(crate) struct CopiedData {
+    /// Input file path
+    pub input: PathBuf,
+    /// Output file path
+    pub output: PathBuf,
+}
+
+impl CopiedData {
+    pub fn binary_eq(&self) -> Result<VerifiedCopiedData> {
+        let mut f1 = std::fs::File::open(&self.input)?;
+        let mut f2 = std::fs::File::open(&self.output)?;
+        let equal = rad_tools_common::fs::binary_eq(&mut f1, &mut f2)?;
+        if equal {
+            Ok(VerifiedCopiedData {
+                input: self.input.clone(),
+                output: self.output.clone(),
+            })
+        } else {
+            Err(BinaryFilesNotIdentical)
+        }
+    }
+}
+
+/// Represents the input and output paths of identical data after a file copy.
+///
+/// This struct is used to log and track the relocation of files during processing.
+///
+/// # Fields
+/// * `input` - The original file path where the file is located.
+/// * `output` - The destination file path where the file is copied to.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+pub(crate) struct VerifiedCopiedData {
     /// Input file path
     pub input: PathBuf,
     /// Output file path
@@ -177,19 +210,6 @@ pub(crate) struct FileMetaTime {
 /// * DICOM metadata extraction
 /// * Invalid date formats
 pub fn run_service(config: &Config, rx: Receiver<ServiceState>) -> Result<()> {
-    let handle_copied_data = |r: Result<CopiedData>| -> Result<()> {
-        match r {
-            Ok(copied_data) => remove_file_retry_on_busy(
-                copied_data.input,
-                config.other.io_timeout_millisec,
-                config.other.remove_attempts,
-            ),
-            Err(e) => {
-                error!("Error copying data: {}", e);
-                Err(e)
-            }
-        }
-    };
     'outer: loop {
         let r = get_sorting_data(config, &rx);
         if let Err(e) = r {
@@ -205,14 +225,14 @@ pub fn run_service(config: &Config, rx: Receiver<ServiceState>) -> Result<()> {
             if should_stop(&rx) {
                 break 'outer;
             }
-            handle_copied_data(copy_dicom_data(dd, config))?;
+            handle_copied_data(copy_dicom_data(dd, config), config)?;
         }
         // Process the unkown data
         for ud in unknowns {
             if should_stop(&rx) {
                 break 'outer;
             }
-            handle_copied_data(copy_unkown_data(ud, config))?;
+            handle_copied_data(copy_unkown_data(ud, config), config)?;
         }
         if let Err(e) = remove_empty_sub_dirs(&config.paths.input_dir) {
             error!(
@@ -229,6 +249,96 @@ pub fn run_service(config: &Config, rx: Receiver<ServiceState>) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+/// Handles the processing and verification of copied data.
+///
+/// This function takes the result of a file copy operation (`CopiedData`) and a configuration
+/// object (`Config`). It validates that the copied files are binary identical and deletes
+/// the input file on successful verification. If verification fails or an error occurs during
+/// the operation, an appropriate error is logged, and the error is propagated to the caller.
+///
+/// # Arguments
+///
+/// * `r` - A `Result` containing either the copied data (`CopiedData`) or an error.
+/// * `config` - A reference to the configuration object that provides parameters for retry
+///   and timeout settings.
+///
+/// # Returns
+///
+/// Returns a `Result<()>` where:
+/// * `Ok(())` indicates that the operation completed successfully, including the removal of
+///   the input file.
+/// * `Err(e)` indicates that an error occurred during the data handling or verification process.
+///
+/// # Behavior
+///
+/// 1. If `r` is `Ok(copied_data)`:
+///    - Logs a debug message about the input and output file names.
+///    - Attempts to verify if the input and output files are binary identical by calling
+///      `copied_data.binary_eq()`.
+///    - If the files are binary identical:
+///        - Logs a debug message indicating successful verification.
+///        - Attempts to remove the input file using `remove_file_retry_on_busy`.
+///    - If the files are not binary identical:
+///        - Logs an error message indicating the discrepancy.
+///        - Propagates the `BinaryFilesNotIdentical` error.
+///    - For any other verification error, logs the error details and propagates the error.
+/// 2. If `r` is `Err(e)`:
+///    - Logs an error message about the failure during the copy operation.
+///    - Propagates the error.
+///
+/// # Errors
+///
+/// This function can return errors in the following scenarios:
+/// * If an error occurs during the copy operation, it is logged and rethrown.
+/// * Verification errors from `copied_data.binary_eq()` (like `BinaryFilesNotIdentical`)
+///   are logged and propagated.
+/// * If the removal of the input file fails (via `remove_file_retry_on_busy`), the error
+///   is propagated.
+
+pub(crate) fn handle_copied_data(r: Result<CopiedData>, config: &Config) -> Result<()> {
+    match r {
+        Ok(copied_data) => {
+            debug!(
+                "Verifying copied files: \n  {:?}\n  {:?}",
+                copied_data.input.file_name(),
+                copied_data.output.file_name()
+            );
+            match copied_data.binary_eq() {
+                Ok(verified_copied_data) => {
+                    debug!(
+                        "Verified copied files are identical: \n  {:?}\n  {:?}",
+                        copied_data.input.file_name(),
+                        copied_data.output.file_name()
+                    );
+                    remove_file_retry_on_busy(
+                        verified_copied_data.input,
+                        config.other.io_timeout_millisec,
+                        config.other.remove_attempts,
+                    )
+                }
+                Err(e) => match e {
+                    BinaryFilesNotIdentical => {
+                        error!(
+                            "Copied files are not identical: \n  {:?}\n  {:?}",
+                            copied_data.input.file_name(),
+                            copied_data.output.file_name()
+                        );
+                        Err(e)
+                    }
+                    _ => {
+                        error!("Error during verification of copied data: {}", e);
+                        Err(e)
+                    }
+                },
+            }
+        }
+        Err(e) => {
+            error!("Error copying data: {}", e);
+            Err(e)
+        }
+    }
 }
 
 /// Attempts to remove a file with retries if the file is temporarily busy.
@@ -947,6 +1057,8 @@ mod tests {
     use dicom_dictionary_std::tags;
     use dicom_dictionary_std::uids::CT_IMAGE_STORAGE;
     use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
+    use std::fs::File;
+    use std::io::Write;
     use std::time::{Duration, SystemTime};
     use tempfile::TempDir;
     use tracing_subscriber::EnvFilter;
@@ -1050,6 +1162,14 @@ mod tests {
         }
     }
 
+    fn generate_binary_test_data() -> [u8; 4096] {
+        let mut a = [0u8; 4096];
+        for i in 0..4096 {
+            a[i] = (i % u8::MAX as usize) as u8;
+        }
+        a
+    }
+
     #[test]
     fn test_copy_dicom_data_success_default_generator() {
         let temp_dir = tempfile::tempdir().unwrap();
@@ -1144,6 +1264,211 @@ mod tests {
 
         // Validate that the function returns an error
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_handle_copied_data_success() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config = get_test_config(&temp_dir);
+        let p1 = temp_dir.path().join("handle_copied_data_success_1.txt");
+        let p2 = temp_dir.path().join("handle_copied_data_success_2.txt");
+        let mut f1 = File::create(&p1).unwrap();
+        let mut f2 = File::create(&p2).unwrap();
+        let b1 = generate_binary_test_data();
+        let b2 = generate_binary_test_data();
+        f1.write_all(&b1).unwrap();
+        f2.write_all(&b2).unwrap();
+
+        let copied_data = CopiedData {
+            input: p1,
+            output: p2,
+        };
+        let r = handle_copied_data(Ok(copied_data), &config);
+        if r.as_ref().is_err() {
+            error!(
+                "Expected an OK result from handle_copied_data: {:?}",
+                r.as_ref().unwrap_err()
+            );
+        }
+        assert!(r.is_ok());
+    }
+
+    #[test]
+    fn test_handle_copied_data_mismatch_length_1() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config = get_test_config(&temp_dir);
+        let p1 = temp_dir
+            .path()
+            .join("handle_copied_data_mismatch_length_1_1.txt");
+        let p2 = temp_dir
+            .path()
+            .join("handle_copied_data_mismatch_length_1_2.txt");
+        let mut f1 = File::create(&p1).unwrap();
+        let mut f2 = File::create(&p2).unwrap();
+        let b1 = generate_binary_test_data();
+        let b2 = generate_binary_test_data();
+        f1.write_all(&b1[0..4095]).unwrap();
+        f2.write_all(&b2).unwrap();
+
+        let copied_data = CopiedData {
+            input: p1,
+            output: p2,
+        };
+        let r = handle_copied_data(Ok(copied_data), &config);
+        if r.as_ref().is_ok() {
+            error!(
+                "Expected an Err result from handle_copied_data: {:?}",
+                r.as_ref().unwrap_err()
+            );
+        }
+        assert!(r.is_err());
+        let e = r.err().unwrap();
+        match e {
+            BinaryFilesNotIdentical => {
+                assert!(true)
+            }
+            _ => {
+                assert!(
+                    false,
+                    "Expected a BinaryFilesNotIdentical error but found: {:#?}",
+                    e
+                )
+            }
+        }
+    }
+
+    #[test]
+    fn test_handle_copied_data_mismatch_length_2() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config = get_test_config(&temp_dir);
+        let p1 = temp_dir
+            .path()
+            .join("handle_copied_data_mismatch_length_2_1.txt");
+        let p2 = temp_dir
+            .path()
+            .join("handle_copied_data_mismatch_length_2_2.txt");
+        let mut f1 = File::create(&p1).unwrap();
+        let mut f2 = File::create(&p2).unwrap();
+        let b1 = generate_binary_test_data();
+        let b2 = generate_binary_test_data();
+        f1.write_all(&b1).unwrap();
+        f2.write_all(&b2[0..4095]).unwrap();
+
+        let copied_data = CopiedData {
+            input: p1,
+            output: p2,
+        };
+        let r = handle_copied_data(Ok(copied_data), &config);
+        if r.as_ref().is_ok() {
+            error!(
+                "Expected an Err result from handle_copied_data: {:?}",
+                r.as_ref().unwrap_err()
+            );
+        }
+        assert!(r.is_err());
+        let e = r.err().unwrap();
+        match e {
+            BinaryFilesNotIdentical => {
+                assert!(true)
+            }
+            _ => {
+                assert!(
+                    false,
+                    "Expected a BinaryFilesNotIdentical error but found: {:#?}",
+                    e
+                )
+            }
+        }
+    }
+
+    #[test]
+    fn test_handle_copied_data_mismatch_data_1() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config = get_test_config(&temp_dir);
+        let p1 = temp_dir
+            .path()
+            .join("handle_copied_data_mismatch_data_1_1.txt");
+        let p2 = temp_dir
+            .path()
+            .join("handle_copied_data_mismatch_data_1_2.txt");
+        let mut f1 = File::create(&p1).unwrap();
+        let mut f2 = File::create(&p2).unwrap();
+        let mut b1 = generate_binary_test_data();
+        let b2 = generate_binary_test_data();
+        b1[385] = 0;
+        f1.write_all(&b1).unwrap();
+        f2.write_all(&b2).unwrap();
+
+        let copied_data = CopiedData {
+            input: p1,
+            output: p2,
+        };
+        let r = handle_copied_data(Ok(copied_data), &config);
+        if r.as_ref().is_ok() {
+            error!(
+                "Expected an Err result from handle_copied_data: {:?}",
+                r.as_ref().unwrap_err()
+            );
+        }
+        assert!(r.is_err());
+        let e = r.err().unwrap();
+        match e {
+            BinaryFilesNotIdentical => {
+                assert!(true)
+            }
+            _ => {
+                assert!(
+                    false,
+                    "Expected a BinaryFilesNotIdentical error but found: {:#?}",
+                    e
+                )
+            }
+        }
+    }
+
+    #[test]
+    fn test_handle_copied_data_mismatch_data_2() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config = get_test_config(&temp_dir);
+        let p1 = temp_dir
+            .path()
+            .join("handle_copied_data_mismatch_data_2_1.txt");
+        let p2 = temp_dir
+            .path()
+            .join("handle_copied_data_mismatch_data_2_2.txt");
+        let mut f1 = File::create(&p1).unwrap();
+        let mut f2 = File::create(&p2).unwrap();
+        let b1 = generate_binary_test_data();
+        let mut b2 = generate_binary_test_data();
+        b2[385] = 0;
+        f1.write_all(&b1).unwrap();
+        f2.write_all(&b2).unwrap();
+
+        let copied_data = CopiedData {
+            input: p1,
+            output: p2,
+        };
+        let r = handle_copied_data(Ok(copied_data), &config);
+        if r.as_ref().is_ok() {
+            error!(
+                "Expected an Err result from handle_copied_data: {:?}",
+                r.as_ref().unwrap_err()
+            );
+        }
+        assert!(r.is_err());
+        let e = r.err().unwrap();
+        match e {
+            BinaryFilesNotIdentical => {
+                assert!(true)
+            }
+            _ => {
+                assert!(
+                    false,
+                    "Expected a BinaryFilesNotIdentical error but found: {:#?}",
+                    e
+                )
+            }
+        }
     }
 
     #[test]

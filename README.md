@@ -16,7 +16,7 @@ The project at this stage has these command line tools.
 
 - [`dcm_sort`](dcm_sort):
   Sort DICOM files by Patient ID, Study, Series, Modality.
-- [`dcm_file_sort`](dcm_file_sort_service):
+- [`dcm_file_sort`](dcm_file_sort):
   A command line interface (CLI) application to sort DICOM files by patient ID or date of birth.,
 - [`dcm_cp`](dcm_cp):
   A command line interface (CLI) application to copy DICOM files by patient ID.

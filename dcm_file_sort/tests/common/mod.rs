@@ -6,7 +6,7 @@ use dicom_dictionary_std::uids::{
     CT_IMAGE_STORAGE, RT_DOSE_STORAGE, RT_PLAN_STORAGE, RT_STRUCTURE_SET_STORAGE,
 };
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
-use rad_tools_dcm_file_sort_service::path_gen::DicomPathGeneratorType;
+use rad_tools_dcm_file_sort::path_gen::DicomPathGeneratorType;
 use std::env::temp_dir;
 use std::fmt::Display;
 use std::path::Path;
@@ -23,7 +23,7 @@ pub fn init_logger(level: tracing::Level) {
 }
 
 pub fn test_dir(test_name: &str) -> std::path::PathBuf {
-    temp_dir().join("dcm_file_sort_service").join(test_name)
+    temp_dir().join("dcm_file_sort").join(test_name)
 }
 
 fn meta_table_ct() -> FileMetaTableBuilder {

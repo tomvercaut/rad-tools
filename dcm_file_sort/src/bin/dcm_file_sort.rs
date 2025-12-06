@@ -1,5 +1,5 @@
 use clap::Parser;
-use rad_tools_dcm_file_sort_service::{Cli, Config, ENV_LOG, run_service};
+use rad_tools_dcm_file_sort::{Cli, Config, ENV_LOG, run_service, ServiceState};
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
@@ -25,7 +25,7 @@ fn main() {
     {
         let tx = tx.clone();
         ctrlc::set_handler(move || {
-            tx.send(rad_tools_dcm_file_sort_service::ServiceState::RequestToStop)
+            tx.send(ServiceState::RequestToStop)
                 .expect("Failed to send a request to stop signal");
         })
         .expect("Error setting Ctrl-C handler");

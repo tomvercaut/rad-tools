@@ -1,5 +1,5 @@
 [package]
-name = "rad-tools-dcm-file-sort-service"
+name = "rad-tools-dcm-file-sort"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
