@@ -161,7 +161,6 @@ mod tests {
     use super::*;
 
     fn generate_test_data() -> [u8; 4096] {
-        // std::fs::File::create("tests/test_files/test.txt").unwrap()
         let mut a = [0u8; 4096];
         for i in 0..4096 {
             a[i] = (i % u8::MAX as usize) as u8;
