@@ -154,3 +154,65 @@ pub fn binary_eq(f1: &mut impl Read, f2: &mut impl Read) -> Result<bool, std::io
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+    use super::*;
+
+    fn generate_test_data() -> [u8; 4096] {
+        // std::fs::File::create("tests/test_files/test.txt").unwrap()
+        let mut a = [0u8; 4096];
+        for i in 0..4096 {
+            a[i] = (i % u8::MAX as usize) as u8;
+        }
+        a
+    }
+
+    #[test]
+    fn test_binary_eq() {
+        let d1 = generate_test_data();
+        let d2 = generate_test_data();
+        let mut c1 = Cursor::new(d1);
+        let mut c2 = Cursor::new(d2);
+        assert!(binary_eq(&mut c1, &mut c2).unwrap());
+    }
+
+    #[test]
+    fn test_binary_eq_d1_modified_byte() {
+        let mut d1 = generate_test_data();
+        let d2 = generate_test_data();
+        d1[386] = 0;
+        let mut c1 = Cursor::new(d1);
+        let mut c2 = Cursor::new(d2);
+        assert!(!binary_eq(&mut c1, &mut c2).unwrap());
+    }
+
+    #[test]
+    fn test_binary_eq_d2_modified_byte() {
+        let d1 = generate_test_data();
+        let mut d2 = generate_test_data();
+        d2[386] = 0;
+        let mut c1 = Cursor::new(d1);
+        let mut c2 = Cursor::new(d2);
+        assert!(!binary_eq(&mut c1, &mut c2).unwrap());
+    }
+
+    #[test]
+    fn test_binary_eq_length_mismatch_d1() {
+        let d1 = generate_test_data();
+        let d2 = generate_test_data();
+        let mut c1 = Cursor::new(&d1[0..4095]);
+        let mut c2 = Cursor::new(&d2);
+        assert!(!binary_eq(&mut c1, &mut c2).unwrap());
+    }
+
+    #[test]
+    fn test_binary_eq_length_mismatch_d2() {
+        let d1 = generate_test_data();
+        let d2 = generate_test_data();
+        let mut c1 = Cursor::new(d1);
+        let mut c2 = Cursor::new(&d2[0..4095]);
+        assert!(!binary_eq(&mut c1, &mut c2).unwrap());
+    }
+}
