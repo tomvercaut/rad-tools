@@ -1,5 +1,5 @@
 use crate::common::{dcm_file_sort_app, has_no_files};
-use rad_tools_dcm_file_sort_service::path_gen::DicomPathGeneratorType;
+use rad_tools_dcm_file_sort::path_gen::DicomPathGeneratorType;
 use std::process::{Command, Stdio};
 use tracing::{debug, error};
 
