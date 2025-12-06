@@ -1,4 +1,5 @@
 use std::ffi::{OsStr, OsString};
+use std::io::Read;
 use std::path::PathBuf;
 
 /// Trait for types that can provide a unique file path.
@@ -134,5 +135,22 @@ impl<'a> UniquePathGenerator for DefaultUniquePathGenerator<'a> {
             i += 1;
         }
         Err(DefaultUniquePathError::LimitReached(i))
+    }
+}
+
+/// Compare two std::io::Read instances for binary equality using a buffered read approach.
+pub fn binary_eq(f1: &mut impl Read, f2: &mut impl Read) -> Result<bool, std::io::Error> {
+    const BUF_SIZE: usize = 1024;
+    let mut buf1 = [0u8; BUF_SIZE];
+    let mut buf2 = [0u8; BUF_SIZE];
+    loop {
+        let n1 = f1.read(&mut buf1)?;
+        let n2 = f2.read(&mut buf2)?;
+        if n1 != n2 || buf1[..n1] != buf2[..n2] {
+            return Ok(false);
+        }
+        if n1 == 0 {
+            return Ok(true);
+        }
     }
 }

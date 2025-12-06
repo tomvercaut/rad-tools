@@ -2,6 +2,7 @@ mod cli;
 mod config;
 pub mod path_gen;
 pub mod service;
+use crate::Error::BinaryFilesNotIdentical;
 use crate::path_gen::{
     DicomDirPathGeneratorFactory, SortedDirPathGenerator, SortedPathGeneratorError,
 };
@@ -70,6 +71,8 @@ pub enum Error {
     SerdeJsonError(#[from] serde_json::Error),
     #[error("PathGeneratorType can't be created from String value.")]
     InvalidFromStrToPathGeneratorType,
+    #[error("Two files not identical on a binary level.")]
+    BinaryFilesNotIdentical,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -103,7 +106,6 @@ pub enum SortingData {
     Unknown(UnknownData),
 }
 
-///
 /// Represents the copy of a file from an input path to an output path.
 ///
 /// This struct is used to log and track the relocation of files during processing.
@@ -113,6 +115,37 @@ pub enum SortingData {
 /// * `output` - The destination file path where the file is copied to.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub(crate) struct CopiedData {
+    /// Input file path
+    pub input: PathBuf,
+    /// Output file path
+    pub output: PathBuf,
+}
+
+impl CopiedData {
+    pub fn binary_eq(&self) -> Result<VerifiedCopiedData> {
+        let mut f1 = std::fs::File::open(&self.input)?;
+        let mut f2 = std::fs::File::open(&self.output)?;
+        let equal = rad_tools_common::fs::binary_eq(&mut f1, &mut f2)?;
+        if equal {
+            Ok(VerifiedCopiedData {
+                input: self.input.clone(),
+                output: self.output.clone(),
+            })
+        } else {
+            Err(BinaryFilesNotIdentical)
+        }
+    }
+}
+
+/// Represents the input and output paths of identical data after a file copy.
+///
+/// This struct is used to log and track the relocation of files during processing.
+///
+/// # Fields
+/// * `input` - The original file path where the file is located.
+/// * `output` - The destination file path where the file is copied to.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+pub(crate) struct VerifiedCopiedData {
     /// Input file path
     pub input: PathBuf,
     /// Output file path
@@ -179,11 +212,41 @@ pub(crate) struct FileMetaTime {
 pub fn run_service(config: &Config, rx: Receiver<ServiceState>) -> Result<()> {
     let handle_copied_data = |r: Result<CopiedData>| -> Result<()> {
         match r {
-            Ok(copied_data) => remove_file_retry_on_busy(
-                copied_data.input,
-                config.other.io_timeout_millisec,
-                config.other.remove_attempts,
-            ),
+            Ok(copied_data) => {
+                debug!(
+                    "Verifying copied files: \n  {:?}\n  {:?}",
+                    copied_data.input.file_name(),
+                    copied_data.output.file_name()
+                );
+                match copied_data.binary_eq() {
+                    Ok(verified_copied_data) => {
+                        debug!(
+                            "Verified copied files are identical: \n  {:?}\n  {:?}",
+                            copied_data.input.file_name(),
+                            copied_data.output.file_name()
+                        );
+                        remove_file_retry_on_busy(
+                            verified_copied_data.input,
+                            config.other.io_timeout_millisec,
+                            config.other.remove_attempts,
+                        )
+                    }
+                    Err(e) => match e {
+                        BinaryFilesNotIdentical => {
+                            error!(
+                                "Copied files are not identical: \n  {:?}\n  {:?}",
+                                copied_data.input.file_name(),
+                                copied_data.output.file_name()
+                            );
+                            Err(e)
+                        }
+                        _ => {
+                            error!("Error during verification of copied data: {}", e);
+                            Err(e)
+                        }
+                    },
+                }
+            }
             Err(e) => {
                 error!("Error copying data: {}", e);
                 Err(e)
