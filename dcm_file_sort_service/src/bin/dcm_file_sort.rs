@@ -1,6 +1,7 @@
 use clap::Parser;
-use rad_tools_dcm_file_sort_service::{Cli, Config, run_service};
+use rad_tools_dcm_file_sort_service::{Cli, Config, ENV_LOG, run_service};
 use tracing::{error, info};
+use tracing_subscriber::EnvFilter;
 
 fn main() {
     let cli = Cli::parse();
@@ -13,11 +14,11 @@ fn main() {
     }
     let config = config.unwrap();
     tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_env(ENV_LOG))
         .with_thread_ids(true)
         .with_target(true)
         .with_file(true)
         .with_line_number(true)
-        .with_max_level(config.log.level)
         .init();
 
     let (tx, rx) = std::sync::mpsc::channel();
@@ -25,12 +26,12 @@ fn main() {
         let tx = tx.clone();
         ctrlc::set_handler(move || {
             tx.send(rad_tools_dcm_file_sort_service::ServiceState::RequestToStop)
-                .expect("Failed to send request to stop signal");
+                .expect("Failed to send a request to stop signal");
         })
         .expect("Error setting Ctrl-C handler");
     }
     info!("Waiting for Ctrl-C ...");
-    if let Err(e) = run_service(&config, &rx) {
+    if let Err(e) = run_service(&config, rx) {
         error!("Failed to run service: {:?}", e);
     }
 }

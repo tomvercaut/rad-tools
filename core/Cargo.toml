@@ -1,5 +1,7 @@
 [package]
 name = "rad-tools-core"
+description = "Core and shared functionality in the rad-tools project."
+
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

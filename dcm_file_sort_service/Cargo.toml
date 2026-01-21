@@ -15,11 +15,14 @@ dicom-object.workspace = true
 dicom-dictionary-std.workspace = true
 dicom-transfer-syntax-registry.workspace = true
 serde.workspace = true
-serde_with.workspace = true
 serde_json.workspace = true
 ctrlc.workspace = true
 toml.workspace = true
 filetime.workspace = true
+chrono.workspace = true
+assert_cmd.workspace = true
+rad-tools-core = { path = "../core" }
+rad-tools-common = {path = "../common"}
 
 [dev-dependencies]
 tempfile.workspace = true
@@ -27,6 +30,8 @@ tempfile.workspace = true
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.8.0"
 
+[features]
+dcm_file_sort_service_experimental = []
 
 [[bin]]
 name = "dcm_file_sort"
@@ -39,3 +44,4 @@ path = "./src/bin/dcm_file_sort_config_generator.rs"
 [[bin]]
 name = "dcm_file_sort_service"
 path = "./src/bin/dcm_file_sort_service.rs"
+required-features = ["dcm_file_sort_service_experimental"]
