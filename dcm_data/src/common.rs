@@ -32,7 +32,7 @@ pub struct Sop {
 }
 
 /// Represents a person's name divided into several components such as family name, given name, middle name, prefix, and suffix.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PersonName {
     /// The family name (also known as last name or surname) of the person.
     pub family_name: String,
