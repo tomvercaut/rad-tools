@@ -11,10 +11,12 @@ mod value_at;
 pub use value_at::*;
 mod value_cs;
 pub use value_cs::*;
-
+mod value_da;
+pub use value_da::*;
 mod value_ds;
 pub use value_ds::*;
-
+mod value_dt;
+pub use value_dt::*;
 mod value_is;
 pub use value_is::*;
 
@@ -40,6 +42,7 @@ mod value_ur;
 pub use value_ur::*;
 
 mod value_ut;
+
 pub use value_ut::*;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -74,10 +77,6 @@ pub trait FromDicomObject {
     }
 }
 
-crate::dicom_value_type!(DA, DA, chrono::NaiveDate);
-crate::dicom_value_type!(DAs, DA, Vec<chrono::NaiveDate>);
-crate::dicom_value_type!(DT, DT, chrono::NaiveDateTime);
-crate::dicom_value_type!(DTs, DT, Vec<chrono::NaiveDateTime>);
 crate::dicom_value_type!(FL, FL, f32);
 crate::dicom_value_type!(FLs, FL, Vec<f32>);
 crate::dicom_value_type!(FD, FD, f64);
