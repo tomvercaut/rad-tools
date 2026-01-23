@@ -3,6 +3,9 @@ crate::dicom_value_type!(DTs, DT, Vec<String>);
 crate::one_to_many_dicom_value_by_delim!(DT, DTs, '\\');
 crate::from_dicom_object_for_string!(DT, DT);
 crate::from_dicom_object_for_strings!(DTs, DT, '\\');
+crate::dicom_value_from_str!(DT);
+crate::dicom_value_from_same_type!(DT, String);
+crate::dicom_value_from_same_type!(DTs, Vec<String>);
 
 /// Supported DICOM DT (DateTime) format strings for parsing.
 /// Formats include:

@@ -2,6 +2,8 @@ use crate::io::DcmIOError::InvalidVRMatch;
 
 crate::dicom_value_type!(Tag, AT, dicom_core::Tag);
 crate::dicom_value_type!(Tags, AT, Vec<dicom_core::Tag>);
+crate::dicom_value_from_same_type!(Tag, dicom_core::Tag);
+crate::dicom_value_from_same_type!(Tags, Vec<dicom_core::Tag>);
 
 impl<const G: u16, const E: u16> crate::value::FromDicomObject for Tag<G, E> {
     fn from_object(obj: &dicom_object::InMemDicomObject) -> Result<Self, crate::io::DcmIOError> {

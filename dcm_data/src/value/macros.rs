@@ -103,3 +103,26 @@ macro_rules! from_dicom_object_for_strings {
         }
     };
 }
+
+#[macro_export]
+macro_rules! dicom_value_from_same_type {
+    ($name:ident, $value_type:ty) => {
+        impl<const G: u16, const E: u16> std::convert::From<$value_type> for $name<G, E> {
+            fn from(v: $value_type) -> Self {
+                Self { value: v }
+            }
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! dicom_value_from_str {
+    ($name:ident) => {
+        impl<const G: u16, const E: u16> std::str::FromStr for $name<G, E> {
+            type Err = &'static str;
+            fn from_str(v: &str) -> Result<Self, Self::Err> {
+                Ok(Self { value: v.to_string() })
+            }
+        }
+    }
+}
