@@ -6,7 +6,7 @@ macro_rules! dicom_value_type {
             value: $value_type,
         }
 
-        impl<const G: u16, const E: u16> Value<$value_type> for $name<G, E> {
+        impl<const G: u16, const E: u16> $crate::value::Value<$value_type> for $name<G, E> {
             fn tag(&self) -> dicom_core::Tag {
                 dicom_core::Tag(G, E)
             }
@@ -15,8 +15,8 @@ macro_rules! dicom_value_type {
                 dicom_core::VR::$vr
             }
 
-            fn vm(&self) -> VM {
-                VM::Single
+            fn vm(&self) -> crate::value::VM {
+                crate::value::VM::Single
             }
 
             fn value(&self) -> &$value_type {
@@ -42,6 +42,62 @@ macro_rules! one_to_many_dicom_value_by_delim {
                         .map(|s| s.to_string())
                         .collect::<Vec<_>>()
                         .into(),
+                }
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! from_dicom_object_for_string {
+    ($name: ident, $vr: ident) => {
+        impl<const G: u16, const E: u16> $crate::value::FromDicomObject for $name<G, E> {
+            fn from_object(
+                obj: &dicom_object::InMemDicomObject,
+            ) -> Result<Self, $crate::io::DcmIOError> {
+                match obj.element(dicom_core::Tag(G, E)) {
+                    Ok(elem) => {
+                        if elem.vr() == dicom_core::VR::$vr {
+                            let value = elem.to_str()?.to_string();
+                            Ok(Self { value })
+                        } else {
+                            Err($crate::io::DcmIOError::InvalidVRMatch(
+                                dicom_core::VR::$vr,
+                                elem.vr(),
+                            ))
+                        }
+                    }
+                    Err(e) => Err($crate::io::DcmIOError::from(e)),
+                }
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! from_dicom_object_for_strings {
+    ($name: ident, $vr: ident, $delim:literal) => {
+        impl<const G: u16, const E: u16> $crate::value::FromDicomObject for $name<G, E> {
+            fn from_object(
+                obj: &dicom_object::InMemDicomObject,
+            ) -> Result<Self, $crate::io::DcmIOError> {
+                match obj.element(dicom_core::Tag(G, E)) {
+                    Ok(elem) => {
+                        if elem.vr() == dicom_core::VR::$vr {
+                            let value = elem.to_str()?.to_string();
+                            let value = value
+                                .split($delim)
+                                .map(|s| s.to_string())
+                                .collect::<Vec<_>>();
+                            Ok(Self { value })
+                        } else {
+                            Err($crate::io::DcmIOError::InvalidVRMatch(
+                                dicom_core::VR::$vr,
+                                elem.vr(),
+                            ))
+                        }
+                    }
+                    Err(e) => Err($crate::io::DcmIOError::from(e)),
                 }
             }
         }

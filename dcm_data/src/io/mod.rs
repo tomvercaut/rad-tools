@@ -10,8 +10,8 @@ use crate::{
     RadiationTypeError, TreatmentDeliveryTypeError,
 };
 pub use ct::read_ct_image;
-use dicom_core::value::{CastValueError, ConvertValueError};
 use dicom_core::Tag;
+use dicom_core::value::{CastValueError, ConvertValueError};
 pub use rtdose::{obj_to_rtdose, read_rtdose};
 pub use rtplan::{obj_to_rtplan, read_rtplan};
 pub use rtstruct::{obj_to_rtstruct, read_rtstruct};
@@ -83,4 +83,8 @@ pub enum DcmIOError {
     InvalidRGBString(String),
     #[error("Invalid isocenter: [{0:#?}]")]
     InvalidIsocenter(Vec<f64>),
+    #[error("Expected VRs ({0:#?} <-> {0:#?}) to match")]
+    InvalidVRMatch(dicom_core::VR, dicom_core::VR),
+    #[error("Invalid number of tag values: Expected {0}, got {1}")]
+    InvalidNumberOfTagValues(usize, usize),
 }
