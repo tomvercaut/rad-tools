@@ -1,4 +1,3 @@
-use crate::PersonName;
 use crate::io::DcmIOError;
 
 pub(crate) mod macros;
@@ -7,7 +6,6 @@ pub use value_ae::*;
 mod value_as;
 pub use value_as::*;
 mod value_at;
-
 pub use value_at::*;
 mod value_cs;
 pub use value_cs::*;
@@ -19,30 +17,25 @@ mod value_dt;
 pub use value_dt::*;
 mod value_is;
 pub use value_is::*;
-
 mod value_lo;
 pub use value_lo::*;
-
 mod value_lt;
 pub use value_lt::*;
-
+mod value_pn;
+pub use value_pn::*;
 mod value_sh;
 pub use value_sh::*;
-
 mod value_st;
 pub use value_st::*;
-
+mod value_tm;
+pub use value_tm::*;
 mod value_uc;
 pub use value_uc::*;
-
 mod value_ui;
 pub use value_ui::*;
-
 mod value_ur;
 pub use value_ur::*;
-
 mod value_ut;
-
 pub use value_ut::*;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -86,16 +79,12 @@ crate::dicom_value_type!(OD, OD, Vec<f64>);
 crate::dicom_value_type!(OF, OF, Vec<f32>);
 crate::dicom_value_type!(OV, OV, Vec<u64>);
 crate::dicom_value_type!(OW, OW, Vec<u16>);
-crate::dicom_value_type!(PN, PN, PersonName);
-crate::dicom_value_type!(PNs, PN, Vec<PersonName>);
 crate::dicom_value_type!(SL, SL, i32);
 crate::dicom_value_type!(SLs, SL, Vec<i32>);
 crate::dicom_value_type!(SS, SS, i16);
 crate::dicom_value_type!(SSs, SS, Vec<i16>);
 crate::dicom_value_type!(SV, SV, i64);
 crate::dicom_value_type!(SVs, SV, Vec<i64>);
-crate::dicom_value_type!(TM, TM, chrono::NaiveTime);
-crate::dicom_value_type!(TMs, TM, Vec<chrono::NaiveTime>);
 crate::dicom_value_type!(UL, UL, u32);
 crate::dicom_value_type!(ULs, UL, Vec<u32>);
 crate::dicom_value_type!(UN, UN, Vec<u8>);
