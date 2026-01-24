@@ -27,6 +27,19 @@ macro_rules! dicom_value_type {
                 &mut self.value
             }
         }
+
+        impl<const G: u16, const E: u16> std::ops::Deref for $name<G, E> {
+            type Target = $value_type;
+            fn deref(&self) -> &Self::Target {
+                &self.value
+            }
+        }
+
+        impl<const G: u16, const E: u16> std::ops::DerefMut for $name<G, E> {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.value
+            }
+        }
     };
 }
 
