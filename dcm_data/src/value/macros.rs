@@ -118,6 +118,58 @@ macro_rules! from_dicom_object_for_strings {
 }
 
 #[macro_export]
+macro_rules! from_dicom_object_for_number {
+    ($name: ident, $vr: ident, $fncall: ident) => {
+        impl<const G: u16, const E: u16> $crate::value::FromDicomObject for $name<G, E> {
+            fn from_object(
+                obj: &dicom_object::InMemDicomObject,
+            ) -> Result<Self, $crate::io::DcmIOError> {
+                match obj.element(dicom_core::Tag(G, E)) {
+                    Ok(elem) => {
+                        if elem.vr() == dicom_core::VR::$vr {
+                            let value = elem.$fncall()?;
+                            Ok(Self{value})
+                        } else {
+                            Err($crate::io::DcmIOError::InvalidVRMatch(
+                                dicom_core::VR::$vr,
+                                elem.vr(),
+                            ))
+                        }
+                    }
+                    Err(e) => Err($crate::io::DcmIOError::from(e)),
+                }
+            }
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! from_dicom_object_for_numbers {
+    ($name: ident, $vr: ident, $fncall: ident) => {
+        impl<const G: u16, const E: u16> $crate::value::FromDicomObject for $name<G, E> {
+            fn from_object(
+                obj: &dicom_object::InMemDicomObject,
+            ) -> Result<Self, $crate::io::DcmIOError> {
+                match obj.element(dicom_core::Tag(G, E)) {
+                    Ok(elem) => {
+                        if elem.vr() == dicom_core::VR::$vr {
+                            let value = Vec::from(elem.$fncall()?);
+                            Ok(Self{value})
+                        } else {
+                            Err($crate::io::DcmIOError::InvalidVRMatch(
+                                dicom_core::VR::$vr,
+                                elem.vr(),
+                            ))
+                        }
+                    }
+                    Err(e) => Err($crate::io::DcmIOError::from(e)),
+                }
+            }
+        }
+    }
+}
+
+#[macro_export]
 macro_rules! dicom_value_from_same_type {
     ($name:ident, $value_type:ty) => {
         impl<const G: u16, const E: u16> std::convert::From<$value_type> for $name<G, E> {
