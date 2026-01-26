@@ -74,11 +74,11 @@ pub trait Value<T> {
     fn value_mut(&mut self) -> &mut T;
 }
 
-pub trait FromDicomObject {
-    fn from_object(obj: &dicom_object::InMemDicomObject) -> Result<Self, DcmIOError>
+pub trait FromDicomBackend<Backend> {
+    fn from_object(obj: &Backend) -> Result<Self, DcmIOError>
     where
         Self: Sized;
-    fn from_object_opt(obj: &dicom_object::InMemDicomObject) -> Result<Option<Self>, DcmIOError>
+    fn from_object_opt(obj: &Backend) -> Result<Option<Self>, DcmIOError>
     where
         Self: Sized,
     {

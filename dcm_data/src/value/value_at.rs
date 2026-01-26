@@ -5,7 +5,9 @@ crate::dicom_value_type!(Tags, AT, Vec<dicom_core::Tag>);
 crate::dicom_value_from_same_type!(Tag, dicom_core::Tag);
 crate::dicom_value_from_same_type!(Tags, Vec<dicom_core::Tag>);
 
-impl<const G: u16, const E: u16> crate::value::FromDicomObject for Tag<G, E> {
+impl<const G: u16, const E: u16> crate::value::FromDicomBackend<dicom_object::InMemDicomObject>
+    for Tag<G, E>
+{
     fn from_object(obj: &dicom_object::InMemDicomObject) -> Result<Self, crate::io::DcmIOError> {
         match obj.element(dicom_core::Tag(G, E)) {
             Ok(elem) => {
