@@ -62,6 +62,19 @@ macro_rules! one_to_many_dicom_value_by_delim {
 }
 
 #[macro_export]
+macro_rules! to_dicom_object_for_string {
+    ($name: ident, $vr: ident) => {
+        impl<const G: u16, const E: u16> $crate::value::ToDicomObject for $name<G, E> {
+            fn to_object(&self, obj: &mut dicom_object::InMemDicomObject) -> Result<(), $crate::io::DcmIOError> {
+                let value = dicom_core::value::PrimitiveValue::from(self.value.clone());
+                obj.insert(dicom_core::Tag(G, E), dicom_core::VR::$vr, self.value.clone())?;
+                Ok(())
+            }
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! from_dicom_object_for_string {
     ($name: ident, $vr: ident) => {
         impl<const G: u16, const E: u16> $crate::value::FromDicomObject for $name<G, E> {

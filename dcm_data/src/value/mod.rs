@@ -92,5 +92,9 @@ pub trait FromDicomObject {
     }
 }
 
+pub trait ToDicomObject {
+    fn to_object(&self, obj: &mut dicom_object::InMemDicomObject) -> Result<(), DcmIOError>;
+}
+
 crate::dicom_value_type!(OB, OB, Vec<u8>);
 crate::dicom_value_type!(UN, UN, Vec<u8>);
