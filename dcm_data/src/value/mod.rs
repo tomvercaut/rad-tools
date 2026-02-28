@@ -74,15 +74,15 @@ pub trait Value<T> {
     fn value_mut(&mut self) -> &mut T;
 }
 
-pub trait FromDicomObject {
-    fn from_object(obj: &dicom_object::InMemDicomObject) -> Result<Self, DcmIOError>
+pub trait ReadDicomValue<Backend> {
+    fn read_value(backend: &Backend) -> Result<Self, DcmIOError>
     where
         Self: Sized;
-    fn from_object_opt(obj: &dicom_object::InMemDicomObject) -> Result<Option<Self>, DcmIOError>
+    fn from_object_opt(backend: &Backend) -> Result<Option<Self>, DcmIOError>
     where
         Self: Sized,
     {
-        match Self::from_object(obj) {
+        match Self::read_value(backend) {
             Ok(value) => Ok(Some(value)),
             Err(e) => match e {
                 DcmIOError::DicomElementAccessError(_) => Ok(None),
@@ -92,9 +92,12 @@ pub trait FromDicomObject {
     }
 }
 
-pub trait ToDicomObject {
-    fn to_object(&self, obj: &mut dicom_object::InMemDicomObject) -> Result<(), DcmIOError>;
+pub trait WriteDicomValue<Backend> {
+    fn write_value(&self, obj: &mut Backend) -> Result<(), DcmIOError>;
 }
+
+
+pub trait DicomValue<Backend>: WriteDicomValue<Backend> + ReadDicomValue<Backend> {}
 
 crate::dicom_value_type!(OB, OB, Vec<u8>);
 crate::dicom_value_type!(UN, UN, Vec<u8>);

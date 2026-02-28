@@ -62,26 +62,13 @@ macro_rules! one_to_many_dicom_value_by_delim {
 }
 
 #[macro_export]
-macro_rules! to_dicom_object_for_string {
-    ($name: ident, $vr: ident) => {
-        impl<const G: u16, const E: u16> $crate::value::ToDicomObject for $name<G, E> {
-            fn to_object(&self, obj: &mut dicom_object::InMemDicomObject) -> Result<(), $crate::io::DcmIOError> {
-                let value = dicom_core::value::PrimitiveValue::from(self.value.clone());
-                obj.insert(dicom_core::Tag(G, E), dicom_core::VR::$vr, self.value.clone())?;
-                Ok(())
-            }
-        }
-    };
-}
-
-#[macro_export]
 macro_rules! from_dicom_object_for_string {
     ($name: ident, $vr: ident) => {
-        impl<const G: u16, const E: u16> $crate::value::FromDicomObject for $name<G, E> {
-            fn from_object(
-                obj: &dicom_object::InMemDicomObject,
+        impl<const G: u16, const E: u16> $crate::value::ReadDicomValue<dicom_object::InMemDicomObject> for $name<G, E> {
+            fn read_value(
+                backend: &dicom_object::InMemDicomObject,
             ) -> Result<Self, $crate::io::DcmIOError> {
-                match obj.element(dicom_core::Tag(G, E)) {
+                match backend.element(dicom_core::Tag(G, E)) {
                     Ok(elem) => {
                         if elem.vr() == dicom_core::VR::$vr {
                             let value = elem.to_str()?.to_string();
@@ -101,13 +88,51 @@ macro_rules! from_dicom_object_for_string {
 }
 
 #[macro_export]
+macro_rules! to_dicom_object_for_string {
+    ($name: ident, $vr: ident) => {
+        impl<const G: u16, const E: u16> $crate::WriteDicomValue<dicom_object::InMemDicomObject> for $name<G, E> {
+            fn write_value(&self,
+                obj: &mut dicom_object::InMemDicomObject,
+            ) -> Result<(), $crate::io::DcmIOError> {
+                let _ = obj.put(dicom_core::DataElement::new(
+                    self.tag(),
+                    self.vr(),
+                    self.value().as_str(),
+                ));
+                Ok(())
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! to_dicom_object_for_strings {
+    ($name: ident, $vr: ident) => {
+        impl<const G: u16, const E: u16> $crate::WriteDicomValue<dicom_object::InMemDicomObject> for $name<G, E> {
+            fn write_value(&self,
+                obj: &mut dicom_object::InMemDicomObject,
+            ) -> Result<(), $crate::io::DcmIOError> {
+                let sv = dicom_core::smallvec::SmallVec::from(self.value().clone());
+                let p = dicom_core::value::PrimitiveValue::Strs(sv);
+                let _ = obj.put(dicom_core::DataElement::new(
+                    self.tag(),
+                    self.vr(),
+                    p,
+                ));
+                Ok(())
+            }
+        }
+    };
+}
+
+#[macro_export]
 macro_rules! from_dicom_object_for_strings {
     ($name: ident, $vr: ident, $delim:literal) => {
-        impl<const G: u16, const E: u16> $crate::value::FromDicomObject for $name<G, E> {
-            fn from_object(
-                obj: &dicom_object::InMemDicomObject,
+        impl<const G: u16, const E: u16> $crate::value::ReadDicomValue<dicom_object::InMemDicomObject> for $name<G, E> {
+            fn read_value(
+                backend: &dicom_object::InMemDicomObject,
             ) -> Result<Self, $crate::io::DcmIOError> {
-                match obj.element(dicom_core::Tag(G, E)) {
+                match backend.element(dicom_core::Tag(G, E)) {
                     Ok(elem) => {
                         if elem.vr() == dicom_core::VR::$vr {
                             let value = elem.to_str()?.to_string();
@@ -133,11 +158,11 @@ macro_rules! from_dicom_object_for_strings {
 #[macro_export]
 macro_rules! from_dicom_object_for_number {
     ($name: ident, $vr: ident, $fncall: ident) => {
-        impl<const G: u16, const E: u16> $crate::value::FromDicomObject for $name<G, E> {
-            fn from_object(
-                obj: &dicom_object::InMemDicomObject,
+        impl<const G: u16, const E: u16> $crate::value::ReadDicomValue<dicom_object::InMemDicomObject> for $name<G, E> {
+            fn read_value(
+                backend: &dicom_object::InMemDicomObject,
             ) -> Result<Self, $crate::io::DcmIOError> {
-                match obj.element(dicom_core::Tag(G, E)) {
+                match backend.element(dicom_core::Tag(G, E)) {
                     Ok(elem) => {
                         if elem.vr() == dicom_core::VR::$vr {
                             let value = elem.$fncall()?;
@@ -159,11 +184,11 @@ macro_rules! from_dicom_object_for_number {
 #[macro_export]
 macro_rules! from_dicom_object_for_numbers {
     ($name: ident, $vr: ident, $fncall: ident) => {
-        impl<const G: u16, const E: u16> $crate::value::FromDicomObject for $name<G, E> {
-            fn from_object(
-                obj: &dicom_object::InMemDicomObject,
+        impl<const G: u16, const E: u16> $crate::value::ReadDicomValue<dicom_object::InMemDicomObject> for $name<G, E> {
+            fn read_value(
+                backend: &dicom_object::InMemDicomObject,
             ) -> Result<Self, $crate::io::DcmIOError> {
-                match obj.element(dicom_core::Tag(G, E)) {
+                match backend.element(dicom_core::Tag(G, E)) {
                     Ok(elem) => {
                         if elem.vr() == dicom_core::VR::$vr {
                             let value = Vec::from(elem.$fncall()?);
