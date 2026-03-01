@@ -8,7 +8,14 @@ macro_rules! dicom_value_type {
 
         impl<const G: u16, const E: u16> $crate::Value<$value_type> for $name<G, E> {
             fn tag(&self) -> dicom_core::Tag {
-                dicom_core::Tag(G, E)
+                use std::cell::LazyCell;
+                let lt: LazyCell<dicom_core::Tag> = LazyCell::new(
+                    || {
+                        dicom_core::Tag(G, E)
+                    }
+                );
+                *lt
+                // dicom_core::Tag(G, E)
             }
 
             fn vr(&self) -> dicom_core::VR {
