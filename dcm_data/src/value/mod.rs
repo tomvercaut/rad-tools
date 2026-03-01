@@ -78,7 +78,7 @@ pub trait ReadDicomValue<Backend> {
     fn read_value(backend: &Backend) -> Result<Self, DcmIOError>
     where
         Self: Sized;
-    fn from_object_opt(backend: &Backend) -> Result<Option<Self>, DcmIOError>
+    fn read_value_opt(backend: &Backend) -> Result<Option<Self>, DcmIOError>
     where
         Self: Sized,
     {
