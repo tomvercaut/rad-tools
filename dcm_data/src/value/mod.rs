@@ -25,6 +25,8 @@ mod value_lo;
 pub use value_lo::*;
 mod value_lt;
 pub use value_lt::*;
+mod value_ob;
+pub use value_ob::*;
 mod value_od;
 pub use value_od::*;
 mod value_of;
@@ -53,6 +55,8 @@ mod value_ui;
 pub use value_ui::*;
 mod value_ul;
 pub use value_ul::*;
+mod value_un;
+pub use value_un::*;
 mod value_ur;
 pub use value_ur::*;
 mod value_us;
@@ -96,8 +100,4 @@ pub trait WriteDicomValue<Backend> {
     fn write_value(&self, obj: &mut Backend) -> Result<(), DcmIOError>;
 }
 
-
 pub trait DicomValue<Backend>: WriteDicomValue<Backend> + ReadDicomValue<Backend> {}
-
-crate::dicom_value_type!(OB, OB, Vec<u8>);
-crate::dicom_value_type!(UN, UN, Vec<u8>);
