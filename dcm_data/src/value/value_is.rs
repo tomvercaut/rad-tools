@@ -1,3 +1,6 @@
+use dicom_object::InMemDicomObject;
+use crate::{Value, DicomValue};
+
 crate::dicom_value_type!(IS, IS, String);
 crate::dicom_value_type!(ISs, IS, Vec<String>);
 crate::one_to_many_dicom_value_by_delim!(IS, ISs, '\\');
@@ -6,3 +9,8 @@ crate::from_dicom_object_for_strings!(ISs, IS, '\\');
 crate::dicom_value_from_str!(IS);
 crate::dicom_value_from_same_type!(IS, String);
 crate::dicom_value_from_same_type!(ISs, Vec<String>);
+crate::to_dicom_object_for_string!(IS, IS);
+crate::to_dicom_object_for_strings!(ISs, IS);
+
+impl<const G: u16, const E: u16> DicomValue<InMemDicomObject> for IS<G, E> {}
+impl<const G: u16, const E: u16> DicomValue<InMemDicomObject> for ISs<G, E> {}
