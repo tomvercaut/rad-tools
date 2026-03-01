@@ -97,3 +97,6 @@ impl<const G: u16, const E: u16> crate::value::WriteDicomValue<InMemDicomObject>
         Ok(())
     }
 }
+
+impl<const G: u16, const E: u16> crate::value::DicomValue<InMemDicomObject> for Tag<G, E> {}
+impl<const G: u16, const E: u16> crate::value::DicomValue<InMemDicomObject> for Tags<G, E> {}
