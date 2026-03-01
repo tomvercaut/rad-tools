@@ -1,10 +1,19 @@
+use crate::{Value,DicomValue};
 use chrono::NaiveTime;
+use dicom_object::InMemDicomObject;
 
 crate::dicom_value_type!(TM, TM, String);
 crate::dicom_value_type!(TMs, TM, Vec<String>);
 crate::dicom_value_from_str!(TM);
+crate::from_dicom_object_for_string!(TM, TM);
+crate::from_dicom_object_for_strings!(TMs, TM, '\\');
 crate::dicom_value_from_same_type!(TM, String);
 crate::dicom_value_from_same_type!(TMs, Vec<String>);
+crate::to_dicom_object_for_string!(TM, TM);
+crate::to_dicom_object_for_strings!(TMs, TM);
+
+impl<const G: u16, const E: u16> DicomValue<InMemDicomObject> for TM<G, E> {}
+impl<const G: u16, const E: u16> DicomValue<InMemDicomObject> for TMs<G, E> {}
 
 const TIME_FORMATS: [&'static str; 2] = ["%H%M%S", "%H%M%S.%f"];
 
