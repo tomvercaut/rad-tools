@@ -1,5 +1,5 @@
+use crate::{DicomValue, Value};
 use dicom_object::InMemDicomObject;
-use crate::{Value, DicomValue};
 
 crate::dicom_value_type!(FL, FL, f32);
 crate::dicom_value_type!(FLs, FL, Vec<f32>);

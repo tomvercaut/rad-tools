@@ -1,4 +1,9 @@
-use crate::io::DcmIOError;
+use crate::Error;
+
+mod error;
+pub use error::*;
+mod common;
+pub use common::*;
 
 pub(crate) mod macros;
 mod value_ae;
@@ -79,17 +84,17 @@ pub trait Value<T> {
 }
 
 pub trait ReadDicomValue<Backend> {
-    fn read_value(backend: &Backend) -> Result<Self, DcmIOError>
+    fn read_value(backend: &Backend) -> Result<Self, Error>
     where
         Self: Sized;
-    fn read_value_opt(backend: &Backend) -> Result<Option<Self>, DcmIOError>
+    fn read_value_opt(backend: &Backend) -> Result<Option<Self>, Error>
     where
         Self: Sized,
     {
         match Self::read_value(backend) {
             Ok(value) => Ok(Some(value)),
             Err(e) => match e {
-                DcmIOError::DicomElementAccessError(_) => Ok(None),
+                Error::DicomElementAccessError(_) => Ok(None),
                 _ => Err(e),
             },
         }
@@ -97,7 +102,7 @@ pub trait ReadDicomValue<Backend> {
 }
 
 pub trait WriteDicomValue<Backend> {
-    fn write_value(&self, obj: &mut Backend) -> Result<(), DcmIOError>;
+    fn write_value(&self, backend: &mut Backend) -> Result<(), Error>;
 }
 
 pub trait DicomValue<Backend>: WriteDicomValue<Backend> + ReadDicomValue<Backend> {}

@@ -1,8 +1,8 @@
-use crate::io::DcmIOError;
+use crate::Error;
 use crate::{DicomValue, ReadDicomValue, Value};
 use crate::{PersonName, WriteDicomValue};
-use dicom_core::PrimitiveValue;
 use dicom_core::smallvec::SmallVec;
+use dicom_core::PrimitiveValue;
 use dicom_object::InMemDicomObject;
 use std::str::FromStr;
 
@@ -19,7 +19,7 @@ impl<const G: u16, const E: u16> FromStr for PN<G, E> {
 }
 
 impl<const G: u16, const E: u16> ReadDicomValue<dicom_object::InMemDicomObject> for PN<G, E> {
-    fn read_value(backend: &InMemDicomObject) -> Result<Self, DcmIOError>
+    fn read_value(backend: &InMemDicomObject) -> Result<Self, Error>
     where
         Self: Sized,
     {
@@ -29,19 +29,19 @@ impl<const G: u16, const E: u16> ReadDicomValue<dicom_object::InMemDicomObject> 
                     let s = elem.string()?;
                     match PersonName::from_str(&s) {
                         Ok(pn) => Ok(PN { value: pn }),
-                        Err(_) => Err(DcmIOError::InvalidPersonNameFormat(s.to_string())),
+                        Err(_) => Err(Error::InvalidPersonNameFormat(s.to_string())),
                     }
                 } else {
-                    Err(DcmIOError::InvalidVRMatch(dicom_core::VR::PN, elem.vr()))
+                    Err(Error::InvalidVRMatch(dicom_core::VR::PN, elem.vr()))
                 }
             }
-            Err(e) => Err(DcmIOError::from(e))?,
+            Err(e) => Err(Error::from(e))?,
         }
     }
 }
 
 impl<const G: u16, const E: u16> ReadDicomValue<dicom_object::InMemDicomObject> for PNs<G, E> {
-    fn read_value(backend: &InMemDicomObject) -> Result<Self, DcmIOError>
+    fn read_value(backend: &InMemDicomObject) -> Result<Self, Error>
     where
         Self: Sized,
     {
@@ -56,24 +56,24 @@ impl<const G: u16, const E: u16> ReadDicomValue<dicom_object::InMemDicomObject> 
                                 v.value.push(pn);
                                 },
                             Err(_) => {
-                                return Err(DcmIOError::InvalidPersonNameFormat(t.to_string()))
+                                return Err(Error::InvalidPersonNameFormat(t.to_string()))
                             }
                         }
                     }
                     Ok(v)
                 } else {
-                    Err(DcmIOError::InvalidVRMatch(dicom_core::VR::PN, elem.vr()))
+                    Err(Error::InvalidVRMatch(dicom_core::VR::PN, elem.vr()))
                 }
             }
-            Err(e) => Err(DcmIOError::from(e))?,
+            Err(e) => Err(Error::from(e))?,
         }
     }
 }
 
 impl<const G: u16, const E: u16> WriteDicomValue<dicom_object::InMemDicomObject> for PN<G, E> {
-    fn write_value(&self, obj: &mut dicom_object::InMemDicomObject) -> Result<(), DcmIOError> {
+    fn write_value(&self, backend: &mut dicom_object::InMemDicomObject) -> Result<(), Error> {
         let s = self.value().to_string();
-        let _ = obj.put(dicom_core::DataElement::new(
+        let _ = backend.put(dicom_core::DataElement::new(
             self.tag(),
             self.vr(),
             s.as_str(),
@@ -83,13 +83,13 @@ impl<const G: u16, const E: u16> WriteDicomValue<dicom_object::InMemDicomObject>
 }
 
 impl<const G: u16, const E: u16> WriteDicomValue<dicom_object::InMemDicomObject> for PNs<G, E> {
-    fn write_value(&self, obj: &mut dicom_object::InMemDicomObject) -> Result<(), DcmIOError> {
+    fn write_value(&self, backend: &mut dicom_object::InMemDicomObject) -> Result<(), Error> {
         let mut sv = SmallVec::<[String; 2]>::new();
         for pn in self.value() {
             sv.push(pn.to_string());
         }
         let pv = PrimitiveValue::Strs(sv);
-        let _ = obj.put(dicom_core::DataElement::new(self.tag(), self.vr(), pv));
+        let _ = backend.put(dicom_core::DataElement::new(self.tag(), self.vr(), pv));
         Ok(())
     }
 }

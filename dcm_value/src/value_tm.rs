@@ -1,4 +1,4 @@
-use crate::{Value,DicomValue};
+use crate::{DicomValue, Value};
 use chrono::NaiveTime;
 use dicom_object::InMemDicomObject;
 

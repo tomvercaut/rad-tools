@@ -8,6 +8,7 @@ members = [
     "dcm_grep",
     "dcm_ls",
     "dcm_sort",
+    "dcm_value",
     "mpc_checks_cleaner",
     "one_way_sync",
 ]

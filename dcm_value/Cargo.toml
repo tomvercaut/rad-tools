@@ -1,0 +1,19 @@
+[package]
+name = "rad-tools-dcm-value"
+description = "A library with data types that represent DICOM values."
+
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+chrono.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+dicom-core.workspace = true
+dicom-object.workspace = true
+dicom-dictionary-std.workspace = true
+dicom-pixeldata.workspace = true
+
+[dev-dependencies]
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }

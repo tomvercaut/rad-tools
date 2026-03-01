@@ -1,5 +1,5 @@
+use crate::{DicomValue, Value};
 use dicom_object::InMemDicomObject;
-use crate::{Value, DicomValue};
 
 crate::dicom_value_type!(DT, DT, String);
 crate::dicom_value_type!(DTs, DT, Vec<String>);

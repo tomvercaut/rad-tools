@@ -1,5 +1,5 @@
+use crate::{DicomValue, Value};
 use dicom_object::InMemDicomObject;
-use crate::{Value, DicomValue};
 
 crate::dicom_value_type!(AE, AE, String);
 crate::dicom_value_type!(AEs, AE, Vec<String>);
