@@ -1,6 +1,7 @@
-use crate::{CodeItem, PersonName, PhotometricInterpretation, PixelRepresentation, Sop};
+use crate::{CodeItem, PhotometricInterpretation, PixelRepresentation, Sop};
 use chrono::{NaiveDate, NaiveDateTime};
 use std::str::FromStr;
+use rad_tools_dcm_value::PersonName;
 
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct RTDose {

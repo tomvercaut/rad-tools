@@ -4,7 +4,7 @@ use crate::io::{
     to_ints_opt, to_string, to_string_opt, DcmIOError,
 };
 use crate::{
-    ApprovalStatus, Contour, ContourGeometry, PersonName, RTReferencedSerie, RTReferencedStudy,
+    ApprovalStatus, Contour, ContourGeometry, RTReferencedSerie, RTReferencedStudy,
     RTRoiObservation, RTStruct, ReferencedFrameOfReference, RoiContour, Sop, StructureSetROI,
 };
 use dicom_dictionary_std::tags::{
@@ -27,6 +27,7 @@ use dicom_dictionary_std::uids::RT_STRUCTURE_SET_STORAGE;
 use dicom_object::{DefaultDicomObject, InMemDicomObject};
 use std::path::Path;
 use std::str::FromStr;
+use rad_tools_dcm_value::PersonName;
 
 /// Reads an RT-Struct DICOM object from the specified file path and converts it into an `RTStruct` object.
 ///

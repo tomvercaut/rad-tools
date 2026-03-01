@@ -1,5 +1,6 @@
-use crate::{ApprovalStatus, ContourGeometry, PersonName, Sop};
+use crate::{ApprovalStatus, ContourGeometry, Sop};
 use chrono::{NaiveDate, NaiveDateTime};
+use rad_tools_dcm_value::PersonName;
 
 #[derive(Clone, Debug, Default)]
 pub struct RTStruct {

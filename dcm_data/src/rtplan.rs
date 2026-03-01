@@ -1,8 +1,9 @@
 use crate::{
-    ApprovalStatus, BeamDoseType, BeamType, PatientPosition, PersonName, RotationDirection, Sop,
+    ApprovalStatus, BeamDoseType, BeamType, PatientPosition, RotationDirection, Sop,
 };
 use chrono::{NaiveDate, NaiveDateTime};
 use std::str::FromStr;
+use rad_tools_dcm_value::PersonName;
 
 #[derive(Clone, Debug, Default)]
 pub struct RTPlan {
