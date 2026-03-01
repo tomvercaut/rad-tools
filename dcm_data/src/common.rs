@@ -72,6 +72,12 @@ impl FromStr for PersonName {
     }
 }
 
+impl Display for PersonName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}^{}^{}^{}^{}", self.family_name, self.given_name, self.middle_name, self.prefix, self.suffix)
+    }
+}
+
 impl PersonName {
     pub fn is_empty(&self) -> bool {
         self.family_name.is_empty()

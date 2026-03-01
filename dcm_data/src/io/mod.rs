@@ -85,6 +85,8 @@ pub enum DcmIOError {
     InvalidIsocenter(Vec<f64>),
     #[error("Expected VRs ({0:#?} <-> {0:#?}) to match")]
     InvalidVRMatch(dicom_core::VR, dicom_core::VR),
+    #[error("Invalid Person Name format: {0:#?}")]
+    InvalidPersonNameFormat(String),
     #[error("Invalid number of tag values: Expected {0}, got {1}")]
     InvalidNumberOfTagValues(usize, usize),
 }
