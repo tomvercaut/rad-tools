@@ -1,3 +1,6 @@
+use dicom_object::InMemDicomObject;
+use crate::{Value, DicomValue};
+
 crate::dicom_value_type!(DT, DT, String);
 crate::dicom_value_type!(DTs, DT, Vec<String>);
 crate::one_to_many_dicom_value_by_delim!(DT, DTs, '\\');
@@ -6,6 +9,11 @@ crate::from_dicom_object_for_strings!(DTs, DT, '\\');
 crate::dicom_value_from_str!(DT);
 crate::dicom_value_from_same_type!(DT, String);
 crate::dicom_value_from_same_type!(DTs, Vec<String>);
+crate::to_dicom_object_for_string!(DT, DT);
+crate::to_dicom_object_for_strings!(DTs, DT);
+
+impl<const G: u16, const E: u16> DicomValue<InMemDicomObject> for DT<G, E> {}
+impl<const G: u16, const E: u16> DicomValue<InMemDicomObject> for DTs<G, E> {}
 
 /// Supported DICOM DT (DateTime) format strings for parsing.
 /// Formats include:
