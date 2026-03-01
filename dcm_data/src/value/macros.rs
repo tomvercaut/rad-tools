@@ -182,6 +182,50 @@ macro_rules! from_dicom_object_for_number {
 }
 
 #[macro_export]
+macro_rules! to_dicom_object_for_number {
+    ($name: ident, $vr: ident, $value_type:ty, $pv: ident) => {
+        impl<const G: u16, const E: u16> $crate::value::WriteDicomValue<dicom_object::InMemDicomObject> for $name<G, E> {
+            fn write_value(&self,
+                backend: &mut dicom_object::InMemDicomObject,
+            ) -> Result<(), $crate::io::DcmIOError> {
+                let mut sv = dicom_core::smallvec::SmallVec::<[$value_type;2]>::new();
+                sv.push(self.value().clone());
+                let p = dicom_core::value::PrimitiveValue::$pv(sv);
+                let _ = backend.put(dicom_core::DataElement::new(
+                    self.tag(),
+                    self.vr(),
+                    p,
+                ));
+                Ok(())
+            }
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! to_dicom_object_for_numbers {
+    ($name: ident, $vr: ident, $value_type:ty, $pv: ident) => {
+        impl<const G: u16, const E: u16> $crate::value::WriteDicomValue<dicom_object::InMemDicomObject> for $name<G, E> {
+            fn write_value(&self,
+                backend: &mut dicom_object::InMemDicomObject,
+            ) -> Result<(), $crate::io::DcmIOError> {
+                let mut sv = dicom_core::smallvec::SmallVec::<[$value_type;2]>::new();
+                for v in self.value() {
+                    sv.push(v.clone());
+                }
+                let p = dicom_core::value::PrimitiveValue::$pv(sv);
+                let _ = backend.put(dicom_core::DataElement::new(
+                    self.tag(),
+                    self.vr(),
+                    p,
+                ));
+                Ok(())
+            }
+        }
+    }
+}
+
+#[macro_export]
 macro_rules! from_dicom_object_for_numbers {
     ($name: ident, $vr: ident, $fncall: ident) => {
         impl<const G: u16, const E: u16> $crate::value::ReadDicomValue<dicom_object::InMemDicomObject> for $name<G, E> {
