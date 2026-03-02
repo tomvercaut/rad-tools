@@ -9,6 +9,7 @@ members = [
     "dcm_ls",
     "dcm_sort",
     "dcm_value",
+    "dcm_value_macros",
     "mpc_checks_cleaner",
     "one_way_sync",
 ]
@@ -52,6 +53,8 @@ filetime = "0.2"
 regex = "1"
 assert_cmd = "2"
 num-traits = "0.2"
+syn = "2.0"
+quote = "1.0"
 
 log = "0.4"
 env_logger = "0.11"

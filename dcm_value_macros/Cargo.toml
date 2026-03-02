@@ -1,0 +1,12 @@
+[package]
+name = "rad-tools-dcm-value-macros"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+syn.workspace = true
+quote.workspace = true
+
+[lib]
+proc-macro = true
