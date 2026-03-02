@@ -46,6 +46,8 @@ mod value_sh;
 pub use value_sh::*;
 mod value_sl;
 pub use value_sl::*;
+mod value_sq;
+pub use value_sq::*;
 mod value_ss;
 pub use value_ss::*;
 mod value_sv;
