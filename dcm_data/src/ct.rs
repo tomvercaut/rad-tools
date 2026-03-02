@@ -1,8 +1,9 @@
 use crate::{
-    CodeItem, Modality, PatientPosition, PersonName, PhotometricInterpretation,
+    CodeItem, Modality, PatientPosition, PhotometricInterpretation,
     PixelRepresentation, RescaleType, RotationDirection, Sop,
 };
 use chrono::{NaiveDate, NaiveDateTime};
+use rad_tools_dcm_value::PersonName;
 
 #[derive(Clone, Debug, Default)]
 pub struct CT {

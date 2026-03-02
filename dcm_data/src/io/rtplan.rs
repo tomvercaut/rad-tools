@@ -6,7 +6,7 @@ use crate::io::{
 };
 use crate::{
     ApprovalStatus, Beam, BeamDoseType, BeamLimitingDevice, BeamLimitingDevicePosition, BeamType,
-    ControlPoint, FluenceMode, FractionGroup, PatientPosition, PatientSetup, PersonName,
+    ControlPoint, FluenceMode, FractionGroup, PatientPosition, PatientSetup,
     PrimaryDosimeterUnit, PrimaryFluenceMode, RTBeamLimitingDeviceType, RTPlan, RadiationType,
     ReferencedBeam, ReferencedBolus, ReferencedBrachyApplicationSetup, ReferencedDoseReference,
     Sop, TreatmentDeliveryType,
@@ -56,6 +56,7 @@ use dicom_dictionary_std::uids::RT_PLAN_STORAGE;
 use dicom_object::{DefaultDicomObject, InMemDicomObject};
 use std::path::Path;
 use std::str::FromStr;
+use rad_tools_dcm_value::PersonName;
 
 /// Reads an RT Plan from a file at the given path and returns an `RTPlan` object.
 ///

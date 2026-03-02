@@ -4,7 +4,7 @@ use crate::io::{
     to_int_opt, to_string, to_string_opt, DcmIOError,
 };
 use crate::{
-    DoseSummationType, DoseType, DoseUnit, PersonName, PhotometricInterpretation,
+    DoseSummationType, DoseType, DoseUnit, PhotometricInterpretation,
     PixelRepresentation, PlanOverview, PrescriptionOverview, RTDose, ReferencedControlPoint,
     ReferencedFractionGroup, ReferencedFractionGroupReferencedBeam, ReferencedRTPlan,
     ReferencedTreatmentRecord, ReferencedTreatmentRecordReferencedBeam, Sop,
@@ -36,6 +36,7 @@ use dicom_object::{DefaultDicomObject, InMemDicomObject};
 use dicom_pixeldata::PixelDecoder;
 use std::path::Path;
 use std::str::FromStr;
+use rad_tools_dcm_value::PersonName;
 
 /// Reads an RTDose DICOM file from the specified path and parses it into an `RTDose` structure.
 ///

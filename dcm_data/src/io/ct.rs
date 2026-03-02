@@ -4,7 +4,7 @@ use crate::io::{
     to_string, to_string_opt, to_strings, DcmIOError,
 };
 use crate::{
-    Modality, PatientPosition, PersonName, PhotometricInterpretation, PixelRepresentation,
+    Modality, PatientPosition, PhotometricInterpretation, PixelRepresentation,
     RescaleType, RotationDirection, CT,
 };
 use dicom_dictionary_std::tags::{
@@ -34,6 +34,7 @@ use dicom_dictionary_std::uids::CT_IMAGE_STORAGE;
 use dicom_pixeldata::PixelDecoder;
 use std::path::Path;
 use std::str::FromStr;
+use rad_tools_dcm_value::PersonName;
 
 /// Reads a CT image from a specified file path and returns a `CT` object containing the parsed DICOM attributes.
 ///

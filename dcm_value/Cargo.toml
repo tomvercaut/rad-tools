@@ -1,6 +1,6 @@
 [package]
-name = "rad-tools-dcm-data"
-description = "A library with data types that represent multiple DICOM objects."
+name = "rad-tools-dcm-value"
+description = "A library with data types that represent DICOM values."
 
 version.workspace = true
 edition.workspace = true
@@ -14,8 +14,6 @@ dicom-core.workspace = true
 dicom-object.workspace = true
 dicom-dictionary-std.workspace = true
 dicom-pixeldata.workspace = true
-num-traits.workspace = true
-rad-tools-dcm-value = { path = "../dcm_value" }
 
 [dev-dependencies]
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
