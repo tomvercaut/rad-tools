@@ -1,14 +1,14 @@
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use dicom_dictionary_std::uids::{RT_PLAN_STORAGE, RT_STRUCTURE_SET_STORAGE};
 use rad_tools_dcm_data::{
-    ApprovalStatus, BeamDoseType, BeamType, FluenceMode, PatientPosition, PersonName,
-    PrimaryDosimeterUnit, RTBeamLimitingDeviceType, RadiationType, RotationDirection,
-    TreatmentDeliveryType,
+    ApprovalStatus, BeamDoseType, BeamType, FluenceMode, PatientPosition, PrimaryDosimeterUnit,
+    RTBeamLimitingDeviceType, RadiationType, RotationDirection, TreatmentDeliveryType,
 };
+use rad_tools_dcm_value::PersonName;
 use std::path::Path;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt};
 
 fn init_logger() {
     tracing_subscriber::registry()

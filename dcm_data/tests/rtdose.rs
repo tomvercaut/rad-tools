@@ -1,12 +1,13 @@
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use rad_tools_dcm_data::{
-    DoseSummationType, DoseType, DoseUnit, PersonName, PhotometricInterpretation,
-    PixelRepresentation, TissueHeterogeneityCorrection,
+    DoseSummationType, DoseType, DoseUnit, PhotometricInterpretation, PixelRepresentation,
+    TissueHeterogeneityCorrection,
 };
+use rad_tools_dcm_value::PersonName;
 use std::path::Path;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt};
 
 fn init_logger() {
     tracing_subscriber::registry()

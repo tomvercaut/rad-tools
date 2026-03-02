@@ -1,11 +1,12 @@
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use dicom_dictionary_std::uids::{CT_IMAGE_STORAGE, RT_STRUCTURE_SET_STORAGE};
-use rad_tools_dcm_data::{ApprovalStatus, ContourGeometry, PersonName, Sop};
+use rad_tools_dcm_data::{ApprovalStatus, ContourGeometry, Sop};
+use rad_tools_dcm_value::PersonName;
 use std::default::Default;
 use std::path::Path;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt};
 
 fn init_logger() {
     tracing_subscriber::registry()

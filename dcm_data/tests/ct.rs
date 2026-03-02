@@ -1,14 +1,15 @@
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use dicom_dictionary_std::uids::CT_IMAGE_STORAGE;
 use rad_tools_dcm_data::{
-    Modality, PatientPosition, PersonName, PhotometricInterpretation, PixelRepresentation,
-    RescaleType, RotationDirection,
+    Modality, PatientPosition, PhotometricInterpretation, PixelRepresentation, RescaleType,
+    RotationDirection,
 };
+use rad_tools_dcm_value::PersonName;
 use std::path::Path;
 use tracing::debug;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt};
 
 fn init_logger() {
     tracing_subscriber::registry()
