@@ -53,7 +53,7 @@ filetime = "0.2"
 regex = "1"
 assert_cmd = "2"
 num-traits = "0.2"
-syn = "2.0"
+syn = { version = "2.0", features = ["derive"] }
 quote = "1.0"
 
 log = "0.4"
