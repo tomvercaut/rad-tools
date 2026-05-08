@@ -1,0 +1,15 @@
+[package]
+name = "rad-tools-dcm-json"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+dicom-object.workspace = true
+dicom-json.workspace = true
+
+[[bin]]
+name = "dcm2json"
+path = "src/bin/dcm_json.rs"

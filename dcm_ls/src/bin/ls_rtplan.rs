@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 
 use clap::Parser;
-use tracing::{debug, error, trace, warn, Level};
+use tracing::{debug, trace, warn, Level};
 use walkdir::WalkDir;
 
 use rad_tools_dcm_ls::io::read_dicom_file_partial_by_modalities;
