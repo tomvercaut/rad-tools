@@ -1,5 +1,5 @@
 [workspace]
-members = ["dcm_ls", "dcm_cp", "mpc_checks_cleaner", "one_way_sync", "dcm_file_sort", "dcm_sort", "common", "dcm_grep"]
+members = ["dcm_ls", "dcm_cp", "mpc_checks_cleaner", "one_way_sync", "dcm_file_sort", "dcm_sort", "common", "dcm_grep", "dcm_json"]
 resolver = "3"
 
 [workspace.package]
@@ -16,6 +16,7 @@ dicom-core = "0.9"
 dicom-object = "0.9"
 dicom-dictionary-std = "0.9"
 dicom-encoding = "0.9"
+dicom-json = "0.9"
 dicom-transfer-syntax-registry = "0.9"
 walkdir = "2"
 tracing = "0.1"
