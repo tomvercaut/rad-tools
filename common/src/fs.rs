@@ -140,7 +140,7 @@ impl<'a> UniquePathGenerator for DefaultUniquePathGenerator<'a> {
 }
 
 /// Compare two std::io::Read instances for binary equality using a buffered read approach.
-pub fn binary_eq(f1: &mut impl Read, f2: &mut impl Read) -> Result<bool, std::io::Error> {
+pub fn binary_eq(f1: &mut impl Read, f2: &mut impl Read) -> Result<bool, io::Error> {
     const BUF_SIZE: usize = 1024;
     let mut buf1 = [0u8; BUF_SIZE];
     let mut buf2 = [0u8; BUF_SIZE];
@@ -156,6 +156,28 @@ pub fn binary_eq(f1: &mut impl Read, f2: &mut impl Read) -> Result<bool, std::io
     }
 }
 
+/// Reads a file path from a buffered reader.
+///
+/// Reads a single line from the reader, trims any surrounding whitespace,
+/// and returns it as a [`PathBuf`].
+///
+/// # Arguments
+///
+/// * `reader` - Any type implementing [`BufRead`] to read input from.
+///
+/// # Returns
+///
+/// * `io::Result<PathBuf>` - A [`PathBuf`] containing the path read from the reader.
+///
+/// # Errors
+///
+/// Returns an [`io::Error`] if reading from the reader fails.
+pub fn read_path_from_reader<R: BufRead>(mut reader: R) -> io::Result<PathBuf> {
+    let mut line = String::new();
+    reader.read_line(&mut line)?;
+    Ok(PathBuf::from(line.trim()))
+}
+
 /// Reads a file path from standard input.
 ///
 /// Reads a single line from standard input, trims any surrounding whitespace,
@@ -169,10 +191,7 @@ pub fn binary_eq(f1: &mut impl Read, f2: &mut impl Read) -> Result<bool, std::io
 ///
 /// Returns an [`io::Error`] if reading from standard input fails.
 pub fn read_path_from_stdin() -> io::Result<PathBuf> {
-    let stdin = io::stdin();
-    let mut line = String::new();
-    stdin.lock().read_line(&mut line)?;
-    Ok(PathBuf::from(line.trim()))
+    read_path_from_reader(io::stdin().lock())
 }
 
 #[cfg(test)]
@@ -182,8 +201,8 @@ mod tests {
 
     fn generate_test_data() -> [u8; 4096] {
         let mut a = [0u8; 4096];
-        for i in 0..4096 {
-            a[i] = (i % u8::MAX as usize) as u8;
+        for (i, x) in a.iter_mut().enumerate() {
+            *x = (i % u8::MAX as usize) as u8;
         }
         a
     }
@@ -233,5 +252,37 @@ mod tests {
         let mut c1 = Cursor::new(d1);
         let mut c2 = Cursor::new(&d2[0..4095]);
         assert!(!binary_eq(&mut c1, &mut c2).unwrap());
+    }
+
+    #[test]
+    fn test_read_path_from_reader() {
+        let input = "path/to/file.dcm\n";
+        let reader = Cursor::new(input);
+        let path = read_path_from_reader(reader).unwrap();
+        assert_eq!(path, PathBuf::from("path/to/file.dcm"));
+    }
+
+    #[test]
+    fn test_read_path_from_reader_with_whitespace() {
+        let input = "   \t /path/to/file.dcm   \r\n";
+        let reader = Cursor::new(input);
+        let path = read_path_from_reader(reader).unwrap();
+        assert_eq!(path, PathBuf::from("/path/to/file.dcm"));
+    }
+
+    #[test]
+    fn test_read_path_from_reader_empty() {
+        let input = "\n";
+        let reader = Cursor::new(input);
+        let path = read_path_from_reader(reader).unwrap();
+        assert_eq!(path, PathBuf::from(""));
+    }
+
+    #[test]
+    fn test_read_path_from_reader_windows_path() {
+        let input = "C:\\images\\scan.dcm\r\n";
+        let reader = Cursor::new(input);
+        let path = read_path_from_reader(reader).unwrap();
+        assert_eq!(path, PathBuf::from("C:\\images\\scan.dcm"));
     }
 }

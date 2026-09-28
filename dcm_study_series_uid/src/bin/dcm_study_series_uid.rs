@@ -15,9 +15,12 @@ struct Cli {
     input: Option<PathBuf>,
 }
 
+/// DICOM study and series instance UIDs.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 struct InstanceUids {
+    /// Study instance UID.
     study: String,
+    /// Series instance UID.
     series: String,
 }
 
