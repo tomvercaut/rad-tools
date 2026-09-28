@@ -1,8 +1,9 @@
 use clap::Parser;
 use dicom_dictionary_std::StandardDataDictionary;
+use rad_tools_common::fs::read_path_from_stdin;
 use rad_tools_dcm_grep::fmt::{FmtType, ToDictFmtStr};
 use rad_tools_dcm_grep::{element_value_to_string, grep, grep_meta};
-use std::io::{self, BufRead};
+use std::path::PathBuf;
 
 /// Extract the values of one or more (nested) DICOM tags.
 ///
@@ -12,7 +13,7 @@ use std::io::{self, BufRead};
 struct Args {
     /// Filename to a DICOM file, if not specified, the filename will read from standard input.
     #[clap(short, long, value_name = "FILE")]
-    input: Option<String>,
+    input: Option<PathBuf>,
 
     #[allow(rustdoc::invalid_html_tags)]
     /// Use a pattern to select the DICOM elements to extract.
@@ -53,7 +54,7 @@ struct Args {
     ///
     /// - (3006,0010)\[1\]/(0020,0052): selects the Frame Of Reference UID in the second Referenced Frame Of Reference Sequence item.
     ///
-    /// Importantly, while matching DICOM meta elements, selectors and nested patterns should not be used as this will result in an error!
+    /// Importantly, while matching DICOM meta-elements, selectors and nested patterns should not be used as this will result in an error!
     #[clap(short = 'e', value_name = "PATTERN")]
     patterns: Vec<String>,
 
@@ -69,7 +70,7 @@ struct Args {
     #[arg(long, default_value_t = false)]
     show_tag: bool,
 
-    /// Enable logging at INFO level.
+    /// Enable logging at the INFO level.
     #[arg(long, default_value_t = false)]
     verbose: bool,
 
@@ -77,16 +78,9 @@ struct Args {
     #[arg(long, default_value_t = false)]
     debug: bool,
 
-    /// Enable logging at TRACE level.
+    /// Enable logging at the TRACE level.
     #[arg(long, default_value_t = false)]
     trace: bool,
-}
-
-fn read_filename_from_stdin() -> io::Result<String> {
-    let stdin = io::stdin();
-    let mut line = String::new();
-    stdin.lock().read_line(&mut line)?;
-    Ok(line.trim().to_string())
 }
 
 fn main() {
@@ -99,7 +93,7 @@ fn main() {
         .init();
 
     let filename = args.input.unwrap_or_else(|| {
-        read_filename_from_stdin().expect("Failed to read the filename from standard input.")
+        read_path_from_stdin().expect("Failed to read the filename from standard input.")
     });
     let obj = rad_tools_common::dicom::open_file(filename).expect("Failed to open the file.");
 
