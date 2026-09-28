@@ -1,9 +1,10 @@
 use clap::Parser;
 use dicom_object::{InMemDicomObject, Tag};
 use rad_tools_common::dicom::open_file_until;
+use rad_tools_common::fs::read_path_from_stdin;
 use serde::{Deserialize, Serialize};
-use std::io::BufRead;
 use std::io::{self, Write};
+use std::path::PathBuf;
 
 /// A command line interface (CLI) application to extract the study and serie instance UID from a DICOM file.
 #[derive(Parser, Debug)]
@@ -11,14 +12,7 @@ use std::io::{self, Write};
 struct Cli {
     /// Filename to a DICOM file, if not specified, the filename will read from standard input.
     #[arg(value_name = "FILE")]
-    input: Option<String>,
-}
-
-fn read_filename_from_stdin() -> io::Result<String> {
-    let stdin = io::stdin();
-    let mut line = String::new();
-    stdin.lock().read_line(&mut line)?;
-    Ok(line.trim().to_string())
+    input: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -50,7 +44,7 @@ impl TryFrom<&InMemDicomObject> for InstanceUids {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let filename = cli.input.unwrap_or_else(|| {
-        read_filename_from_stdin().expect("Failed to read the filename from standard input.")
+        read_path_from_stdin().expect("Failed to read the filename from standard input.")
     });
     let obj = open_file_until(&filename, Tag(0x0020, 0x0011))?;
     let instance_uids = InstanceUids::try_from(&obj.into_inner())?;

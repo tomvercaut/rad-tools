@@ -1,5 +1,6 @@
 use std::ffi::{OsStr, OsString};
-use std::io::Read;
+use std::io;
+use std::io::{BufRead, Read};
 use std::path::PathBuf;
 
 /// Trait for types that can provide a unique file path.
@@ -155,10 +156,29 @@ pub fn binary_eq(f1: &mut impl Read, f2: &mut impl Read) -> Result<bool, std::io
     }
 }
 
+/// Reads a file path from standard input.
+///
+/// Reads a single line from standard input, trims any surrounding whitespace,
+/// and returns it as a [`PathBuf`].
+///
+/// # Returns
+///
+/// * `io::Result<PathBuf>` - A [`PathBuf`] containing the path read from standard input.
+///
+/// # Errors
+///
+/// Returns an [`io::Error`] if reading from standard input fails.
+pub fn read_path_from_stdin() -> io::Result<PathBuf> {
+    let stdin = io::stdin();
+    let mut line = String::new();
+    stdin.lock().read_line(&mut line)?;
+    Ok(PathBuf::from(line.trim()))
+}
+
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use super::*;
+    use std::io::Cursor;
 
     fn generate_test_data() -> [u8; 4096] {
         let mut a = [0u8; 4096];
