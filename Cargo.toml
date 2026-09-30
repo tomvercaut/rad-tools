@@ -9,7 +9,7 @@ members = [
   "common",
   "dcm_grep",
   "dcm_json",
-  "dcm_study_series_uid",
+  "dcm_study_series_uid", "dosecheck_pdf_mv",
 ]
 resolver = "3"
 
