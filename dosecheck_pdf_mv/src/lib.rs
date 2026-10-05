@@ -1,62 +1,38 @@
-use clap::Parser;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tracing::debug;
-use tracing_subscriber::EnvFilter;
 
-/// Move dosecheck PDFs from one directory to another.
-///
-#[derive(Parser, Debug, Clone)]
-#[command(version)]
-struct Args {
-    #[arg(short, long, value_name = "INPUT_DIR", help = "Input directory")]
-    input: PathBuf,
-    #[arg(short, long, value_name = "OUTPUT_DIR", help = "Output directory")]
-    output: PathBuf,
-    #[arg(
-        short,
-        long,
-        value_name = "MILLISECONDS",
-        help = "Watch for changes in the input directory (watch interval in milliseconds)."
-    )]
-    watch: Option<u64>,
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("I/O error: {0}")]
+    IO(#[from] std::io::Error),
 }
 
-fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .with_ansi(true)
-        .with_target(true)
-        .with_file(true)
-        .with_line_number(true)
-        .init();
+pub type Result<T> = std::result::Result<T, Error>;
 
-    let args = Args::parse();
+pub fn mv_dosecheck_pdfs_watch<P1, P2>(
+    input: P1,
+    output: P2,
+    interval_ms: Option<u64>,
+) -> Result<()>
+where
+    P1: AsRef<Path>,
+    P2: AsRef<Path>,
+{
+    let input = input.as_ref();
+    let output = output.as_ref();
 
-    if !args.input.is_dir() {
-        anyhow::bail!("Input directory does not exist");
-    }
-    if !args.output.is_dir() {
-        anyhow::bail!("Output directory does not exist");
-    }
+    debug!("Moving dosecheck PDFs from {:#?} to {:#?}", input, output);
 
-    debug!(
-        "Moving dosecheck PDFs from {:#?} to {:#?}",
-        &args.input, &args.output
-    );
-    match args.watch {
-        None => {
-            mv_dosecheck_pdfs(&args.input, &args.output)?;
-        }
+    match interval_ms {
+        None => mv_dosecheck_pdfs(input, output),
         Some(millisec) => {
             let dur = std::time::Duration::from_millis(millisec);
             loop {
-                mv_dosecheck_pdfs(&args.input, &args.output)?;
+                mv_dosecheck_pdfs(input, output)?;
                 std::thread::sleep(dur);
             }
         }
     }
-
-    Ok(())
 }
 
 /// Moves DoseCHECK PDF files from the input directory to the output directory.
@@ -72,9 +48,9 @@ fn main() -> anyhow::Result<()> {
 ///
 /// # Errors
 ///
-/// Returns an [`anyhow::Error`] if reading the input directory fails, reading entry metadata
+/// Returns an [`Error`] if reading the input directory fails, reading entry metadata
 /// fails, or moving any file fails (e.g. due to permission issues).
-fn mv_dosecheck_pdfs<P1, P2>(input: P1, output: P2) -> anyhow::Result<()>
+pub fn mv_dosecheck_pdfs<P1, P2>(input: P1, output: P2) -> Result<()>
 where
     P1: AsRef<Path>,
     P2: AsRef<Path>,
@@ -97,7 +73,7 @@ where
             continue;
         }
         let output_path = output.join(filename);
-        // Copying the file instead of moving it, should prevent problems with cross-device moves.
+        // Copying the file instead of moving it, this should prevent problems with cross-device moves.
         debug!("Copying file: {:?} to {:?}", path, output_path);
         std::fs::copy(&path, output_path)?;
         debug!("Removing file: {:?}", path);
@@ -113,7 +89,7 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn test_mv_dosecheck_pdfs_basic() -> anyhow::Result<()> {
+    fn test_mv_dosecheck_pdfs_basic() -> Result<()> {
         let input_dir = tempdir()?;
         let output_dir = tempdir()?;
 
@@ -137,7 +113,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mv_dosecheck_pdfs_filters_and_mixed() -> anyhow::Result<()> {
+    fn test_mv_dosecheck_pdfs_filters_and_mixed() -> Result<()> {
         let input_dir = tempdir()?;
         let output_dir = tempdir()?;
 
@@ -190,7 +166,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mv_dosecheck_pdfs_empty_input_directory() -> anyhow::Result<()> {
+    fn test_mv_dosecheck_pdfs_empty_input_directory() -> Result<()> {
         let input_dir = tempdir()?;
         let output_dir = tempdir()?;
 
@@ -211,7 +187,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mv_dosecheck_pdfs_nonexistent_output_fails_when_copying() -> anyhow::Result<()> {
+    fn test_mv_dosecheck_pdfs_nonexistent_output_fails_when_copying() -> Result<()> {
         let input_dir = tempdir()?;
         let output_dir = tempdir()?;
         let nonexistent_output = output_dir.path().join("nonexistent_subfolder");
