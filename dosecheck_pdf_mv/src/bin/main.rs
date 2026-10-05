@@ -7,6 +7,9 @@
     windows_subsystem = "windows"
 )]
 
+#[path = "shared/args.rs"]
+mod args;
+
 use clap::Parser;
 use rad_tools_dosecheck_pdf_mv::mv_dosecheck_pdfs_watch;
 use tracing_subscriber::EnvFilter;
@@ -24,7 +27,7 @@ fn init_tracing() {
 fn main() -> anyhow::Result<()> {
     init_tracing();
 
-    let args = rad_tools_dosecheck_pdf_mv::Args::parse();
+    let args = args::Args::parse();
     args.validate()?;
     mv_dosecheck_pdfs_watch(&args.input, &args.output, args.watch)?;
     Ok(())

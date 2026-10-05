@@ -1,55 +1,13 @@
-use clap::Parser;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tracing::debug;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("Input directory does not exist")]
-    InputDirNotExist,
-    #[error("Output directory does not exist")]
-    OutputDirNotExist,
-    #[error("Watch interval must be a positive integer")]
-    InvalidWatchInterval,
     #[error("I/O error: {0}")]
     IO(#[from] std::io::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
-
-/// Move dosecheck PDFs from one directory to another.
-///
-#[derive(Parser, Debug, Clone)]
-#[command(version)]
-pub struct Args {
-    #[arg(short, long, value_name = "INPUT_DIR", help = "Input directory")]
-    pub input: PathBuf,
-    #[arg(short, long, value_name = "OUTPUT_DIR", help = "Output directory")]
-    pub output: PathBuf,
-    #[arg(
-        short,
-        long,
-        value_name = "MILLISECONDS",
-        help = "Watch for changes in the input directory (watch interval in milliseconds)."
-    )]
-    pub watch: Option<u64>,
-}
-
-impl Args {
-    pub fn validate(&self) -> Result<()> {
-        if !self.input.is_dir() {
-            return Err(Error::InputDirNotExist);
-        }
-        if !self.output.is_dir() {
-            return Err(Error::OutputDirNotExist);
-        }
-        if let Some(interval) = self.watch
-            && interval == 0
-        {
-            return Err(Error::InvalidWatchInterval);
-        }
-        Ok(())
-    }
-}
 
 pub fn mv_dosecheck_pdfs_watch<P1, P2>(
     input: P1,
