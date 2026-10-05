@@ -10,7 +10,7 @@ thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 clap.workspace = true
-tracing-appender = {version = "0.2", optional = true}
+tracing-appender = {version = "0.2"}
 
 [dev-dependencies]
 tempfile.workspace = true
@@ -25,4 +25,3 @@ path = "src/bin/main_daemon.rs"
 
 [features]
 default = []
-WindowsDaemon = ["dep:tracing-appender"]

@@ -48,7 +48,7 @@ where
 ///
 /// # Errors
 ///
-/// Returns an [`anyhow::Error`] if reading the input directory fails, reading entry metadata
+/// Returns an [`Error`] if reading the input directory fails, reading entry metadata
 /// fails, or moving any file fails (e.g. due to permission issues).
 pub fn mv_dosecheck_pdfs<P1, P2>(input: P1, output: P2) -> Result<()>
 where
@@ -89,7 +89,7 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn test_mv_dosecheck_pdfs_basic() -> anyhow::Result<()> {
+    fn test_mv_dosecheck_pdfs_basic() -> Result<()> {
         let input_dir = tempdir()?;
         let output_dir = tempdir()?;
 
@@ -113,7 +113,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mv_dosecheck_pdfs_filters_and_mixed() -> anyhow::Result<()> {
+    fn test_mv_dosecheck_pdfs_filters_and_mixed() -> Result<()> {
         let input_dir = tempdir()?;
         let output_dir = tempdir()?;
 
@@ -166,7 +166,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mv_dosecheck_pdfs_empty_input_directory() -> anyhow::Result<()> {
+    fn test_mv_dosecheck_pdfs_empty_input_directory() -> Result<()> {
         let input_dir = tempdir()?;
         let output_dir = tempdir()?;
 
@@ -187,7 +187,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mv_dosecheck_pdfs_nonexistent_output_fails_when_copying() -> anyhow::Result<()> {
+    fn test_mv_dosecheck_pdfs_nonexistent_output_fails_when_copying() -> Result<()> {
         let input_dir = tempdir()?;
         let output_dir = tempdir()?;
         let nonexistent_output = output_dir.path().join("nonexistent_subfolder");

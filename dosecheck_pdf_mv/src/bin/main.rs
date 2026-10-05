@@ -1,12 +1,3 @@
-#![cfg_attr(
-    all(
-        feature = "WindowsDaemon",
-        target_os = "windows",
-        not(debug_assertions)
-    ),
-    windows_subsystem = "windows"
-)]
-
 #[path = "shared/args.rs"]
 mod args;
 
