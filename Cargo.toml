@@ -32,6 +32,7 @@ dicom-transfer-syntax-registry = "0.9"
 walkdir = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["std", "env-filter"] }
+tracing-appender = { version = "0.2" }
 comfy-table = "7"
 rayon = "1"
 chrono = { version = "0.4", features = ["serde"] }

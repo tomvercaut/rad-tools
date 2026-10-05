@@ -1,62 +1,80 @@
 use clap::Parser;
 use std::path::{Path, PathBuf};
 use tracing::debug;
-use tracing_subscriber::EnvFilter;
+
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("Input directory does not exist")]
+    InputDirNotExist,
+    #[error("Output directory does not exist")]
+    OutputDirNotExist,
+    #[error("Watch interval must be a positive integer")]
+    InvalidWatchInterval,
+    #[error("I/O error: {0}")]
+    IO(#[from] std::io::Error),
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// Move dosecheck PDFs from one directory to another.
 ///
 #[derive(Parser, Debug, Clone)]
 #[command(version)]
-struct Args {
+pub struct Args {
     #[arg(short, long, value_name = "INPUT_DIR", help = "Input directory")]
-    input: PathBuf,
+    pub input: PathBuf,
     #[arg(short, long, value_name = "OUTPUT_DIR", help = "Output directory")]
-    output: PathBuf,
+    pub output: PathBuf,
     #[arg(
         short,
         long,
         value_name = "MILLISECONDS",
         help = "Watch for changes in the input directory (watch interval in milliseconds)."
     )]
-    watch: Option<u64>,
+    pub watch: Option<u64>,
 }
 
-fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .with_ansi(true)
-        .with_target(true)
-        .with_file(true)
-        .with_line_number(true)
-        .init();
-
-    let args = Args::parse();
-
-    if !args.input.is_dir() {
-        anyhow::bail!("Input directory does not exist");
-    }
-    if !args.output.is_dir() {
-        anyhow::bail!("Output directory does not exist");
-    }
-
-    debug!(
-        "Moving dosecheck PDFs from {:#?} to {:#?}",
-        &args.input, &args.output
-    );
-    match args.watch {
-        None => {
-            mv_dosecheck_pdfs(&args.input, &args.output)?;
+impl Args {
+    pub fn validate(&self) -> Result<()> {
+        if !self.input.is_dir() {
+            return Err(Error::InputDirNotExist);
         }
+        if !self.output.is_dir() {
+            return Err(Error::OutputDirNotExist);
+        }
+        if let Some(interval) = self.watch
+            && interval == 0
+        {
+            return Err(Error::InvalidWatchInterval);
+        }
+        Ok(())
+    }
+}
+
+pub fn mv_dosecheck_pdfs_watch<P1, P2>(
+    input: P1,
+    output: P2,
+    interval_ms: Option<u64>,
+) -> Result<()>
+where
+    P1: AsRef<Path>,
+    P2: AsRef<Path>,
+{
+    let input = input.as_ref();
+    let output = output.as_ref();
+
+    debug!("Moving dosecheck PDFs from {:#?} to {:#?}", input, output);
+
+    match interval_ms {
+        None => mv_dosecheck_pdfs(input, output),
         Some(millisec) => {
             let dur = std::time::Duration::from_millis(millisec);
             loop {
-                mv_dosecheck_pdfs(&args.input, &args.output)?;
+                mv_dosecheck_pdfs(input, output)?;
                 std::thread::sleep(dur);
             }
         }
     }
-
-    Ok(())
 }
 
 /// Moves DoseCHECK PDF files from the input directory to the output directory.
@@ -74,7 +92,7 @@ fn main() -> anyhow::Result<()> {
 ///
 /// Returns an [`anyhow::Error`] if reading the input directory fails, reading entry metadata
 /// fails, or moving any file fails (e.g. due to permission issues).
-fn mv_dosecheck_pdfs<P1, P2>(input: P1, output: P2) -> anyhow::Result<()>
+pub fn mv_dosecheck_pdfs<P1, P2>(input: P1, output: P2) -> Result<()>
 where
     P1: AsRef<Path>,
     P2: AsRef<Path>,
@@ -97,7 +115,7 @@ where
             continue;
         }
         let output_path = output.join(filename);
-        // Copying the file instead of moving it, should prevent problems with cross-device moves.
+        // Copying the file instead of moving it, this should prevent problems with cross-device moves.
         debug!("Copying file: {:?} to {:?}", path, output_path);
         std::fs::copy(&path, output_path)?;
         debug!("Removing file: {:?}", path);
