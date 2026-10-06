@@ -1,5 +1,5 @@
 [package]
-name = "rad-tools-cp_dcm"
+name = "rad-tools-dcm-cp"
 description = " A command line interface (CLI) application to copy DICOM files based on the patient ID."
 
 version.workspace = true
@@ -21,6 +21,7 @@ tracing-subscriber.workspace = true
 pathdiff.workspace = true
 log.workspace = true
 env_logger.workspace = true
+rad-tools-core = { path = "../core" }
 
 [[bin]]
 name = "dcm_cp"

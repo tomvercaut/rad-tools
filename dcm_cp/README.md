@@ -7,18 +7,23 @@ A tool to copy DICOM data from one directory to another using the patient ID.
 ## Build
 
 ```shell
-cargo build --release
+cargo build --release -p rad-tools-dcm-cp
 ```
+
+## Install
+
+```shell
+cargo install --path dcm_cp
+````
 
 ## Usage
 
 ```shell
 dcm_cp --help
-
 A command line interface (CLI) application to copy DICOM files by patient ID.
 
 
-Usage: dcm_cp.exe [OPTIONS] --patient-id <PATIENT_ID> <SOURCE>... <DST>
+Usage: dcm_cp --patient-id <PATIENT_ID> <SOURCE>... <DST>
 
 Arguments:
   <SOURCE>...
@@ -30,15 +35,6 @@ Arguments:
 Options:
   -p, --patient-id <PATIENT_ID>
           Patient ID (unique patient identifier)
-
-  -v, --verbose
-          Enable logging at INFO level
-
-      --debug
-          Enable logging at DEBUG level
-
-      --trace
-          Enable logging at TRACE level
 
   -h, --help
           Print help (see a summary with '-h')

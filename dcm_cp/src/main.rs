@@ -1,9 +1,9 @@
 use clap::Parser;
 use dicom_object::ReadError;
 use log::{error, warn};
-use rad_tools_cp_dcm::{dcm_cp_files, DcmcpError};
+use rad_tools_dcm_cp::{dcm_cp_files, DcmcpError};
 use std::io::ErrorKind;
-use tracing::{trace, Level};
+use tracing::{trace};
 
 #[derive(Parser, Debug, Clone)]
 #[command(
@@ -24,33 +24,11 @@ pub struct Cli {
     /// Patient ID (unique patient identifier)
     #[arg(short, long, value_name = "PATIENT_ID")]
     patient_id: String,
-    /// Enable logging at INFO level.
-    #[arg(short, long, default_value_t = false)]
-    pub verbose: bool,
-    /// Enable logging at DEBUG level.
-    #[arg(long, default_value_t = false)]
-    pub debug: bool,
-    /// Enable logging at TRACE level.
-    #[arg(long, default_value_t = false)]
-    pub trace: bool,
 }
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    let level = if cli.trace {
-        Level::TRACE
-    } else if cli.debug {
-        Level::DEBUG
-    } else if cli.verbose {
-        Level::INFO
-    } else {
-        Level::WARN
-    };
-    tracing_subscriber::fmt()
-        .with_thread_ids(true)
-        .with_target(true)
-        .with_max_level(level)
-        .init();
+   rad_tools_core::tracing::default_env_subscriber().init();
 
     trace!("Commandline arguments: {:#?}", &cli);
 
