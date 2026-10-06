@@ -1,12 +1,12 @@
-use rad_tools_dcm_ls::model::{DicomFile, Modality};
 use rad_tools_dcm_ls::DicomError;
+use rad_tools_dcm_ls::model::{DicomFile, Modality};
 use rayon::prelude::*;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
 use clap::Parser;
-use tracing::{debug, trace, warn, Level};
+use tracing::{Level, debug, trace, warn};
 use walkdir::WalkDir;
 
 use rad_tools_dcm_ls::io::read_dicom_file_partial_by_modalities;
@@ -16,7 +16,7 @@ use rad_tools_dcm_ls::view;
 ///
 /// Application enables the user to specify the directory from which the DICOM files are read,
 /// as well as additional options such as filtering by filename prefixes, limiting the number of displayed results,
-/// sorting the files by last modified timestamp, and enabling logging at different levels.
+/// sorting the files by the last modified timestamp, and enabling logging at different levels.
 #[derive(Parser, Debug, Clone)]
 #[command(
     author,
@@ -27,7 +27,7 @@ A command line interface (CLI) application for reading and listing RTPLAN DICOM 
 
 Application enables the user to specify the directory from which the DICOM files are read,
 as well as additional options such as filtering by filename prefixes, limiting the number of displayed results,
-sorting the files by last modified timestamp, and enabling logging at different levels.
+sorting the files by the last modified timestamp, and enabling logging at different levels.
 "
 )]
 struct Cli {
@@ -35,14 +35,14 @@ struct Cli {
     /// If unspecified, the current directory (".") is analysed.
     #[arg(short, long, value_name = "DIR")]
     dir: Option<String>,
-    /// If specified, only filenames starting with a matching prefix, will be read.
+    /// If specified, only filenames starting with a matching prefix will be read.
     /// Specifying this will increase the performance of the application.
     #[arg(short, long)]
     prefixes: Vec<String>,
     /// Limit the number of displayed results.
     #[arg(short, long)]
     limit: Option<usize>,
-    /// Sort the reported data by last modified timestamp of the file.
+    /// Sort the reported data by the last modified timestamp of the file.
     #[arg(short, long, default_value_t = false)]
     sort: bool,
     /// Enable logging at DEBUG level.
@@ -94,7 +94,7 @@ fn main() {
         if !entry.path().is_file() {
             return false;
         }
-        return if !prefixes.is_empty() {
+        if !prefixes.is_empty() {
             entry
                 .file_name()
                 .to_str()
@@ -102,7 +102,7 @@ fn main() {
                 .unwrap_or(false)
         } else {
             true
-        };
+        }
     };
     let modalities = vec![Modality::RtPlan];
 
@@ -125,7 +125,7 @@ fn main() {
 
     if cli.sort {
         trace!("Sorting DICOM data by last modified timestamp (reversed).");
-        dataset.sort_by(|a, b| a.modified_time.cmp(&b.modified_time));
+        dataset.sort_by_key(|a| a.modified_time);
         dataset.reverse();
     }
 

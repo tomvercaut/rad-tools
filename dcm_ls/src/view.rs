@@ -1,6 +1,5 @@
-use comfy_table::{modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL, Table};
-
 use crate::model::{DicomFile, SopClass};
+use comfy_table::{Table, presets::UTF8_FULL};
 use tracing::trace;
 
 /// Represents a view model item that contains information about a DICOM file.
@@ -48,9 +47,10 @@ pub fn build_view(items: &[ViewModelItem]) -> Table {
     trace!("Building tabluar view.");
     let hdr = ["Patient ID", "Patient Name", "Plan Name", "Plan Label"];
 
+    let style = UTF8_FULL.with_rounded_corners();
+
     let mut table = Table::new();
-    table.load_preset(UTF8_FULL);
-    table.apply_modifier(UTF8_ROUND_CORNERS);
+    table.load_style(style);
     table.set_header(hdr);
     for item in items {
         table.add_row([
