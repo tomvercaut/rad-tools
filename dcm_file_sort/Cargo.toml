@@ -22,7 +22,6 @@ filetime.workspace = true
 chrono.workspace = true
 assert_cmd.workspace = true
 rad-tools-core = { path = "../core" }
-rad-tools-common = {path = "../common"}
 
 [dev-dependencies]
 tempfile.workspace = true

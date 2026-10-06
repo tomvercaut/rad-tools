@@ -3,7 +3,7 @@ use rad_tools_dcm_file_sort::Config;
 use std::io::Write;
 use std::path::PathBuf;
 
-use rad_tools_core::cli::in_out::{ask_question, ask_question_with_default};
+use rad_tools_core::cli::std_in_out::{ask_question, ask_question_with_default};
 
 /// A command line interface (CLI) application to generate a configuration file used by dcm_file_sort.
 #[derive(Parser, Debug, Clone)]

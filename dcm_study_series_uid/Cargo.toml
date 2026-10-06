@@ -11,7 +11,7 @@ dicom-core.workspace = true
 dicom-object.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-rad-tools-common = { path = "../common" }
+rad-tools-core = { path = "../core" }
 
 [[bin]]
 name = "dcm_study_series_uid"

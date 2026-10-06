@@ -161,7 +161,7 @@ pub fn ask_question_with_options_opt<R: BufRead, W: Write, S: AsRef<str>>(
     None
 }
 
-pub mod in_out {
+pub mod std_in_out {
     use std::io::{stdin, stdout};
 
     pub fn ask_question<S: AsRef<str>>(question: S) -> String {

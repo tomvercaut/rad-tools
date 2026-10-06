@@ -1,7 +1,7 @@
 use clap::Parser;
 use dicom_object::{InMemDicomObject, Tag};
-use rad_tools_common::dicom::open_file_until;
-use rad_tools_common::fs::read_path_from_stdin;
+use rad_tools_core::dicom::open_file_until;
+use rad_tools_core::fs::read_path_from_stdin;
 use serde::{Deserialize, Serialize};
 use std::io::{self, Write};
 use std::path::PathBuf;

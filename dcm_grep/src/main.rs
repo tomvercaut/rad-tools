@@ -1,6 +1,6 @@
 use clap::Parser;
 use dicom_dictionary_std::StandardDataDictionary;
-use rad_tools_common::fs::read_path_from_stdin;
+use rad_tools_core::fs::read_path_from_stdin;
 use rad_tools_dcm_grep::fmt::{FmtType, ToDictFmtStr};
 use rad_tools_dcm_grep::{element_value_to_string, grep, grep_meta};
 use std::path::PathBuf;
@@ -85,7 +85,7 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let level = rad_tools_common::get_log_level!(args);
+    let level = rad_tools_core::get_log_level!(args);
     tracing_subscriber::fmt()
         .with_thread_ids(true)
         .with_target(true)
@@ -95,7 +95,7 @@ fn main() {
     let filename = args.input.unwrap_or_else(|| {
         read_path_from_stdin().expect("Failed to read the filename from standard input.")
     });
-    let obj = rad_tools_common::dicom::open_file(filename).expect("Failed to open the file.");
+    let obj = rad_tools_core::dicom::open_file(filename).expect("Failed to open the file.");
 
     let mut meta_results = vec![];
     for pattern in &args.patterns {
