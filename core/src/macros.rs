@@ -22,7 +22,7 @@
 /// # Example
 ///
 /// ```
-/// use rad_tools_common::get_log_level;
+/// use rad_tools_core::get_log_level;
 ///
 /// struct Cli {
 ///     verbose: bool,

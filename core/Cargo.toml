@@ -5,3 +5,8 @@ description = "Core and shared functionality in the rad-tools project."
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
+
+[dependencies]
+tracing.workspace = true
+thiserror.workspace = true
+dicom-object.workspace = true

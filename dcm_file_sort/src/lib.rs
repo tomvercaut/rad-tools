@@ -13,9 +13,7 @@ use dicom_core::chrono::Datelike;
 use dicom_core::chrono::NaiveDate;
 use dicom_object::{ReadError, open_file};
 use filetime::FileTime;
-use rad_tools_common::fs::{
-    DefaultUniquePathError, DefaultUniquePathGenerator, UniquePathGenerator,
-};
+use rad_tools_core::fs::{DefaultUniquePathError, DefaultUniquePathGenerator, UniquePathGenerator};
 use serde::{Deserialize, Serialize};
 use std::ffi::{OsStr, OsString};
 use std::io::ErrorKind;
@@ -125,7 +123,7 @@ impl CopiedData {
     pub fn binary_eq(&self) -> Result<VerifiedCopiedData> {
         let mut f1 = std::fs::File::open(&self.input)?;
         let mut f2 = std::fs::File::open(&self.output)?;
-        let equal = rad_tools_common::fs::binary_eq(&mut f1, &mut f2)?;
+        let equal = rad_tools_core::fs::binary_eq(&mut f1, &mut f2)?;
         if equal {
             Ok(VerifiedCopiedData {
                 input: self.input.clone(),

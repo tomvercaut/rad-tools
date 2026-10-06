@@ -36,9 +36,9 @@ pub enum DefaultUniquePathError {
 /// use std::fs::File;
 /// use std::io::Write;
 /// use std::path::PathBuf;
-/// use rad_tools_common::fs::{DefaultUniquePathError, DefaultUniquePathGenerator, UniquePathGenerator};
+/// use rad_tools_core::fs::{DefaultUniquePathError, DefaultUniquePathGenerator, UniquePathGenerator};
 ///
-///let path = std::env::temp_dir().join("rad-tools-common");
+///let path = std::env::temp_dir().join("rad-tools-core");
 ///        if path.exists() {
 ///            std::fs::remove_dir_all(&path).unwrap();
 ///        }

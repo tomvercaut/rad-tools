@@ -1,10 +1,10 @@
-# rad-tools-common
+# rad-tools-core
 
-A shared library providing common functionality for the rad-tools suite of DICOM utilities.
+A shared library providing core functionality for the rad-tools suite.
 
 ## Overview
 
-The rad-tools-common library serves as a foundation for various tools in the rad-tools workspace. It
+The `rad-tools-core` library serves as a foundation for various tools in the rad-tools workspace. It
 provides reusable components and utilities.
 
 ## Features
@@ -19,6 +19,11 @@ The library includes utilities for:
 
 ### Macros
 - Debug-level logging of DICOM operations
+
+### CLI
+
+Provides functions to pose questions to the user and handle responses. 
+They are implemented generically and have helper functions for stdin and stdout.
 
 ## Usage
 

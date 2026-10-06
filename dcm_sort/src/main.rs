@@ -57,7 +57,7 @@ struct Cli {
 
 fn main() {
     let cli = Cli::parse();
-    let level = rad_tools_common::get_log_level!(cli);
+    let level = rad_tools_core::get_log_level!(cli);
     tracing_subscriber::fmt()
         .with_thread_ids(true)
         .with_target(true)
@@ -82,7 +82,7 @@ fn main() {
             continue;
         }
 
-        let dicom_open = rad_tools_common::dicom::open_file_until(path, PIXEL_DATA);
+        let dicom_open = rad_tools_core::dicom::open_file_until(path, PIXEL_DATA);
         if dicom_open.as_ref().is_err() {
             warn!("Unable to read DICOM data from {:#?}", &path);
             trace!(
