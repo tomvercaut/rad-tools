@@ -6,7 +6,7 @@ Sorts DICOM files into subdirectories based on a set of tags.
 
 Template of the directory structure created in the output directory:
 
-```less
+```
 <patient ID>/<study>/<serie>/<serie number>/<modality>
 
 where 
@@ -46,12 +46,6 @@ Options:
 
   -o, --output <DIR>
           Directory to where DICOM files are copied to
-
-      --debug
-          Enable logging at DEBUG level
-
-      --trace
-          Enable logging at TRACE level
 
   -h, --help
           Print help (see a summary with '-h')
