@@ -89,9 +89,13 @@ jobs:
           staging="dist/${name}"
           mkdir -p "${staging}"
 
-          # Collect every binary target defined in the workspace.
+          # Collect every binary target built by default (skip those gated behind
+          # required-features, e.g. experimental ones). Strip CR from jq output on Windows.
           bins=$(cargo metadata --format-version 1 --no-deps \
-            | jq -r '.packages[].targets[] | select(.kind | index("bin")) | .name')
+            | jq -r '.packages[].targets[]
+                     | select((.kind | index("bin")) and ((.["required-features"] // []) | length == 0))
+                     | .name' \
+            | tr -d '\r')
           ext=""
           if [[ "${{ runner.os }}" == "Windows" ]]; then ext=".exe"; fi
           for bin in ${bins}; do
