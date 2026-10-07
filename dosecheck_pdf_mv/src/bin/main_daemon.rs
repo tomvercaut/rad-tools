@@ -18,6 +18,10 @@ fn init_tracing() -> anyhow::Result<()> {
             .build(log_path)?;
         builder.with_ansi(false).with_writer(appender).init();
     }
+    #[cfg(not(target_os = "windows"))]
+    {
+        builder.init();
+    }
     Ok(())
 }
 
