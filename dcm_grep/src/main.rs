@@ -69,28 +69,11 @@ struct Args {
     /// Print the tag with their group, element represenation instead of a DICOM tag name of the matched element.
     #[arg(long, default_value_t = false)]
     show_tag: bool,
-
-    /// Enable logging at the INFO level.
-    #[arg(long, default_value_t = false)]
-    verbose: bool,
-
-    /// Enable logging at DEBUG level.
-    #[arg(long, default_value_t = false)]
-    debug: bool,
-
-    /// Enable logging at the TRACE level.
-    #[arg(long, default_value_t = false)]
-    trace: bool,
 }
 
 fn main() {
+    rad_tools_core::tracing::default_env_subscriber().init();
     let args = Args::parse();
-    let level = rad_tools_core::get_log_level!(args);
-    tracing_subscriber::fmt()
-        .with_thread_ids(true)
-        .with_target(true)
-        .with_max_level(level)
-        .init();
 
     let filename = args.input.unwrap_or_else(|| {
         read_path_from_stdin().expect("Failed to read the filename from standard input.")

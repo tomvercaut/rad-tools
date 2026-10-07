@@ -91,16 +91,7 @@ Options:
           Print the path of the matched element
 
       --show-tag
-         Print the tag with their group, element represenation instead of a DICOM tag name of the matched element 
-
-      --verbose
-          Enable logging at INFO level
-
-      --debug
-          Enable logging at DEBUG level
-
-      --trace
-          Enable logging at TRACE level
+          Print the tag with their group, element represenation instead of a DICOM tag name of the matched element
 
   -h, --help
           Print help (see a summary with '-h')
