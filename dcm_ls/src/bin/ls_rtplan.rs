@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 
 use clap::Parser;
-use tracing::{Level, debug, trace, warn};
+use tracing::{debug, trace, warn};
 use walkdir::WalkDir;
 
 use rad_tools_dcm_ls::io::read_dicom_file_partial_by_modalities;
@@ -16,7 +16,7 @@ use rad_tools_dcm_ls::view;
 ///
 /// Application enables the user to specify the directory from which the DICOM files are read,
 /// as well as additional options such as filtering by filename prefixes, limiting the number of displayed results,
-/// sorting the files by the last modified timestamp, and enabling logging at different levels.
+/// sorting the files by the last modified timestamp.
 #[derive(Parser, Debug, Clone)]
 #[command(
     author,
@@ -27,7 +27,7 @@ A command line interface (CLI) application for reading and listing RTPLAN DICOM 
 
 Application enables the user to specify the directory from which the DICOM files are read,
 as well as additional options such as filtering by filename prefixes, limiting the number of displayed results,
-sorting the files by the last modified timestamp, and enabling logging at different levels.
+sorting the files by the last modified timestamp.
 "
 )]
 struct Cli {
@@ -45,12 +45,6 @@ struct Cli {
     /// Sort the reported data by the last modified timestamp of the file.
     #[arg(short, long, default_value_t = false)]
     sort: bool,
-    /// Enable logging at DEBUG level.
-    #[arg(long, default_value_t = false)]
-    debug: bool,
-    /// Enable logging at TRACE level.
-    #[arg(long, default_value_t = false)]
-    trace: bool,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -68,19 +62,8 @@ pub enum AppError {
 }
 
 fn main() {
+    rad_tools_core::tracing::default_env_subscriber().init();
     let mut cli = Cli::parse();
-    let level = if cli.trace {
-        Level::TRACE
-    } else if cli.debug {
-        Level::DEBUG
-    } else {
-        Level::WARN
-    };
-    tracing_subscriber::fmt()
-        .with_thread_ids(true)
-        .with_target(true)
-        .with_max_level(level)
-        .init();
 
     trace!("Commandline arguments: {:#?}", &cli);
 

@@ -18,7 +18,7 @@ A command line interface (CLI) application for reading and listing RTPLAN DICOM 
 
 Application enables the user to specify the directory from which the DICOM files are read,
 as well as additional options such as filtering by filename prefixes, limiting the number of displayed results,
-sorting the files by last modified timestamp, and enabling logging at different levels.
+sorting the files by last modified timestamp.
 
 
 Usage: dcm_ls_rtplan [OPTIONS]
@@ -35,12 +35,6 @@ Options:
 
   -s, --sort
           Sort the reported data by last modified timestamp of the file
-
-      --debug
-          Enable logging at DEBUG level
-
-      --trace
-          Enable logging at TRACE level
 
   -h, --help
           Print help (see a summary with '-h')
