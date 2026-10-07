@@ -1,13 +1,11 @@
 #[cfg(windows)]
-use crate::{Cli, Config, ENV_LOG};
+use crate::{Cli, Config};
 #[cfg(windows)]
 use clap::Parser;
 #[cfg(windows)]
 use std::ffi::OsString;
 #[cfg(windows)]
 use tracing::error;
-#[cfg(windows)]
-use tracing_subscriber::EnvFilter;
 
 #[cfg(windows)]
 pub const NAME: &str = "DicomFileSortService";
@@ -21,6 +19,7 @@ pub const DESCRIPTION: &str = "Service to sort DICOM files by patient ID and dat
 
 #[cfg(windows)]
 pub fn my_service_main(args: Vec<OsString>) {
+    rad_tools_core::tracing::default_env_subscriber().init();
     let cli = Cli::parse_from(
         args.iter()
             .map(|s| s.to_string_lossy().to_string())
@@ -36,11 +35,6 @@ pub fn my_service_main(args: Vec<OsString>) {
         return;
     }
     let config = config.unwrap();
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_env(ENV_LOG))
-        .with_thread_ids(true)
-        .with_target(true)
-        .init();
     if let Err(e) = internal::run_win_service(&config) {
         error!("Error while running the service: {:?}", e);
     }

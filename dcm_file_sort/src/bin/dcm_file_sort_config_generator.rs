@@ -25,6 +25,7 @@ struct Cli {
 }
 
 fn main() {
+    rad_tools_core::tracing::default_env_subscriber().init();
     let cli = Cli::parse();
 
     let mut config = Config::default();

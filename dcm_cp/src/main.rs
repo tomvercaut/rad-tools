@@ -1,9 +1,9 @@
 use clap::Parser;
 use dicom_object::ReadError;
 use log::{error, warn};
-use rad_tools_dcm_cp::{dcm_cp_files, DcmcpError};
+use rad_tools_dcm_cp::{DcmcpError, dcm_cp_files};
 use std::io::ErrorKind;
-use tracing::{trace};
+use tracing::trace;
 
 #[derive(Parser, Debug, Clone)]
 #[command(
@@ -28,7 +28,7 @@ pub struct Cli {
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-   rad_tools_core::tracing::default_env_subscriber().init();
+    rad_tools_core::tracing::default_env_subscriber().init();
 
     trace!("Commandline arguments: {:#?}", &cli);
 

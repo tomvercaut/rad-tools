@@ -6,7 +6,7 @@ use crate::Error::BinaryFilesNotIdentical;
 use crate::path_gen::{
     DicomDirPathGeneratorFactory, SortedDirPathGenerator, SortedPathGeneratorError,
 };
-pub use cli::{Cli, ENV_LOG};
+pub use cli::Cli;
 pub use config::Config;
 #[allow(unused_imports)]
 use dicom_core::chrono::Datelike;
@@ -269,7 +269,7 @@ pub fn run_service(config: &Config, rx: Receiver<ServiceState>) -> Result<()> {
 ///   the input file.
 /// * `Err(e)` indicates that an error occurred during the data handling or verification process.
 ///
-/// # Behavior
+/// # Behaviour
 ///
 /// 1. If `r` is `Ok(copied_data)`:
 ///    - Logs a debug message about the input and output file names.
@@ -294,7 +294,6 @@ pub fn run_service(config: &Config, rx: Receiver<ServiceState>) -> Result<()> {
 ///   are logged and propagated.
 /// * If the removal of the input file fails (via `remove_file_retry_on_busy`), the error
 ///   is propagated.
-
 pub(crate) fn handle_copied_data(r: Result<CopiedData>, config: &Config) -> Result<()> {
     match r {
         Ok(copied_data) => {
@@ -359,7 +358,7 @@ pub(crate) fn handle_copied_data(r: Result<CopiedData>, config: &Config) -> Resu
 /// * Returns `Error::IO` with the underlying IO error if the file cannot be removed
 /// * Returns `Error::IO` with a custom error message if all attempts are exhausted
 ///
-/// # Behavior
+/// # Behaviour
 /// * If the file removal fails with `ResourceBusy`, the function will wait for the specified
 ///   duration and retry
 /// * For any other type of error, the function will return immediately with that error
@@ -422,7 +421,7 @@ fn should_stop(rx: &Receiver<ServiceState>) -> bool {
 /// This function traverses the specified directory and its subdirectories, examining each
 /// file to determine if it is a DICOM file. It attempts to extract metadata and collects
 /// it as `DicomData`.
-/// Files missing the essential DICOM fields will be logged with a warning and categorized as
+/// Files missing the essential DICOM fields will be logged with a warning and categorised as
 /// unknown data (`SortingData::Unknown`).
 /// The function monitors a Channel receiver to ensure it halts processing if the service
 /// state is no longer `ServiceState::Running`.
@@ -449,9 +448,9 @@ fn should_stop(rx: &Receiver<ServiceState>) -> bool {
 /// - `SOPInstanceUID` (DICOM Tag: (0008,0018)): A unique identifier for the specific object.
 /// - `Modality` (DICOM Tag: (0008,0060)): Describes the type of equipment used.
 ///
-/// # Processing Behavior
-/// If critical metadata is successfully extracted, the file will be categorized as DICOM data (`SortingData::Dicom`).
-/// Files missing essential fields will be logged with a warning and categorized as unknown data (`SortingData::Unknown`).
+/// # Processing Behaviour
+/// If critical metadata is successfully extracted, the file will be categorised as DICOM data (`SortingData::Dicom`).
+/// Files missing essential fields will be logged with a warning and categorised as unknown data (`SortingData::Unknown`).
 ///
 fn get_sorting_data(
     config: &Config,
@@ -564,20 +563,17 @@ pub(crate) fn is_recent(mtime: FileTime, ctime: Option<FileTime>, interval: i64)
         );
         return true;
     }
-    match ctime {
-        None => false,
-        Some(ctime) => {
-            if current_time_secs - ctime.seconds() < interval {
-                trace!(
-                    "Recently created: creation time less than {} seconds ago",
-                    interval
-                );
-                true
-            } else {
-                false
-            }
+    if let Some(ctime) = ctime {
+        let delta = current_time_secs - ctime.seconds();
+        if delta < interval {
+            trace!(
+                "Recently created: creation time less than {} seconds ago",
+                delta
+            );
+            return true;
         }
     }
+    false
 }
 
 /// Gets the last modification time of a file.
@@ -661,7 +657,7 @@ where
 /// a directory. Errors during traversal, such as permission issues, are also
 /// propagated.
 ///
-/// # Behavior
+/// # Behaviour
 /// * Empty subdirectories are removed.
 /// * Directories containing at least one file or subdirectory are left untouched.
 fn remove_empty_sub_dirs<P: AsRef<Path>>(dir: P) -> Result<()> {
@@ -893,7 +889,7 @@ fn copy_with_retry_on_busy<P: AsRef<Path>>(
 /// Copies a DICOM file to a designated output directory based on its metadata.
 ///
 /// # Arguments
-/// * `data` - A `SortingData` struct containing metadata (e.g., Patient ID and Date of Birth) and the original file path.
+/// * `data` - A `SortingData` struct containing metadata (e.g. Patient ID and Date of Birth) and the original file path.
 /// * `config` - A `Config` struct providing the output directory path.
 ///
 /// # Returns
@@ -905,8 +901,8 @@ fn copy_with_retry_on_busy<P: AsRef<Path>>(
 /// * Returns an error if the provided date of birth format is invalid (not in `YYYYMMDD` format).
 /// * Returns an error if the source file name is invalid or missing.
 ///
-/// # Behavior
-/// * Organizes files in the output directory using the patient's date of birth (as a `MMDD` folder structure)
+/// # Behaviour
+/// * Organises files in the output directory using the patient's date of birth (as a `MMDD` folder structure)
 ///   and their Patient ID.
 /// * If the specified directories in the output path do not exist, they are created automatically.
 /// * Uses the `tracing` crate to log any errors, such as invalid date of birth format or issues with file copying.
@@ -972,7 +968,7 @@ fn copy_dicom_data(data: DicomData, config: &Config) -> Result<CopiedData> {
 ///
 /// * Returns an error if the source file cannot be copied to the destination unknown directory.
 ///
-/// # Behavior
+/// # Behaviour
 ///
 /// * Copies the file from its original path to the unknown directory path configured in `Config`.
 /// * Logs debug information about the file copy operation, including source and destination paths.
@@ -1032,7 +1028,7 @@ fn is_dir_empty<P: AsRef<Path>>(dir: P) -> bool {
 /// * `true` - If the error indicates the file is in use by another process (Windows error code 32)
 /// * `false` - If the error is not a "file in use" error, or if running on a non-Windows platform
 ///
-/// # Platform-specific Behavior
+/// # Platform-specific Behaviour
 /// * **Windows**: Returns `true` when the error code is 32 (ERROR_SHARING_VIOLATION),
 ///   which indicates that the file is being used by another process
 ///   <https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499->
@@ -1162,8 +1158,8 @@ mod tests {
 
     fn generate_binary_test_data() -> [u8; 4096] {
         let mut a = [0u8; 4096];
-        for i in 0..4096 {
-            a[i] = (i % u8::MAX as usize) as u8;
+        for (i, x) in a.iter_mut().enumerate() {
+            *x = (i % u8::MAX as usize) as u8;
         }
         a
     }
@@ -1184,7 +1180,7 @@ mod tests {
 
         let output_file_name = format!(
             "{}.{}.dcm",
-            &sorting_data.modality, &sorting_data.sop_instance_uid
+            sorting_data.modality, sorting_data.sop_instance_uid
         );
 
         // Call the function
@@ -1224,7 +1220,7 @@ mod tests {
 
         let output_file_name = format!(
             "{}.{}.dcm",
-            &sorting_data.modality, &sorting_data.sop_instance_uid
+            sorting_data.modality, sorting_data.sop_instance_uid
         );
 
         // Call the function
@@ -1321,18 +1317,11 @@ mod tests {
         }
         assert!(r.is_err());
         let e = r.err().unwrap();
-        match e {
-            BinaryFilesNotIdentical => {
-                assert!(true)
-            }
-            _ => {
-                assert!(
-                    false,
-                    "Expected a BinaryFilesNotIdentical error but found: {:#?}",
-                    e
-                )
-            }
-        }
+        assert!(
+            matches!(e, BinaryFilesNotIdentical),
+            "Expected a BinaryFilesNotIdentical error but found: {:#?}",
+            e
+        );
     }
 
     #[test]
@@ -1365,18 +1354,11 @@ mod tests {
         }
         assert!(r.is_err());
         let e = r.err().unwrap();
-        match e {
-            BinaryFilesNotIdentical => {
-                assert!(true)
-            }
-            _ => {
-                assert!(
-                    false,
-                    "Expected a BinaryFilesNotIdentical error but found: {:#?}",
-                    e
-                )
-            }
-        }
+        assert!(
+            matches!(e, BinaryFilesNotIdentical),
+            "Expected a BinaryFilesNotIdentical error but found: {:#?}",
+            e
+        );
     }
 
     #[test]
@@ -1410,18 +1392,11 @@ mod tests {
         }
         assert!(r.is_err());
         let e = r.err().unwrap();
-        match e {
-            BinaryFilesNotIdentical => {
-                assert!(true)
-            }
-            _ => {
-                assert!(
-                    false,
-                    "Expected a BinaryFilesNotIdentical error but found: {:#?}",
-                    e
-                )
-            }
-        }
+        assert!(
+            matches!(e, BinaryFilesNotIdentical),
+            "Expected a BinaryFilesNotIdentical error but found: {:#?}",
+            e
+        );
     }
 
     #[test]
@@ -1455,18 +1430,11 @@ mod tests {
         }
         assert!(r.is_err());
         let e = r.err().unwrap();
-        match e {
-            BinaryFilesNotIdentical => {
-                assert!(true)
-            }
-            _ => {
-                assert!(
-                    false,
-                    "Expected a BinaryFilesNotIdentical error but found: {:#?}",
-                    e
-                )
-            }
-        }
+        assert!(
+            matches!(e, BinaryFilesNotIdentical),
+            "Expected a BinaryFilesNotIdentical error but found: {:#?}",
+            e
+        );
     }
 
     #[test]
