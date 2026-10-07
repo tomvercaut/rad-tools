@@ -2,7 +2,7 @@ use std::path::Path;
 
 use chrono::{Local, NaiveDate, NaiveDateTime, NaiveTime};
 use clap::Parser;
-use tracing::{info, Level, trace};
+use tracing::{info, trace};
 
 const TDS: &str = "TDS";
 const MPC_CHECKS: &str = "MPCChecks";
@@ -11,11 +11,16 @@ const MPC_CHECKS: &str = "MPCChecks";
 ///
 /// The application removes old MPC checks from the VA_TRANSFER share. The application doesn't remove the Result.csv as it is small and can be usefull for external analysis. MPC checks are kept for a number of days before they are removed. Default value is 365 days.
 #[derive(Parser, Debug, Clone)]
-#[command(author, version, about, long_about = "
+#[command(
+    author,
+    version,
+    about,
+    long_about = "
 A command line interface (CLI) application to clean the MPC checks in the VA_TRANSFER share.
 
 The application removes old MPC checks from the VA_TRANSFER share. The application doesn't remove the Result.csv as it is small and can be usefull for external analysis. MPC checks are kept for a number of days before they are removed. Default value is 365 days.
-")]
+"
+)]
 struct Cli {
     /// VA_TRANSFER share path
     #[arg(short, long, value_name = "DIR")]
@@ -26,28 +31,11 @@ struct Cli {
     /// Enable logging at DEBUG level.
     #[arg(long, default_value_t = false)]
     dry_run: bool,
-    /// Enable logging at DEBUG level.
-    #[arg(long, default_value_t = false)]
-    debug: bool,
-    /// Enable logging at TRACE level.
-    #[arg(long, default_value_t = false)]
-    trace: bool,
 }
 
 fn main() {
+    rad_tools_core::tracing::default_env_subscriber().init();
     let cli = Cli::parse();
-    let level = if cli.trace {
-        Level::TRACE
-    } else if cli.debug {
-        Level::DEBUG
-    } else {
-        Level::WARN
-    };
-    tracing_subscriber::fmt()
-        .with_thread_ids(true)
-        .with_target(true)
-        .with_max_level(level)
-        .init();
 
     if cli.dry_run {
         println!("{}", text_box("DRY RUN (no data will be removed)"))
@@ -75,28 +63,38 @@ fn main() {
         Ok(entries) => {
             for entry in entries {
                 match entry {
-                    Ok(machine_id_entry) => {
-                        match machine_id_entry.metadata() {
-                            Ok(meta) => {
-                                if !meta.is_dir() {
-                                    panic!("Expecting all directory entries in {:#?} to be a directory [with a machine ID as a name]", tds_path);
-                                }
-                                let mpc_checks_path = Path::join(&machine_id_entry.path(), MPC_CHECKS);
-                                clean_mpc_checks_path(&mpc_checks_path, cli.keep, cli.dry_run);
+                    Ok(machine_id_entry) => match machine_id_entry.metadata() {
+                        Ok(meta) => {
+                            if !meta.is_dir() {
+                                panic!(
+                                    "Expecting all directory entries in {:#?} to be a directory [with a machine ID as a name]",
+                                    tds_path
+                                );
                             }
-                            Err(e) => {
-                                panic!("Unable to get machine directories in {:#?}.\n{:#?}", tds_path, e);
-                            }
+                            let mpc_checks_path = Path::join(&machine_id_entry.path(), MPC_CHECKS);
+                            clean_mpc_checks_path(&mpc_checks_path, cli.keep, cli.dry_run);
                         }
-                    }
+                        Err(e) => {
+                            panic!(
+                                "Unable to get machine directories in {:#?}.\n{:#?}",
+                                tds_path, e
+                            );
+                        }
+                    },
                     Err(e) => {
-                        panic!("Unable to get machine directories in {:#?}.\n{:#?}", tds_path, e);
+                        panic!(
+                            "Unable to get machine directories in {:#?}.\n{:#?}",
+                            tds_path, e
+                        );
                     }
                 }
             }
         }
         Err(e) => {
-            panic!("Unable to get machine directories in {:#?}.\n{:#?}", tds_path, e);
+            panic!(
+                "Unable to get machine directories in {:#?}.\n{:#?}",
+                tds_path, e
+            );
         }
     }
 }
@@ -113,12 +111,18 @@ fn text_box(s: &str) -> String {
     let line = "+".repeat(s.len() + 4);
     let empty_line = "|".to_string() + &" ".repeat(s.len() + 2) + "|";
     let t = format!("| {} |", s);
-    format!("{}{}{}{}{}{}{}{}{}",
-            line, newline(), 
-            &empty_line, newline(), 
-            t, newline(), 
-            &empty_line, newline(), 
-            &line)
+    format!(
+        "{}{}{}{}{}{}{}{}{}",
+        line,
+        newline(),
+        empty_line,
+        newline(),
+        t,
+        newline(),
+        empty_line,
+        newline(),
+        line
+    )
 }
 
 /// Cleans up the MPC checks path by removing checks that are older than a specified number of days.
@@ -194,32 +198,41 @@ fn clean_mpc_path(p: &Path, dry_run: bool) {
         Ok(entries) => {
             for entry in entries {
                 match entry {
-                    Ok(entry) => {
-                        match entry.metadata() {
-                            Ok(meta) => {
-                                if meta.is_dir() {
-                                    panic!("Unable to clean MPC checks directory {:#?}.\nOnly files are expected in this directory, not directories.", p);
-                                }
-                                if meta.is_symlink() {
-                                    panic!("Unable to clean MPC checks directory {:#?}.\nOnly files are expected in this directory, not symbolic links.", p);
-                                }
-                                let os_fn = entry.file_name();
-                                let file_name = os_fn.to_string_lossy();
-                                if file_name.as_ref() != "Results.xml" && file_name.as_ref() != "Results.csv" {
-                                    if dry_run {
-                                        info!("Removing: {:#?}", entry.path());
-                                    } else {
-                                        trace!("Removing: {:#?}", entry.path());
-                                        let err_msg = format!("Unable to clean MPC checks file: {:#?}", entry.path());
-                                        std::fs::remove_file(entry.path()).expect(&err_msg);
-                                    }
-                                }
+                    Ok(entry) => match entry.metadata() {
+                        Ok(meta) => {
+                            if meta.is_dir() {
+                                panic!(
+                                    "Unable to clean MPC checks directory {:#?}.\nOnly files are expected in this directory, not directories.",
+                                    p
+                                );
                             }
-                            Err(e) => {
-                                panic!("Unable to clean MPC checks directory {:#?}.\n{:#?}", p, e);
+                            if meta.is_symlink() {
+                                panic!(
+                                    "Unable to clean MPC checks directory {:#?}.\nOnly files are expected in this directory, not symbolic links.",
+                                    p
+                                );
+                            }
+                            let os_fn = entry.file_name();
+                            let file_name = os_fn.to_string_lossy();
+                            if file_name.as_ref() != "Results.xml"
+                                && file_name.as_ref() != "Results.csv"
+                            {
+                                if dry_run {
+                                    info!("Removing: {:#?}", entry.path());
+                                } else {
+                                    trace!("Removing: {:#?}", entry.path());
+                                    let err_msg = format!(
+                                        "Unable to clean MPC checks file: {:#?}",
+                                        entry.path()
+                                    );
+                                    std::fs::remove_file(entry.path()).expect(&err_msg);
+                                }
                             }
                         }
-                    }
+                        Err(e) => {
+                            panic!("Unable to clean MPC checks directory {:#?}.\n{:#?}", p, e);
+                        }
+                    },
                     Err(e) => {
                         panic!("Unable to clean MPC checks directory {:#?}.\n{:#?}", p, e);
                     }
@@ -267,17 +280,20 @@ fn datetime_from_dir(s: &str) -> NaiveDateTime {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_datetime_from_dir_valid() {
         let input = "NDS-WKS-SN5783-2024-01-11-07-42-57-0000-BeamCheckTemplate6xFFF";
         let date_time = datetime_from_dir(input);
-        assert_eq!(NaiveDateTime::new(
-           NaiveDate::from_ymd_opt(2024,01,11).unwrap() ,
-            NaiveTime::from_hms_opt(7,42,57).unwrap()
-        ), date_time);
+        assert_eq!(
+            NaiveDateTime::new(
+                NaiveDate::from_ymd_opt(2024, 1, 11).unwrap(),
+                NaiveTime::from_hms_opt(7, 42, 57).unwrap()
+            ),
+            date_time
+        );
     }
-    
+
     #[test]
     #[should_panic(expected = "Invalid directory name format detected in \"NDS-WKS\"")]
     fn test_datetime_from_dir_invalid_format() {

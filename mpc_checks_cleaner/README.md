@@ -36,12 +36,6 @@ Options:
       --dry-run
           Enable logging at DEBUG level
 
-      --debug
-          Enable logging at DEBUG level
-
-      --trace
-          Enable logging at TRACE level
-
   -h, --help
           Print help (see a summary with '-h')
 

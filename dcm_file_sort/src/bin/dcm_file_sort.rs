@@ -1,9 +1,9 @@
 use clap::Parser;
-use rad_tools_dcm_file_sort::{Cli, Config, ENV_LOG, run_service, ServiceState};
+use rad_tools_dcm_file_sort::{Cli, Config, ServiceState, run_service};
 use tracing::{error, info};
-use tracing_subscriber::EnvFilter;
 
 fn main() {
+    rad_tools_core::tracing::default_env_subscriber().init();
     let cli = Cli::parse();
     let config = Config::try_from(cli);
     if config.is_err() {
@@ -13,13 +13,6 @@ fn main() {
         );
     }
     let config = config.unwrap();
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_env(ENV_LOG))
-        .with_thread_ids(true)
-        .with_target(true)
-        .with_file(true)
-        .with_line_number(true)
-        .init();
 
     let (tx, rx) = std::sync::mpsc::channel();
     {

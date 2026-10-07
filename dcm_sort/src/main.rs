@@ -44,25 +44,11 @@ struct Cli {
     /// Directory to where DICOM files are copied to.
     #[arg(short, long, value_name = "DIR")]
     output: String,
-    /// Enable logging at INFO level.
-    #[arg(long, default_value_t = false)]
-    verbose: bool,
-    /// Enable logging at DEBUG level.
-    #[arg(long, default_value_t = false)]
-    debug: bool,
-    /// Enable logging at TRACE level.
-    #[arg(long, default_value_t = false)]
-    trace: bool,
 }
 
 fn main() {
+    rad_tools_core::tracing::default_env_subscriber().init();
     let cli = Cli::parse();
-    let level = rad_tools_core::get_log_level!(cli);
-    tracing_subscriber::fmt()
-        .with_thread_ids(true)
-        .with_target(true)
-        .with_max_level(level)
-        .init();
 
     trace!("Commandline arguments: {:#?}", &cli);
 

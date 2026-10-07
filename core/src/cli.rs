@@ -151,12 +151,12 @@ pub fn ask_question_with_options_opt<R: BufRead, W: Write, S: AsRef<str>>(
     writer.flush().expect("Failed to flush Writer");
 
     let mut response = String::new();
-    if reader.read_line(&mut response).is_ok() {
-        if let Ok(selection) = response.trim().parse::<usize>() {
-            if selection > 0 && selection <= options.len() {
-                return Some(options[selection - 1].clone());
-            }
-        }
+    if reader.read_line(&mut response).is_ok()
+        && let Ok(selection) = response.trim().parse::<usize>()
+        && selection > 0
+        && selection <= options.len()
+    {
+        return Some(options[selection - 1].clone());
     }
     None
 }

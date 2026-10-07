@@ -217,14 +217,14 @@ mod internal {
     {
         let p = p.as_ref();
         let r = obj.element(PATIENT_ID);
-        if r.is_err() {
-            error!("{:#?}", r.unwrap_err());
+        if let Err(e) = r {
+            error!("{:#?}", e);
             return Err(Box::new(DcmcpError::PatientIdNotFound(p.to_path_buf())));
         }
         let elem = r.unwrap();
         let r = elem.to_str();
-        if r.is_err() {
-            error!("{:#?}", r.unwrap_err());
+        if let Err(e) = r {
+            error!("{:#?}", e);
             return Err(Box::new(DcmcpError::PatientIdCastError(p.to_path_buf())));
         }
         let pt_id = r.unwrap();
@@ -280,7 +280,7 @@ mod internal {
         }
 
         let ofile = dst.join(src.file_name().unwrap());
-        info!("Copying {:#?} -> {:#?}", src, &ofile);
+        info!("Copying {:#?} -> {:#?}", src, ofile);
         let _ = std::fs::copy(src, ofile).map_err(|e| Box::new(DcmcpError::IO(e)));
         Ok(())
     }
@@ -463,7 +463,7 @@ mod tests {
         for i in abc {
             let tdir = idir.join(i);
             std::fs::create_dir(&tdir).unwrap();
-            // Add a non DICOM file to verify the functionality isn't affected.
+            // Add a non-DICOM file to verify the functionality isn't affected.
             std::fs::write(tdir.join("dummy.txt"), "Rust test: dcm_cp_files!").unwrap();
             for j in nums {
                 let mut obj = InMemDicomObject::new_empty();
@@ -497,7 +497,7 @@ mod tests {
         };
         for i in abc {
             for j in nums {
-                // clean output sub directories
+                // clean output subdirectories
                 clean_odirs();
                 let patient_id = pt_id(prefix_id, i, j);
                 let mut pt_id_match = false;

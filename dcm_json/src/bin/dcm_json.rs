@@ -20,6 +20,7 @@ fn read_filename_from_stdin() -> io::Result<String> {
 }
 
 fn main() -> anyhow::Result<()> {
+    rad_tools_core::tracing::default_env_subscriber().init();
     let cli = Cli::parse();
     let filename = cli.input.unwrap_or_else(|| {
         read_filename_from_stdin().expect("Failed to read the filename from standard input.")

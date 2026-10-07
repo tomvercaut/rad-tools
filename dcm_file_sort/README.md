@@ -6,7 +6,7 @@ structured output directory based on configurable path generation rules.
 ## Overview
 
 `dcm_file_sort` is an CLI application that monitors an input directory for DICOM files and automatically moves them to
-an output directory according to specified organizational rules. Files that cannot be processed as DICOM data are moved
+an output directory according to specified organisational rules. Files that cannot be processed as DICOM data are moved
 to a separate `unknown` directory for manual review.
 
 The application supports:
@@ -72,23 +72,23 @@ dcm_file_sort --config config.toml
 
 ## Logging
 
-Logging can be enabled by setting the `DCM_FILE_SORT_LOG` environment variable to one of the following log levels:
+Logging can be enabled by setting the `RUST_LOG` environment variable to one of the following log levels:
 
-- `TRACE` - Most detailed logging, includes all trace-level messages
-- `DEBUG` - Detailed debugging information
-- `INFO` - General informational messages
-- `WARN` - Warning messages for potentially problematic situations
-- `ERROR` - Error messages for serious issues
+- `trace` - Most detailed logging, includes all trace-level messages
+- `debug` - Detailed debugging information
+- `info` - General informational messages
+- `warn` - Warning messages for potentially problematic situations
+- `error` - Error messages for serious issues
 
 ### Setting the Environment Variable
 
 **On Windows:**
 
 ```powershell
-$env:DCM_FILE_SORT_LOG="TRACE"
+$env:RUST_LOG="TRACE"
 ```
 
 **On Linux/macOS:**
 ```bash
-DCM_FILE_SORT_LOG="TRACE"
+RUST_LOG="TRACE"
 ```
